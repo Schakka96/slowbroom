@@ -2396,6 +2396,50 @@
     }
   };
 
+  window.__mopCheat={
+    surface(n){
+      level=Math.max(0,Math.min(SURFACES.length-1,(n|0)-1));
+      rooms.length=0; roomIdx=0; newGrid();
+      started=true; hintEl.style.opacity='0';
+      return SURFACES[level].name;
+    },
+    clean(){ if(S.mode!=='mop') return 'not mopping'; checkLevelForce(); return 'spotless'; },
+    weather(id){
+      const hit=WEATHER.find(x=>x.id===id);
+      if(!hit) return 'unknown — '+WEATHER.map(x=>x.id).join(', ');
+      weather=hit.id; weatherLabel=hit.label; seedWeatherParticles();
+      rebuildAtmosphere(); return hit.id;
+    },
+    sky(id){
+      const hit=TIMES.find(x=>x.id===id);
+      if(!hit) return 'unknown — '+TIMES.map(x=>x.id).join(', ');
+      tod=hit.id; todLabel=hit.label; rebuildAtmosphere(); return hit.id;
+    },
+    count(){ return SURFACES.length; },
+    names(){ return SURFACES.map(x=>x.name); }
+  };
+  function rebuildAtmosphere(){
+    if(S.mode!=='mop' || !base) return;
+    const sf=SURFACES[level%SURFACES.length];
+    base=makeLayer();
+    withSeed(surfaceSeed, ()=> sf.draw(base.ctx, W, H));
+    surfaceLabel=(sf.wood&&lastPal? woodName(lastPal)+' '+sf.name
+                 : sf.name.charAt(0).toUpperCase()+sf.name.slice(1))
+                 + (todLabel? ', '+todLabel:'') + (weatherLabel? (todLabel?' · ':', ')+weatherLabel:'');
+    if(window.__sfx) window.__sfx.weather(sf.glassy? weather : 'none');
+    updateReadout();
+  }
+  function checkLevelForce(){
+    if(done) return;
+    painted=N; wipeClean();
+    stats.rooms++; saveStats(); renderTally();
+    if(window.__onRoomDone) window.__onRoomDone(stats.rooms, stats.name||'');
+    shimmer=1; sparks=[];
+    for(let i=0;i<26;i++) sparks.push({x:R(0,W), y:R(0,H), t:R(0,.6), r:R(IN*1.2,IN*4)});
+    bannerEl.textContent='Spotless.'; bannerEl.style.opacity='1';
+    setTimeout(()=>bannerEl.style.opacity='0',1700);
+  }
+
   restore();
   bind('hue','hue',v=>v+'°',()=>{ hueRun=S.hue; syncAccent(); });
   bind('drift','drift',v=>(v/100).toFixed(2)+'°/step');
@@ -2453,7 +2497,7 @@
   const barEl = document.getElementById('ant-bar');
   const countEl = document.getElementById('ant-count');
   const pilesEl = document.getElementById('ant-piles');
-  const nameEl = document.getElementById('ant-level-name');
+  const nameEl2 = document.getElementById('ant-level-name');
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const TAU = Math.PI*2;
   const R = (a,b)=>a+Math.random()*(b-a);
@@ -2660,8 +2704,21 @@
     {name:'Ant household',     ground:'wood',   mix:{lego:24,sticker:26,pillow:30,dish:34,spoon:32,book:22,coin:18}},
     {name:'Library corner',    ground:'wood',   mix:{sticker:18,pillow:28,dish:30,spoon:28,book:46,button:24,coin:20,lego:26}},
     {name:'Everything drawer', ground:'desk',   mix:{bleaf:20,acorn:18,flower:22,button:40,pen:26,marker:24,coin:44,lego:50,sticker:46,book:40}},
-    {name:'The great sort',    ground:'forest', mix:{grass:50,sleaf:55,bleaf:50,acorn:45,hazel:45,flower:60,button:70,coin:70,lego:75,book:80}}
+    {name:'The great sort',    ground:'forest', mix:{grass:50,sleaf:55,bleaf:50,acorn:45,hazel:45,flower:60,button:70,coin:70,lego:75,book:80}},
+    {name:'The flower shop',   ground:'shop',   kind:'shop', gift:'flowers', count:15},
+    {name:'The long hall',     ground:'hall',   kind:'hall'},
+    {name:'The gallery',       ground:'hall2',  kind:'hall'},
+    {name:'The throne room',   ground:'throne', kind:'throne'}
   ];
+  const LAST_SORT = 14;                       // index of 'The great sort'
+  // what each ant may bring the queen; single player always carries flowers
+  const GIFTS={
+    flowers:{ label:'bouquet',        pick:['flower','petal'] },
+    chocolates:{ label:'box of chocolates', pick:['berry','hazel'] },
+    jewellery:{ label:'string of jewels',   pick:['coin','button'] },
+    fruit:{ label:'fruit basket',     pick:['berry','acorn'] },
+    parcels:{ label:'pile of parcels',pick:['lego','book'] }
+  };
 
   /* ── state ──────────────────────────────────────────────── */
   const SPEED_NAMES=['Amble','Scurry','Dash','Bolt'];
@@ -2672,6 +2729,7 @@
   let ant={x:0,y:0,h:0,th:0}, body=26, baseBody=26, itemPx=22, total=0;
   let level=0, complete=false, shimmer=0, doorOpen=0, fade=0, fadeDir=0;
   let itemsDirty=true, pilesDirty=true, carryDirty=true;
+  let kind='', gift=null, ended=0, antWx=null, wxParts=[];
   const held=new Set();
   let lastDeposit=0;
 
@@ -2713,6 +2771,42 @@
     for(let i=0;i<n;i++){
       c.fillStyle=cols[(Math.random()*cols.length)|0];
       c.fillRect(Math.random()*W, Math.random()*H, R(1,2.6), R(1,2.6));
+    }
+  }
+  function hallway(c, floor, runner){
+    c.fillStyle=floor; c.fillRect(0,0,W,H);
+    const s=Math.min(W,H)*.17;
+    for(let y=0,r=0;y<H;y+=s,r++) for(let x=0,q=0;x<W;x+=s,q++){
+      c.fillStyle=(r+q)%2 ? 'rgba(255,255,255,.22)' : 'rgba(80,70,55,.12)';
+      c.fillRect(x,y,s,s);
+    }
+    c.fillStyle=runner; c.globalAlpha=.55; c.fillRect(0,H*.38,W,H*.24); c.globalAlpha=1;
+    c.fillStyle='rgba(240,225,180,.5)';
+    c.fillRect(0,H*.38,W,H*.01); c.fillRect(0,H*.61,W,H*.01);
+    for(let i=0;i<5;i++){                                     // tall windows along the back
+      const x=W*(.08+i*.21), wdt=W*.11, hgt=H*.2, y=H*.02;
+      c.fillStyle='#f6f2e6'; c.fillRect(x-wdt*.08,y-H*.01,wdt*1.16,hgt*1.1);
+      const sky=c.createLinearGradient(0,y,0,y+hgt);
+      sky.addColorStop(0,'#bcd9ee'); sky.addColorStop(1,'#eae6d2');
+      c.fillStyle=sky; c.fillRect(x,y,wdt,hgt);
+      c.fillStyle='rgba(150,190,140,.55)'; c.fillRect(x,y+hgt*.7,wdt,hgt*.3);
+      c.strokeStyle='#e8e2d2'; c.lineWidth=Math.max(1.5,wdt*.05);
+      c.beginPath(); c.moveTo(x+wdt/2,y); c.lineTo(x+wdt/2,y+hgt);
+      c.moveTo(x,y+hgt*.45); c.lineTo(x+wdt,y+hgt*.45); c.stroke();
+      c.fillStyle='rgba(255,250,220,.16)';                    // light falling in
+      c.beginPath(); c.moveTo(x,y+hgt); c.lineTo(x+wdt,y+hgt);
+      c.lineTo(x+wdt*1.9,H*.66); c.lineTo(x-wdt*.5,H*.66); c.fill();
+      if(i<4){                                                // a chair between the windows
+        const cxp=W*(.185+i*.21), cyp=H*.27, cw=Math.min(W,H)*.055;
+        c.fillStyle='rgba(0,0,0,.18)';
+        c.beginPath(); c.ellipse(cxp,cyp+cw*.6,cw*.6,cw*.2,0,0,TAU); c.fill();
+        c.fillStyle='#7a5636';
+        c.fillRect(cxp-cw*.42,cyp-cw*.9,cw*.12,cw*1.5);
+        c.fillRect(cxp+cw*.3,cyp-cw*.9,cw*.12,cw*1.5);
+        c.fillRect(cxp-cw*.45,cyp-cw*1.0,cw*.9,cw*.18);
+        c.fillStyle='#9a6f46'; c.fillRect(cxp-cw*.5,cyp-cw*.05,cw*1,cw*.22);
+        c.fillStyle='#b8873f'; c.fillRect(cxp-cw*.46,cyp-cw*.02,cw*.92,cw*.1);
+      }
     }
   }
   const GROUNDS={
@@ -2773,6 +2867,56 @@
       }
       speckle(c,600,['rgba(255,255,255,.05)','rgba(30,20,40,.1)']);
     },
+    shop(c){
+      GROUNDS.wood(c);
+      c.fillStyle='rgba(60,40,20,.18)'; c.fillRect(0,0,W,H*.16);
+      for(let i=0;i<9;i++){                                   // buckets of stems along the back
+        const x=W*(.06+i*.104), y=H*.13, r=Math.min(W,H)*.045;
+        c.fillStyle='#5d7f4a';
+        for(let k=0;k<7;k++){
+          c.save(); c.translate(x,y); c.rotate(R(-.5,.5));
+          c.fillRect(-r*.06,-r*1.5,r*.12,r*1.6); c.restore();
+        }
+        for(let k=0;k<7;k++){
+          c.fillStyle='hsl('+R(0,360)+' 60% 72%)';
+          c.beginPath(); c.arc(x+R(-r*.7,r*.7), y-r*R(1.1,1.6), r*.22,0,TAU); c.fill();
+        }
+        c.fillStyle='#7e6a52'; c.beginPath();
+        c.moveTo(x-r*.7,y); c.lineTo(x+r*.7,y); c.lineTo(x+r*.5,y+r*.9); c.lineTo(x-r*.5,y+r*.9);
+        c.closePath(); c.fill();
+      }
+      const rug=c.createLinearGradient(0,H*.3,0,H);
+      rug.addColorStop(0,'rgba(150,80,70,.25)'); rug.addColorStop(1,'rgba(150,80,70,.1)');
+      c.fillStyle=rug; c.fillRect(W*.08,H*.3,W*.84,H*.62);
+    },
+    hall(c){ hallway(c,'#d9d3c4','#8d2f33'); },
+    hall2(c){ hallway(c,'#cfc2a8','#2f4d6d'); },
+    throne(c){
+      const g=c.createLinearGradient(0,0,0,H);
+      g.addColorStop(0,'#3a2a3c'); g.addColorStop(1,'#241a28');
+      c.fillStyle=g; c.fillRect(0,0,W,H);
+      const s=Math.min(W,H)*.16;                              // chequered stone
+      for(let y=0,r=0;y<H;y+=s,r++) for(let x=0,q=0;x<W;x+=s,q++){
+        c.fillStyle=(r+q)%2 ? 'rgba(240,232,214,.09)' : 'rgba(30,20,28,.18)';
+        c.fillRect(x,y,s,s);
+      }
+      c.fillStyle='#8d2f33';                                   // carpet to the throne
+      c.fillRect(0,H*.4,W*.86,H*.2);
+      c.fillStyle='rgba(212,168,92,.6)';
+      c.fillRect(0,H*.4,W*.86,H*.012); c.fillRect(0,H*.588,W*.86,H*.012);
+      for(let i=0;i<3;i++){                                    // dais
+        c.fillStyle='rgba(235,225,205,'+(.14+i*.05)+')';
+        c.fillRect(W*(.8+i*.03), H*(.26-i*.02), W*.2, H*(.48+i*.04));
+      }
+      for(const side of [0,1]){                                // columns
+        const y=side? H*.86 : H*.14;
+        for(let i=0;i<4;i++){
+          const x=W*(.12+i*.2);
+          c.fillStyle='rgba(236,228,210,.16)';
+          c.fillRect(x-Math.min(W,H)*.03, y-Math.min(W,H)*.09, Math.min(W,H)*.06, Math.min(W,H)*.18);
+        }
+      }
+    },
     wood(c){
       c.fillStyle='#8a6038'; c.fillRect(0,0,W,H);
       const ph=Math.max(30,H/8);
@@ -2801,10 +2945,92 @@
     body=clamp(Math.min(W,H)/15, 18, 46);
   }
 
+  // rare weather, and never before the fourth round
+  const ANT_WX=['rain','wind','mist','sunbeams','snow'];
+  function pickAntWeather(){
+    if(level<3 || kind) return null;
+    return Math.random()<.22 ? ANT_WX[(Math.random()*ANT_WX.length)|0] : null;
+  }
+  function seedAntWeather(){
+    wxParts=[];
+    if(antWx==='rain')
+      for(let i=0;i<130;i++) wxParts.push({x:R(0,W),y:R(0,H),l:R(H*.04,H*.1),s:R(1.6,3),a:R(.14,.4)});
+    if(antWx==='snow')
+      for(let i=0;i<90;i++) wxParts.push({x:R(0,W),y:R(0,H),r:R(1.2,3),s:R(.02,.05),d:R(0,TAU),a:R(.5,.95)});
+    if(antWx==='wind')
+      for(let i=0;i<40;i++) wxParts.push({x:R(0,W),y:R(0,H),sz:Math.min(W,H)*R(.01,.025),
+        rot:R(0,TAU),vr:R(-.006,.006),s:R(1.8,3.6),bob:R(0,TAU),a:R(.5,.9),
+        col:'hsl('+R(20,46)+' '+R(45,70)+'% '+R(34,54)+'%)'});
+    if(antWx==='mist')
+      for(let i=0;i<7;i++) wxParts.push({x:R(-W*.3,W),y:R(0,H),w:W*R(.3,.8),h:H*R(.08,.2),
+        s:R(.004,.014),a:R(.06,.16)});
+    if(antWx==='sunbeams')
+      for(let i=0;i<5;i++) wxParts.push({x:R(0,W),w:W*R(.05,.14),a:R(.05,.14),s:R(.002,.006)});
+  }
+  function drawAntWeather(c,dt){
+    if(!antWx) return;
+    if(antWx==='rain'){
+      c.save(); c.fillStyle='rgba(40,50,70,.16)'; c.fillRect(0,0,W,H);
+      c.strokeStyle='rgba(206,228,250,.75)'; c.lineWidth=Math.max(1,Math.min(W,H)*.002);
+      for(const d of wxParts){
+        d.y+=d.s*dt*.6; d.x+=d.s*dt*.12;
+        if(d.y>H){ d.y=-d.l; d.x=R(0,W); }
+        c.globalAlpha=d.a;
+        c.beginPath(); c.moveTo(d.x,d.y); c.lineTo(d.x-d.l*.16,d.y-d.l); c.stroke();
+      }
+      c.restore();
+    }else if(antWx==='snow'){
+      c.save(); c.fillStyle='rgba(225,238,248,.14)'; c.fillRect(0,0,W,H);
+      c.fillStyle='#fff';
+      for(const f of wxParts){
+        f.y+=f.s*dt*.4; f.d+=dt*.0016; f.x+=Math.sin(f.d)*dt*.02;
+        if(f.y>H){ f.y=-5; f.x=R(0,W); }
+        c.globalAlpha=f.a; c.beginPath(); c.arc(f.x,f.y,f.r,0,TAU); c.fill();
+      }
+      c.restore();
+    }else if(antWx==='wind'){
+      c.save();
+      for(const p of wxParts){
+        p.bob+=dt*.003; p.x+=p.s*dt*.4+Math.sin(p.bob)*dt*.04;
+        p.y+=Math.cos(p.bob*.8)*dt*.05; p.rot+=p.vr*dt;
+        if(p.x>W+20){ p.x=-20; p.y=R(0,H); }
+        if(p.y>H+20) p.y=-10; else if(p.y<-20) p.y=H+10;
+        c.globalAlpha=p.a;
+        c.translate(p.x,p.y); c.rotate(p.rot);
+        c.fillStyle=p.col;
+        c.beginPath(); c.ellipse(0,0,p.sz,p.sz*.4,0,0,TAU); c.fill();
+        c.setTransform(dpr,0,0,dpr,0,0);
+      }
+      c.restore();
+    }else if(antWx==='mist'){
+      c.save(); c.fillStyle='#eef2f4';
+      for(const p of wxParts){
+        p.x+=p.s*dt*.4; if(p.x-p.w>W) p.x=-p.w;
+        c.globalAlpha=p.a;
+        c.beginPath(); c.ellipse(p.x,p.y,p.w*.5,p.h*.5,0,0,TAU); c.fill();
+      }
+      c.restore();
+    }else if(antWx==='sunbeams'){
+      c.save(); c.globalCompositeOperation='lighter';
+      for(const p of wxParts){
+        p.x+=p.s*dt*.3; if(p.x-p.w>W) p.x=-p.w*2;
+        const g=c.createLinearGradient(p.x,0,p.x+p.w,H);
+        g.addColorStop(0,'rgba(255,248,214,0)');
+        g.addColorStop(.5,'rgba(255,248,214,'+p.a+')');
+        g.addColorStop(1,'rgba(255,248,214,0)');
+        c.fillStyle=g; c.fillRect(p.x-p.w,0,p.w*3,H);
+      }
+      c.restore();
+    }
+    c.globalAlpha=1;
+  }
+
   function buildLevel(){
     layout();
     if(W<10||H<10) return;
-    const L=LEVELS[level%LEVELS.length];
+    const L=LEVELS[Math.min(level,LEVELS.length-1)];
+    kind=L.kind||'';
+    if(kind){ buildSpecial(L); return; }
     total=Object.values(L.mix).reduce((a,b)=>a+b,0);
     // the world opens up as the rounds grow: close in at first, wide at the end
     const zoom = 1.7 - .7*(level/(LEVELS.length-1));
@@ -2822,20 +3048,134 @@
         items.push({cat, v:(Math.random()*4)|0, x:R(pad,Math.max(pad+1,right)),
                     y:R(pad,H-pad), rot:R(0,TAU)});
     ant.x=Math.min(W*.12, body*2); ant.y=H/2; ant.h=0; ant.th=0;
-    complete=false; shimmer=0; doorOpen=0;
+    complete=false; shimmer=0; doorOpen=0; ended=0; gift=null;
+    antWx=pickAntWeather(); seedAntWeather();
     itemsDirty=pilesDirty=carryDirty=true;
     hintEl.style.opacity = level===0 ? '1' : '0';
     updateHud();
   }
 
+  function buildSpecial(L){
+    const zoom=1.15;
+    baseBody=Math.min(W,H)/15*zoom;
+    body=clamp(baseBody*A.size, 12, 90);
+    itemPx=clamp(Math.min(W,H)/15*zoom, 10, 46);
+    cache.clear();
+    ground=makeLayer(); GROUNDS[L.ground](ground.ctx);
+    itemsLayer=makeLayer(); pilesLayer=makeLayer();
+    items=[]; piles=[]; carried=[]; flying=[]; antWx=null; wxParts=[];
+    complete = kind!=='shop'; shimmer=0; doorOpen = kind==='shop'?0:1; ended=0;
+    gift = kind==='shop' ? {kind:L.gift, have:0, need:L.count} : (gift||{kind:'flowers',have:0,need:0});
+    if(kind==='shop'){
+      const pool=GIFTS[L.gift].pick, pad=itemPx;
+      for(let i=0;i<L.count;i++)
+        items.push({cat:pool[(Math.random()*pool.length)|0], v:(Math.random()*4)|0,
+                    x:R(pad, W-doorW()*1.7-pad), y:R(H*.3, H-pad), rot:R(0,TAU)});
+      total=L.count;
+    }else total=1;
+    ant.x=Math.min(W*.1, body*2); ant.y=H*.5; ant.h=0; ant.th=0;
+    itemsDirty=pilesDirty=carryDirty=true;
+    hintEl.style.opacity='0';
+    updateHud();
+  }
+
+  function drawQueen(c,t){
+    const s=body*2.1, X=W*.86, Y=H*.5;
+    c.save(); c.translate(X,Y);
+    c.fillStyle='#6b3f2a';                                   // throne
+    c.fillRect(-s*.2,-s*.95,s*.34,s*1.9);
+    c.fillRect(-s*.2,s*.72,s*.9,s*.18);
+    c.fillStyle='#8d2f33'; c.fillRect(-s*.12,-s*.7,s*.5,s*1.4);
+    c.fillStyle='#d4a85c';
+    c.beginPath(); c.arc(-s*.03,-s*.95,s*.14,0,TAU); c.fill();
+    c.fillStyle='rgba(0,0,0,.3)';
+    c.beginPath(); c.ellipse(-s*.1,s*.5,s*.5,s*.16,0,0,TAU); c.fill();
+    c.rotate(Math.PI);                                        // she faces the room
+    const bob=Math.sin(t/900)*s*.02;
+    c.translate(0,bob);
+    c.fillStyle='#4a2a18';
+    c.beginPath(); c.ellipse(-s*.34,0,s*.32,s*.24,0,0,TAU); c.fill();
+    c.beginPath(); c.ellipse(0,0,s*.19,s*.16,0,0,TAU); c.fill();
+    c.beginPath(); c.ellipse(s*.3,0,s*.2,s*.17,0,0,TAU); c.fill();
+    c.strokeStyle='#3a2014'; c.lineWidth=Math.max(1.4,s*.035); c.lineCap='round';
+    for(let i=0;i<3;i++){
+      const bx=(-.1+i*.14)*s, sw=Math.sin(t/700+i)*s*.05;
+      for(const side of [-1,1]){
+        c.beginPath(); c.moveTo(bx,side*s*.14);
+        c.quadraticCurveTo(bx+sw,side*s*.4,bx+sw*1.6,side*s*.56); c.stroke();
+      }
+    }
+    c.fillStyle='rgba(255,236,190,.35)';                      // wings
+    c.beginPath(); c.ellipse(-s*.18,-s*.2,s*.3,s*.12,-.5,0,TAU); c.fill();
+    c.beginPath(); c.ellipse(-s*.18,s*.2,s*.3,s*.12,.5,0,TAU); c.fill();
+    c.fillStyle='#1c1008';
+    c.beginPath(); c.arc(s*.36,-s*.07,s*.035,0,TAU); c.arc(s*.36,s*.07,s*.035,0,TAU); c.fill();
+    c.save(); c.translate(s*.34,0); c.rotate(-Math.PI/2);      // crown
+    c.fillStyle='#e8c05a';
+    c.beginPath();
+    c.moveTo(-s*.15,0); c.lineTo(-s*.1,-s*.14); c.lineTo(-s*.05,-s*.04);
+    c.lineTo(0,-s*.17); c.lineTo(s*.05,-s*.04); c.lineTo(s*.1,-s*.14); c.lineTo(s*.15,0);
+    c.closePath(); c.fill();
+    c.restore();
+    c.restore();
+  }
+
+  function drawGift(c,x,y,g,t){
+    if(!g || !g.have) return;
+    const n=g.have, s=itemPx*(.9+Math.min(1,n/12)*.7), sway=Math.sin(t/620)*.06;
+    c.save(); c.translate(x,y-body*.6); c.rotate(sway);
+    if(g.kind==='flowers'){
+      c.strokeStyle='#5d7f4a'; c.lineWidth=Math.max(1.2,s*.06);
+      for(let i=0;i<Math.min(n,12);i++){
+        const a=-1.1+ (i/Math.max(1,Math.min(n,12)-1))*2.2;
+        c.beginPath(); c.moveTo(0,s*.5);
+        c.lineTo(Math.sin(a)*s*.55, s*.5-Math.cos(a)*s*.8); c.stroke();
+      }
+      for(let i=0;i<Math.min(n,12);i++){
+        const a=-1.1+ (i/Math.max(1,Math.min(n,12)-1))*2.2;
+        const fx=Math.sin(a)*s*.55, fy=s*.5-Math.cos(a)*s*.8;
+        c.fillStyle='hsl('+((i*47)%360)+' 70% 72%)';
+        for(let k=0;k<5;k++){
+          const pa=k*TAU/5;
+          c.beginPath();
+          c.ellipse(fx+Math.cos(pa)*s*.1, fy+Math.sin(pa)*s*.1, s*.09, s*.06, pa,0,TAU); c.fill();
+        }
+        c.fillStyle='#f0c84a'; c.beginPath(); c.arc(fx,fy,s*.06,0,TAU); c.fill();
+      }
+      c.fillStyle='#f3e6c8';
+      c.beginPath(); c.moveTo(-s*.2,s*.5); c.lineTo(s*.2,s*.5); c.lineTo(0,s*.9); c.fill();
+      c.fillStyle='#c98fa8'; c.fillRect(-s*.12,s*.52,s*.24,s*.1);
+    }else{
+      c.fillStyle='#b9553f';
+      c.beginPath(); c.roundRect(-s*.4,-s*.3,s*.8,s*.6,s*.08); c.fill();
+      c.fillStyle='#e8c05a'; c.fillRect(-s*.4,-s*.06,s*.8,s*.12); c.fillRect(-s*.06,-s*.3,s*.12,s*.6);
+    }
+    c.restore();
+  }
+
   function updateHud(){
-    const L=LEVELS[level%LEVELS.length];
+    const L=LEVELS[Math.min(level,LEVELS.length-1)];
+    if(L.kind){
+      nameEl2.textContent=L.name;
+      readEl.textContent = ended ? 'The End.' : 'Level '+(level+1)+' · '+L.name;
+      if(L.kind==='shop'){
+        countEl.textContent=Math.max(0,gift.need-gift.have)+' to gather';
+        barEl.style.width=Math.round(gift.have/Math.max(1,gift.need)*100)+'%';
+        pilesEl.textContent='they cannot be set down — they are a gift';
+      }else{
+        countEl.textContent=''; barEl.style.width='100%';
+        pilesEl.textContent = L.kind==='throne' ? 'walk up to the queen' : 'walk on through';
+      }
+      capEl.textContent=(gift?gift.have:0)+' stems';
+      renderCarry();
+      return;
+    }
     const kinds=Object.keys(L.mix).length;
     const dupes=piles.length-new Set(piles.map(p=>p.cat)).size;
     readEl.textContent = (!items.length && !carried.length && !flying.length && dupes>0)
       ? 'Two piles of the same kind — stand on one and press space to lift it'
       : 'Level '+(level+1)+' · '+L.name;
-    nameEl.textContent=L.name;
+    nameEl2.textContent=L.name;
     const left=items.length+carried.length+flying.length;
     capEl.textContent=carried.length+'/'+capacity();
     capEl.style.color = carried.length>=capacity() ? 'var(--accent)' : '';
@@ -2928,6 +3268,7 @@
     pilesDirty=true; carryDirty=true; updateHud();
   }
   function place(){
+    if(kind) return;                         // a gift is not put down
     const under=nearestPile(ant.x,ant.y,body*.35);
     // standing on a pile: add to it if you are carrying its kind, otherwise pick it up
     if(under){
@@ -2965,6 +3306,7 @@
       ant.y=clamp(ant.y+Math.sin(ant.h)*sp*dt, pad, H-pad);
       ant.walk=(ant.walk||0)+sp*dt;
     }
+    if(kind){ stepSpecial(dt,now); return; }
     // pick up
     const rr=body*.5;
     for(let i=items.length-1;i>=0 && carried.length<capacity();i--){
@@ -3003,11 +3345,44 @@
     }
     if(fadeDir===1){
       fade=Math.min(1,fade+dt/420);
-      if(fade>=1){ level++; buildLevel(); fadeDir=-1; ant.x=body; ant.y=H/2; }
+      if(fade>=1){
+        level=Math.min(level+1, LEVELS.length-1);
+        buildLevel(); fadeDir=-1; ant.x=body; ant.y=H/2;
+      }
     }else if(fadeDir===-1){
       fade=Math.max(0,fade-dt/420);
       if(fade<=0) fadeDir=0;
     }
+  }
+
+  function stepSpecial(dt,now){
+    if(kind==='shop'){
+      const rr=body*.55;
+      for(let i=items.length-1;i>=0;i--){
+        const it=items[i];
+        if(Math.hypot(it.x-ant.x,it.y-ant.y)<rr+catPx(it.cat)*.3){
+          items.splice(i,1); gift.have++; itemsDirty=true; updateHud();
+        }
+      }
+      if(!complete && gift.have>=gift.need){
+        complete=true; shimmer=.0001;
+        bannerEl.textContent='A bouquet for the queen.'; bannerEl.style.opacity='1';
+        setTimeout(()=>bannerEl.style.opacity='0',1800);
+      }
+    }
+    if(complete) { shimmer=Math.min(1.6,shimmer+dt/1200); doorOpen=Math.min(1,doorOpen+dt/700); }
+    if(kind==='throne'){
+      const near=Math.hypot(ant.x-W*.86, ant.y-H*.5) < body*2.2;
+      if(near && !ended){
+        ended=1;
+        bannerEl.textContent='For you, my queen.'; bannerEl.style.opacity='1';
+        setTimeout(()=>{ bannerEl.textContent='The End.'; }, 2200);
+        setTimeout(()=>{ ended=2; }, 2200);
+        readEl.textContent='The End — press Restart level to begin again';
+      }
+      return;
+    }
+    if(complete && ant.x > W-doorW()*.55 && fadeDir===0) fadeDir=1;
   }
 
   /* ── drawing ────────────────────────────────────────────── */
@@ -3039,6 +3414,7 @@
     c.fillStyle='#1c1008';
     c.beginPath(); c.arc(s*.3,-s*.06,s*.032,0,TAU); c.arc(s*.3,s*.06,s*.032,0,TAU); c.fill();
     c.restore();
+    if(gift && gift.have){ drawGift(c,ant.x,ant.y,gift,t); }
     // carried stack
     const m=carryCounts(); let k=0;
     for(const [cat,n] of [...m.entries()].sort((a,b)=>b[1]-a[1])){
@@ -3056,6 +3432,7 @@
   }
 
   function drawDoor(c,t){
+    if(kind==='hall'||kind==='shop') return drawArch(c,t);
     const w=doorW()*1.5, h=doorH()*1.15, x=W-w, y=H/2-h/2, cxx=W-w*.18, cyy=H/2;
     c.save();
     // mound of excavated earth banked against the edge
@@ -3086,6 +3463,25 @@
     c.restore();
   }
 
+  function drawArch(c,t){
+    const w=doorW()*1.2, h=Math.min(H*.6, body*7), x=W-w, y=H/2-h/2, r=w*.5;
+    c.save();
+    c.fillStyle='#2a1c10';
+    c.beginPath(); c.moveTo(x,y+h); c.lineTo(x,y+r); c.arc(x+r,y+r,r,Math.PI,0); c.lineTo(x+w,y+h);
+    c.closePath(); c.fill();
+    if(doorOpen>0){
+      const g=c.createLinearGradient(x,0,W,0);
+      g.addColorStop(0,'rgba(255,240,205,0)');
+      g.addColorStop(1,'rgba(255,246,220,'+(.8*doorOpen)+')');
+      c.fillStyle=g;
+      c.beginPath(); c.moveTo(x,y+h); c.lineTo(x,y+r); c.arc(x+r,y+r,r,Math.PI,0); c.lineTo(x+w,y+h);
+      c.closePath(); c.fill();
+    }
+    c.restore();
+    c.strokeStyle='#d8c79a'; c.lineWidth=Math.max(2,w*.09);
+    c.beginPath(); c.moveTo(x,y+h); c.lineTo(x,y+r); c.arc(x+r,y+r,r,Math.PI,0); c.lineTo(x+w,y+h);
+    c.stroke();
+  }
   function drawShimmer(c,t){
     if(!complete) return;
     const p=Math.min(1,shimmer/1.2);
@@ -3127,9 +3523,13 @@
       const x=f.x0+(f.x1-f.x0)*e, y=f.y0+(f.y1-f.y0)*e - Math.sin(t*Math.PI)*body*.9;
       drawItem(ctx,f.cat,f.v,x,y,f.rot+t*2,f.sc);
     }
-    drawDoor(ctx,now);
+    if(kind==='throne') drawQueen(ctx,now); else drawDoor(ctx,now);
     drawAnt(ctx,now);
+    drawAntWeather(ctx,dt);
     drawShimmer(ctx,now);
+    if(ended===2){
+      ctx.fillStyle='rgba(12,10,14,.55)'; ctx.fillRect(0,0,W,H);
+    }
     if(fade>0){ ctx.fillStyle='rgba(12,10,14,'+fade+')'; ctx.fillRect(0,0,W,H); }
     requestAnimationFrame(frame);
   }
@@ -3215,6 +3615,21 @@
     if(W<10||H<10||Math.abs(r.width-W)>2||Math.abs(r.height-H)>2) buildLevel();
     saveA();
   } };
+
+  window.__antCheat={
+    level(n){
+      level=clamp((n|0)-1, 0, LEVELS.length-1);
+      fade=0; fadeDir=0; gift=null; buildLevel(); saveA();
+      return LEVELS[level].name;
+    },
+    weather(id){
+      if(id==='none'){ antWx=null; wxParts=[]; return 'clear'; }
+      if(ANT_WX.indexOf(id)<0) return 'unknown — '+ANT_WX.join(', ');
+      antWx=id; seedAntWeather(); return id;
+    },
+    count(){ return LEVELS.length; },
+    names(){ return LEVELS.map(l=>l.name); }
+  };
 
   restoreA();
   buildLevel();
@@ -3531,7 +3946,8 @@
       el.textContent=draft;
       const caret=document.createElement('span'); caret.className='caret';
       const cue=document.createElement('span'); cue.className='cue';
-      cue.textContent='enter to send · esc to drop it';
+      cue.textContent = draft[0]==='/' ? 'enter to run · /help for the list'
+                                       : 'enter to send · esc to drop it';
       el.append(caret,cue);
     });
   }
@@ -3540,9 +3956,60 @@
     if(!draft.includes(tag)) draft = tag + draft;
     paintDraft();
   }
+  const CHEATS=[
+    ['/ant <n>',     'jump to that round of Tidy Ant'],
+    ['/mop <n>',     'jump to that mop surface'],
+    ['/clean',       'finish the room you are mopping'],
+    ['/gift',        'skip to the flower shop'],
+    ['/end',         'skip to the throne room'],
+    ['/weather <x>', 'force the weather outside the window'],
+    ['/sky <x>',     'force the time of day'],
+    ['/antweather <x>','force weather in Tidy Ant'],
+    ['/levels',      'how many rounds and surfaces there are'],
+    ['/help',        'this list']
+  ];
+  function runCheat(line){
+    const m=line.slice(1).trim().match(/^([a-z]+)\s*(.*)$/i);
+    if(!m) return 'try /help';
+    const cmd=m[1].toLowerCase(), arg=(m[2]||'').trim();
+    const ant=window.__antCheat, mop=window.__mopCheat;
+    switch(cmd){
+      case 'help': return CHEATS.map(c=>c[0]+' — '+c[1]).join('   ·   ');
+      case 'levels':
+        return 'Tidy Ant: '+(ant?ant.count():'?')+' rounds (15 sorting, then the ending) · '+
+               'mopping: '+(mop?mop.count():'?')+' surfaces';
+      case 'ant':
+        if(!ant) return 'ant not loaded';
+        if(window.__showGame) window.__showGame('ant');
+        return 'round '+(parseInt(arg,10)||1)+' — '+ant.level(parseInt(arg,10)||1);
+      case 'gift':
+        if(!ant) return 'ant not loaded';
+        if(window.__showGame) window.__showGame('ant');
+        return ant.level(16);
+      case 'end':
+        if(!ant) return 'ant not loaded';
+        if(window.__showGame) window.__showGame('ant');
+        return ant.level(19);
+      case 'antweather': return ant? ant.weather(arg||'none') : 'ant not loaded';
+      case 'mop':
+        if(!mop) return 'mop not loaded';
+        if(window.__showGame) window.__showGame('mop');
+        return mop.surface(parseInt(arg,10)||1);
+      case 'clean':   return mop? mop.clean() : 'mop not loaded';
+      case 'weather': return mop? mop.weather(arg) : 'mop not loaded';
+      case 'sky':     return mop? mop.sky(arg) : 'mop not loaded';
+      default: return 'no such cheat — /help';
+    }
+  }
   function sendDraft(){
     const body=draft.trim(); draft=''; paintDraft();
     if(!body) return;
+    if(body[0]==='/'){
+      let out;
+      try{ out=runCheat(body); }catch(e){ out='that did not work'; }
+      flash({name:'cheat', text:String(out)});
+      return;
+    }
     const who=(nameEl.value.trim()||myName||'').slice(0,18);
     if(!who){ statusEl.textContent='pick a name in the chat first'; nameEl.focus(); return; }
     myName=who;
@@ -3559,7 +4026,7 @@
     if(e.key==='Backspace'){ if(draft){ e.preventDefault(); draft=draft.slice(0,-1); paintDraft(); } return; }
     if(e.key.length!==1) return;                       // arrows and the like stay with the game
     // a letter opens a message; digits, +/- and space stay with the game until one is open
-    if(!draft && !/[A-Za-z]/.test(e.key)) return;
+    if(!draft && !/[A-Za-z\/]/.test(e.key)) return;
     if(draft.length>=240) return;
     draft+=e.key; paintDraft();
     e.preventDefault();
