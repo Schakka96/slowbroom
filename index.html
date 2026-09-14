@@ -136,8 +136,26 @@
     font-size:.72rem; color:var(--ink-faint);
   }
   .textsize input{width:110px}
+  .chat-title{display:flex; flex-direction:column; gap:1px}
   .chat-head h2{
     margin:0; font-family:"Fraunces",Georgia,serif; font-weight:300; font-size:1.15rem;
+  }
+  .chat-head .kind{font-size:.72rem; color:var(--ink-faint)}
+  .roompick{display:flex; align-items:center; gap:6px; font-size:.72rem; color:var(--ink-faint)}
+  .roompick select{
+    font:inherit; font-size:.78rem; padding:4px 6px; border:1px solid var(--edge);
+    border-radius:4px; background:var(--ground); color:var(--ink); max-width:190px;
+  }
+  .roompick button{
+    font:inherit; font-size:.7rem; padding:4px 8px; border:1px solid var(--edge);
+    border-radius:4px; background:transparent; color:var(--ink-soft); cursor:pointer;
+  }
+  .roompick button:hover{border-color:var(--accent); color:var(--accent)}
+  .rules{margin:0; font-size:.7rem; color:var(--ink-faint); line-height:1.5}
+  .warnmsg{
+    margin:0; font-size:.78rem; line-height:1.5; padding:7px 10px; border-radius:4px;
+    background:color-mix(in srgb, var(--accent) 12%, transparent);
+    border-left:3px solid var(--accent); color:var(--ink);
   }
   .log{
     list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:5px;
@@ -543,7 +561,14 @@
 
  <section class="chat" id="chat">
    <div class="chat-head">
-     <h2>Mop talk</h2>
+     <div class="chat-title">
+       <h2 id="chat-name">Mop talk</h2>
+       <span class="kind">Be kind to each other.</span>
+     </div>
+     <label class="roompick" id="roompick" hidden><span>Room</span>
+       <select id="chat-room" aria-label="Chat room"></select>
+       <button type="button" id="chat-rename" title="Rename this room">rename</button>
+     </label>
      <span class="sub" id="chat-status">connecting…</span>
      <label class="textsize"><span>Text size</span>
        <input type="range" id="msg-size" min="80" max="220" step="10" value="100"
@@ -551,6 +576,7 @@
      </label>
    </div>
    <ol class="log" id="chat-log"><li class="empty">No messages yet.</li></ol>
+   <p class="rules" id="chat-rules">Threats, slurs and abuse get one warning, then a five-minute pause. Everything else — chat away.</p>
    <form class="say" id="chat-form">
      <input id="chat-name" type="text" maxlength="18" placeholder="your name" autocomplete="nickname">
      <input id="chat-text" type="text" maxlength="240" placeholder="say something — click a name to reply to them">
@@ -4105,10 +4131,70 @@
     rest(table, {method:'POST', headers:{'Prefer':'resolution=merge-duplicates'}, body:JSON.stringify(row)});
 
   let supaTimers=[];
+  // ── rooms: one more opens for every 15 people chatting ──────────────
+  const ROOM_CAP=15;
+  let room$=1, rooms=[{id:1,name:'Mop talk'}], roomCounts={};
+  const pickEl=document.getElementById('roompick');
+  const roomEl=document.getElementById('chat-room');
+  const roomName=document.getElementById('chat-name');
+  try{ const r=+localStorage.getItem('sb-room'); if(r>=1&&r<=200) room$=r; }catch(e){}
+
+  function renderRooms(){
+    if(!roomsOK){ pickEl.hidden=true; return; }
+    pickEl.hidden=false;
+    const opts=rooms.map(r=>{
+      const n=roomCounts[r.id]||0;
+      return '<option value="'+r.id+'"'+(r.id===room$?' selected':'')+'>'+
+             r.name.replace(/[<>&]/g,'')+' · '+n+'</option>';
+    }).join('');
+    if(roomEl.dataset.sig !== opts){ roomEl.dataset.sig=opts; roomEl.innerHTML=opts; }
+    roomEl.value=String(room$);
+    const here=rooms.find(r=>r.id===room$);
+    roomName.textContent = here ? here.name : 'Mop talk';
+  }
+  let roomsOK=true;
+  function pullRooms(){
+    return rest('rooms?select=id,name&order=id.asc')
+      .then(r=>{ if(!r.ok) throw 0; return r.json(); })
+      .then(list=>{
+        rooms = (list&&list.length) ? list : [{id:1,name:'Mop talk'}];
+        // open the next room once the busiest one is full
+        const total=Object.values(roomCounts).reduce((a,b)=>a+b,0);
+        const need=Math.max(1, Math.ceil(total/ROOM_CAP));
+        if(need>rooms.length && rooms.length<200){
+          const id=rooms.length+1;
+          upsert('rooms',{id, name:'Room '+id, updated_at:new Date().toISOString()})
+            .then(()=>{ rooms.push({id,name:'Room '+id}); renderRooms(); }).catch(()=>{});
+        }
+        renderRooms();
+      })
+      .catch(()=>{ roomsOK=false; pickEl.hidden=true; });
+  }
+  function joinRoom(id){
+    room$=id; try{ localStorage.setItem('sb-room',String(id)); }catch(e){}
+    seen.clear(); logEl.innerHTML='<li class="empty">…</li>';
+    renderRooms();
+    if(supaBoot.pullMessages) supaBoot.pullMessages();
+    if(supaBoot.pushPresence) supaBoot.pushPresence();
+  }
+  roomEl.addEventListener('change',()=>joinRoom(+roomEl.value||1));
+  document.getElementById('chat-rename').addEventListener('click',()=>{
+    const here=rooms.find(r=>r.id===room$);
+    const next=prompt('Name this room', here?here.name:'Room '+room$);
+    if(next===null) return;
+    const clean=next.trim().slice(0,24);
+    if(!clean) return;
+    if(offends(clean)){ showNotice('<b>Pick another name.</b> Not that one.'); return; }
+    upsert('rooms',{id:room$, name:clean, updated_at:new Date().toISOString()})
+      .then(()=>{ const r=rooms.find(x=>x.id===room$); if(r) r.name=clean; renderRooms(); })
+      .catch(()=>{});
+  });
+
   function supaBoot(){
     let firstOk=false;
     const pullMessages = () =>
-      rest('messages?select=id,created_at,name,body&order=created_at.desc&limit=60')
+      rest('messages?select=id,created_at,name,body'+(roomsOK?'&room=eq.'+room$:'')+
+           '&order=created_at.desc&limit=60')
         .then(r=>r.ok?r.json():[])
         .then(rows=>{
           if(!firstOk){ firstOk=true; setStatus('live'); }
@@ -4125,20 +4211,23 @@
         .catch(()=>setStatus('offline — retrying'));
 
     const pushPresence = () =>
-      upsert('presence', {client_id:clientId, name:myName||null, game:game(), seen_at:new Date().toISOString()})
+      upsert('presence', roomsOK
+        ? {client_id:clientId, name:myName||null, game:game(), room:room$, seen_at:new Date().toISOString()}
+        : {client_id:clientId, name:myName||null, game:game(), seen_at:new Date().toISOString()})
         .catch(()=>{});
 
     const pullPresence = () =>
-      rest('presence?select=game,seen_at,client_id')
+      rest('presence?select=game,seen_at,client_id'+(roomsOK?',room':''))
         .then(r=>r.ok?r.json():[])
         .then(rows=>{
           const fresh=Date.now()-45000;
-          const c={mop:0,ant:0,mosaic:0};
+          const c={mop:0,ant:0,mosaic:0}, byRoom={};
           for(const r0 of rows){
             if(Date.parse(r0.seen_at) < fresh) continue;
             if(c[r0.game]!==undefined) c[r0.game]++;
+            const rm=r0.room||1; byRoom[rm]=(byRoom[rm]||0)+1;
           }
-          liveCounts=c; renderPill();
+          liveCounts=c; roomCounts=byRoom; renderPill(); renderRooms();
         }).catch(()=>{});
 
     const pullBoard = () =>
@@ -4147,7 +4236,11 @@
         .then(rows=>{ if(window.__mopStats) window.__mopStats.board(rows); })
         .catch(()=>{});
 
-    pullMessages(); pushPresence(); pullPresence(); pullBoard();
+    supaBoot.pullMessages=pullMessages; supaBoot.pushPresence=pushPresence;
+    pullRooms().then(()=>{
+      pullMessages(); pushPresence(); pullPresence(); pullBoard();
+      if(roomsOK) supaTimers.push(setInterval(pullRooms,15000));
+    });
     supaTimers.push(setInterval(pullMessages,3000), setInterval(pushPresence,15000),
                     setInterval(pullPresence,6000), setInterval(pullBoard,20000));
     document.addEventListener('gamechange',pushPresence);
@@ -4162,7 +4255,9 @@
     };
   }
   function supaSay(name, body){
-    rest('messages',{method:'POST', body:JSON.stringify({name:name.slice(0,18), body:body.slice(0,240), game:game()})})
+    const row={name:name.slice(0,18), body:body.slice(0,240), game:game()};
+    if(roomsOK) row.room=room$;
+    rest('messages',{method:'POST', body:JSON.stringify(row)})
       .then(()=>{ setStatus('live'); })
       .catch(()=>setStatus('could not send — try again'));
   }
@@ -4254,6 +4349,70 @@
     if(!draft.includes(tag)) draft = tag + draft;
     paintDraft();
   }
+  // ── a floor for how people talk to each other ───────────────────────
+  // (encoded so the repo is not a list of slurs; decoded at load)
+  const BAD_HARD=atob('bmlnZ2VyfG5pZ2dhfGZhZ2dvdHxmYWd8a2lrZXxjaGlua3xzcGljfHRyYW5ueXxyZXRhcmR8cGFraXx3ZXRiYWNrfGNvb258Z29va3xkeWtlfHNoZW1hbGV8cmFnaGVhZA==').split('|');
+  const BAD_THREAT=atob('a2lsbHlvdXJzZWxmfGt5c3xpd2lsbGtpbGx5b3V8aXdpbGxmaW5keW91fGl3aWxscmFwZXxyYXBleW91fGhhbmd5b3Vyc2VsZnxnYXN0aGV8aGVpbGhpdGxlcnxnYXNjaGFtYmVyfGx5bmNofGtpbGxhbGx0aGV8eW91c2hvdWxkZGllfGRpZWluYWZpcmV8c2xpdHdyaXN0cw==').split('|');
+  const LEET={'1':'i','!':'i','3':'e','0':'o','4':'a','@':'a','$':'s','5':'s','7':'t','8':'b'};
+  function flatten(t){
+    let out='';
+    for(const ch of String(t).toLowerCase()) out += (LEET[ch]||ch);
+    return out.replace(/[^a-z]/g,'').replace(/(.)\1{2,}/g,'$1$1');
+  }
+  function offends(text){
+    const flat=flatten(text);
+    for(const w of BAD_HARD) if(w && flat.indexOf(w)>=0) return 'slur';
+    for(const w of BAD_THREAT) if(w && flat.indexOf(w)>=0) return 'threat';
+    return null;
+  }
+  const mod = (()=>{
+    let o={strikes:0, until:0};
+    try{ o=Object.assign(o, JSON.parse(localStorage.getItem('sb-mod')||'{}')); }catch(e){}
+    return o;
+  })();
+  const saveMod=()=>{ try{ localStorage.setItem('sb-mod',JSON.stringify(mod)); }catch(e){} };
+  let recent=[];
+  function showNotice(html){
+    const el=document.getElementById('chat-rules');
+    el.className='warnmsg'; el.innerHTML=html;
+    clearTimeout(showNotice.t);
+    showNotice.t=setTimeout(()=>{
+      el.className='rules';
+      el.textContent='Threats, slurs and abuse get one warning, then a five-minute pause. Everything else — chat away.';
+    }, 9000);
+  }
+  // returns true when the message may go out
+  function allowed(body){
+    const now=Date.now();
+    if(mod.until>now){
+      const left=Math.ceil((mod.until-now)/60000);
+      showNotice('<b>Be nice to one another.</b> The world is tough enough as it is. '+
+                 'You can write again in '+left+' minute'+(left===1?'':'s')+'.');
+      return false;
+    }
+    const kind=offends(body);
+    if(kind){
+      mod.strikes++;
+      if(mod.strikes>=2){
+        mod.until=now+5*60000; mod.strikes=0; saveMod();
+        showNotice('<b>Be nice to one another.</b> The world is tough enough as it is. '+
+                   'Five minutes off the chat, then you are welcome back.');
+      }else{
+        saveMod();
+        showNotice('<b>That one does not go through.</b> No slurs and no threats here — '+
+                   'this is the only warning.');
+      }
+      return false;
+    }
+    recent=recent.filter(t=>now-t<10000);
+    if(recent.length>=5){
+      showNotice('<b>Slow down a little.</b> Five messages every ten seconds is plenty.');
+      return false;
+    }
+    recent.push(now);
+    return true;
+  }
+
   const CHEATS=[
     ['/ant <n>',     'jump to that round of Tidy Ant'],
     ['/mop <n>',     'jump to that mop surface'],
@@ -4332,6 +4491,7 @@
 
   function say(name, body){
     if(!name || !body.trim()) return;
+    if(!allowed(body)) return;
     if(CFG){ supaSay(name, body.trim()); return; }
     if(!db) return;
     db.collection('chat').add({name:name.slice(0,18), text:body.trim().slice(0,240), ts:Date.now()})
