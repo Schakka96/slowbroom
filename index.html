@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 96 — Mahagony Mop";</script>
+<script>window.SLOWBROOM_BUILD="build 97 — Mahagony Mop";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -4615,22 +4615,22 @@
       c.beginPath(); c.moveTo(0,-s*.42); c.lineTo(0,s*.48); c.stroke();
       c.restore(); }},
     /* snowfall */
-    flakeneedle:{ name:'Needle flakes', size:.8, draw(c,s,v){ flake(c,s,6,0,'rgba(236,246,255,.92)'); }},
+    flakeneedle:{ name:'Needle flakes', size:.8, draw(c,s,v){ flake(c,s,6,0,'#ffffff'); }},
     flakeplate:{ name:'Plate flakes', size:.85, draw(c,s,v){
-      c.fillStyle='rgba(226,240,255,.8)';
+      c.fillStyle='rgba(255,255,255,.92)';
       c.beginPath();
       for(let i=0;i<6;i++){ const a=i/6*TAU; c.lineTo(Math.cos(a)*s*.26,Math.sin(a)*s*.26); }
       c.closePath(); c.fill();
       c.strokeStyle='rgba(255,255,255,.9)'; c.lineWidth=s*.025; c.stroke();
-      flake(c,s*.7,6,1,'rgba(255,255,255,.7)'); }},
-    flakestar:{ name:'Star flakes', size:1, draw(c,s,v){ flake(c,s,6,2,'rgba(240,249,255,.95)'); }},
+      flake(c,s*.7,6,1,'rgba(220,240,255,.9)'); }},
+    flakestar:{ name:'Star flakes', size:1, draw(c,s,v){ flake(c,s,6,2,'#ffffff'); }},
     /* deep winter */
-    flakefern:{ name:'Fern flakes', size:1.15, draw(c,s,v){ flake(c,s,6,4,'rgba(244,251,255,.95)'); }},
+    flakefern:{ name:'Fern flakes', size:1.15, draw(c,s,v){ flake(c,s,6,4,'#ffffff'); }},
     flakecol:{ name:'Column flakes', size:.9, draw(c,s,v){
       c.save(); c.rotate(.4);
-      c.fillStyle='rgba(226,240,255,.75)';
+      c.fillStyle='rgba(255,255,255,.9)';
       c.beginPath(); c.roundRect(-s*.07,-s*.22,s*.14,s*.44,s*.03); c.fill();
-      c.fillStyle='rgba(248,253,255,.9)';
+      c.fillStyle='#ffffff';
       for(const y of [-s*.24, s*.18]){
         c.beginPath();
         for(let i=0;i<6;i++){ const a=i/6*TAU; c.lineTo(Math.cos(a)*s*.2, y+Math.sin(a)*s*.06); }
@@ -4638,7 +4638,7 @@
       }
       c.restore(); }},
     flakerime:{ name:'Rimed flakes', size:1.05, draw(c,s,v){
-      flake(c,s,12,1,'rgba(232,244,255,.8)');
+      flake(c,s,12,1,'rgba(255,255,255,.95)');
       c.fillStyle='rgba(255,255,255,.75)';
       for(let i=0;i<16;i++){
         const a=R(0,TAU), r=R(s*.08,s*.3);
@@ -4780,42 +4780,74 @@
     {name:'The scree slope',     ground:'gravel', kinds:['slate','sandstone','mica']},
     // feathers, with a trip to the shed in between
     {name:'Feathers',            ground:'meadow', kinds:['featherb','featherg','featherw']},
-    {name:'The shed',            ground:'shed',   kinds:['screw','nail','bolt','driver','wrench','hammer']},
+    {name:'The shed',            ground:'shed',   house:true, kinds:['screw','nail','bolt','driver','wrench','hammer']},
     // snow
-    {name:'Snowfall',            ground:'snow',   kinds:['flakeneedle','flakeplate','flakestar']},
-    {name:'Deep winter',         ground:'snow',   kinds:['flakefern','flakecol','flakerime']},
+    // solo: nothing else is on this floor, and flakes never turn up again.
+    // The kinds run simple to intricate; a small round keeps the first few.
+    {name:'Snowfall', ground:'snow', solo:true,
+     kinds:['flakeneedle','flakeplate','flakestar','flakecol','flakefern','flakerime']},
     // out to the garden
     {name:'Down and quills',     ground:'forest', kinds:['down','quill','barredf']},
-    {name:'The office',          ground:'desk',   kinds:['pen','pencil','stamp','manga','tome','nonfic']},
+    {name:'The office',          ground:'desk',   house:true, kinds:['pen','pencil','stamp','manga','tome','nonfic']},
     {name:'The windfall',        ground:'garden', kinds:['crabapple','plumstone','eggshell']},
-    {name:'The kitchen',         ground:'wood',   kinds:['spoon','fork','knife','glass','breadcrumb','cheese']},
+    {name:'The kitchen',         ground:'wood',   house:true, kinds:['spoon','fork','knife','glass','breadcrumb','cheese']},
     {name:'The garden bed',      ground:'garden', kinds:['bulb','seedpod','snail']}
   ];
   const OUTDOORS={meadow:1, forest:1, gravel:1, sand:1, pond:1, snow:1, garden:1};
   const MAX_KINDS=15;
   // hand-set, one per round: how many piles you are keeping apart
   const PILES=[3,4,4,4,5,5,5,5,5,6,
-               6,6,6,7,7,7,7,8,8,8,
-               9,9,9,10];
-  const LEVELS=(()=>{
+               6,6,6,7,7,7,8,8,8,9,
+               9,9,10];
+  // The first four rounds always open the game, the three rooms of the house
+  // always sit at 17, 21 and 23, and everything else is dealt out fresh. In a
+  // nest the host's order travels with the floor so everyone walks the same way.
+  const FIXED_HEAD=4, HOUSE_AT=[17,21,23];
+  function dealFamilies(seedN){
+    let t=(seedN>>>0)||1;
+    const rnd=()=>{ t^=t<<13; t^=t>>>17; t^=t<<5; t>>>=0; return t/4294967296; };
+    const shuffle=a=>{ for(let i=a.length-1;i>0;i--){ const j=(rnd()*(i+1))|0; [a[i],a[j]]=[a[j],a[i]]; } return a; };
+    const house=[], nature=[];
+    FAMILIES.forEach(f=>(f.house?house:nature).push(f));
+    const head=nature.slice(0,FIXED_HEAD);
+    const rest=shuffle(nature.slice(FIXED_HEAD));
+    const dealt=shuffle(house.slice());
+    const out=[];
+    let r=0, h=0;
+    for(let pos=1; pos<=FAMILIES.length; pos++){
+      if(pos<=FIXED_HEAD) out.push(head[pos-1]);
+      else if(HOUSE_AT.indexOf(pos)>=0 && h<dealt.length) out.push(dealt[h++]);
+      else out.push(rest[r++]);
+    }
+    return out;
+  }
+  let ORDER=(Math.random()*2147483647)|0;
+  function makeLevels(seedN){
+    const FAM=dealFamilies(seedN);
     const out=[];
     // how many things are on the floor, round by round
     const totals=[12,18,24,30,38,46,56,66,78,90,
-                  104,118,134,150,168,186,204,222,240,260,
-                  285,310,340,375];
-    for(let i=0;i<FAMILIES.length;i++){
+                  104,120,136,152,170,190,212,236,262,290,
+                  320,350,380];
+    for(let i=0;i<FAM.length;i++){
       const newest=i;
+      const cap = PILES[i];
+      let kinds=[], weightOf={};
+      if(FAM[i].solo){
+        kinds=FAM[i].kinds.slice(0, Math.max(3,cap));       // simplest first
+        kinds.forEach(k=>weightOf[k]=1);
+      }else{
       // later rounds hold one family longer, so the floor gets busier as well as newer
       const span = i>=14 ? 4 : 3;
-      const window_=[]; for(let k=newest-span+1;k<=newest;k++) if(k>=0) window_.push(k);
+      const window_=[];
+      for(let k=newest-span+1;k<=newest;k++) if(k>=0 && !FAM[k].solo) window_.push(k);
       const fade=[0.14,0.22,0.5,1].slice(4-span);
       const weights={};
       window_.forEach((k,idx)=>{ weights[k]=fade[idx+(span-window_.length)]; });
-      let kinds=[], weightOf={};
       for(const k of window_)
-        for(const kind of FAMILIES[k].kinds){ kinds.push(kind); weightOf[kind]=weights[k]; }
-      const cap = PILES[i];
+        for(const kind of FAM[k].kinds){ kinds.push(kind); weightOf[kind]=weights[k]; }
       while(kinds.length>cap) kinds.shift();                // the oldest go first
+      }
       const total=totals[Math.min(i,totals.length-1)];
       let sum=0; kinds.forEach(k=>sum+=weightOf[k]);
       const mix={};
@@ -4825,12 +4857,12 @@
                 : Math.max(2, Math.round(total*weightOf[k]/sum));
         mix[k]=n; used+=n;
       });
-      out.push({name:FAMILIES[newest].name, ground:FAMILIES[newest].ground, mix});
+      out.push({name:FAM[newest].name, ground:FAM[newest].ground, mix});
     }
     // the last round holds the widest spread the game allows
     const finale={};
     const pick=[];
-    FAMILIES.forEach(f=>f.kinds.forEach(k=>pick.push(k)));
+    FAM.forEach(f=>{ if(!f.solo) f.kinds.forEach(k=>pick.push(k)); });
     const chosen=[];
     for(let i=0;i<MAX_KINDS;i++) chosen.push(pick[Math.floor(i*pick.length/MAX_KINDS)]);
     chosen.forEach((k,i)=>finale[k]=(finale[k]||0)+Math.round(500/MAX_KINDS));
@@ -4841,8 +4873,16 @@
       {name:'The gallery',       ground:'hall2',  kind:'hall'},
       {name:'The throne room',   ground:'throne', kind:'throne'}
     ]);
-  })();
-  const LAST_SORT = LEVELS.findIndex(l=>l.kind==='shop')-1;
+  }
+  let LEVELS=makeLevels(ORDER);
+  let LAST_SORT = LEVELS.findIndex(l=>l.kind==='shop')-1;
+  function reorderLevels(seedN){
+    if(!Number.isFinite(seedN) || (seedN|0)===ORDER) return false;
+    ORDER=seedN|0;
+    LEVELS=makeLevels(ORDER);
+    LAST_SORT=LEVELS.findIndex(l=>l.kind==='shop')-1;
+    return true;
+  }
   // what each ant may bring the queen; single player always carries flowers
   const GIFTS={
     flowers:{ label:'bouquet',        pick:['flower','petal'] },
@@ -4998,21 +5038,30 @@
       speckle(c,900,['rgba(255,235,200,.06)','rgba(20,14,8,.16)']);
     },
     snow(c){
+      // swept pavement, damp and dark, so a white flake reads at a glance
       const g=c.createLinearGradient(0,0,0,H);
-      g.addColorStop(0,'#eef4fb'); g.addColorStop(1,'#dbe6f2');
+      g.addColorStop(0,'#3a352f'); g.addColorStop(1,'#2b2724');
       c.fillStyle=g; c.fillRect(0,0,W,H);
-      for(let i=0;i<120;i++){                     // drifts and hollows
-        const x=R(0,W), y=R(0,H), rx=R(30,120), ry=R(10,36);
-        c.fillStyle = Math.random()<.5 ? 'rgba(255,255,255,'+R(.2,.5)+')'
-                                       : 'rgba(176,196,220,'+R(.06,.18)+')';
+      const slab=Math.max(90,Math.min(W,H)/3.2);
+      for(let y=0;y<H+slab;y+=slab){
+        const off=((y/slab)|0)%2 ? slab*.5 : 0;
+        for(let x=-slab;x<W+slab;x+=slab){
+          c.fillStyle='hsl('+R(26,40)+' '+R(5,11)+'% '+R(17,24)+'%)';
+          c.fillRect(x+off+1.5, y+1.5, slab-3, slab-3);
+        }
+      }
+      for(let i=0;i<70;i++){                       // wet patches
+        const x=R(0,W), y=R(0,H), rx=R(40,150), ry=R(14,50);
+        c.fillStyle = Math.random()<.5 ? 'rgba(20,18,16,'+R(.1,.26)+')'
+                                       : 'rgba(150,146,138,'+R(.03,.08)+')';
         c.beginPath(); c.ellipse(x,y,rx,ry,R(-.3,.3),0,TAU); c.fill();
       }
-      for(let i=0;i<900;i++){                     // the glitter on top
+      for(let i=0;i<260;i++){                      // the odd flake already settled
         const x=R(0,W), y=R(0,H);
-        c.fillStyle='rgba(255,255,255,'+R(.3,.9)+')';
-        c.fillRect(x,y,R(1,2.4),R(1,2.4));
+        c.fillStyle='rgba(255,255,255,'+R(.06,.2)+')';
+        c.beginPath(); c.arc(x,y,R(.8,2.2),0,TAU); c.fill();
       }
-      speckle(c,400,['rgba(150,175,205,.1)']);
+      speckle(c,700,['rgba(255,255,255,.05)','rgba(10,8,6,.2)']);
     },
     garden(c){
       const t=A.tint/100;
@@ -5190,12 +5239,11 @@
   }
 
   // rare weather, and never before the fourth round
-  const ANT_WX=['rain','wind','mist','sunbeams','snow'];
+  const ANT_WX=['rain','wind','mist','sunbeams'];   // no snow: it falls in one round only
   function pickAntWeather(){
-    if(level<2 || kind) return null;
+    if(level<4 || kind) return null;              // the first four rounds stay calm
     const L=LEVELS[level%LEVELS.length];
     if(!OUTDOORS[L.ground]) return null;          // nothing rains on a drawer
-    if(L.ground==='snow') return 'snow';          // it is snowing, that is the point
     return Math.random()<.45 ? ANT_WX[(Math.random()*ANT_WX.length)|0] : null;
   }
   function seedAntWeather(){
@@ -5618,9 +5666,12 @@
     }else if(d.t==='snap'){
       coop.gotFloor=true;                     // an answer arrived; stop asking
       const applied=coop.applied||{};
-      if(applied.lvl!==d.lvl || applied.seed!==d.seed){
+      // the nest walks the host's running order, not the one this browser dealt
+      const redealt = (d.ord!=null) && reorderLevels(d.ord|0);
+      if(redealt) __dbg.log('nest','taking the host\'s running order');
+      if(redealt || applied.lvl!==d.lvl || applied.seed!==d.seed){
         coop.applied={lvl:d.lvl, seed:d.seed};
-        if(d.lvl!==level || d.seed!==coop.seed){
+        if(redealt || d.lvl!==level || d.seed!==coop.seed){
           coop.seed=d.seed; lastSeed=d.seed; level=d.lvl;
           __dbg.log('nest','joining the host on round '+(d.lvl+1)+' — rebuilding');
           buildLevel();
@@ -5720,7 +5771,7 @@
   }
   function hostSnapshot(){
     if(!coop || !coop.isHost) return;
-    netSend('snap', {lvl:level, seed:coop.seed, m:maskOfItems(), p:pilesWire()});
+    netSend('snap', {lvl:level, seed:coop.seed, ord:ORDER, m:maskOfItems(), p:pilesWire()});
   }
   let nestUiAt=0, nestUiPend=null;
   function setNestUI(){                      // at most a few times a second
@@ -6721,6 +6772,7 @@
   } };
 
   window.__antCheat={
+    round: ()=>level,
     shopRound: ()=>LEVELS.findIndex(l=>l.kind==='shop')+1,
     lastRound: ()=>LEVELS.length,
     level(n){
@@ -7509,6 +7561,7 @@
   }
 
   const CHEATS=[
+    ['/next',        'open the next round of Tidy Ant'],
     ['/ant <n>',     'jump to that round of Tidy Ant'],
     ['/mop <n>',     'jump to that mop surface'],
     ['/clean',       'finish the room you are mopping'],
@@ -7796,6 +7849,10 @@
       case 'levels':
         return 'Tidy Ant: '+(ant?ant.count():'?')+' rounds (15 sorting, then the ending) · '+
                'mopping: '+(mop?mop.count():'?')+' surfaces';
+      case 'next':
+        if(!ant) return 'ant not loaded';
+        if(window.__showGame) window.__showGame('ant');
+        return 'round '+(ant.round()+2)+' — '+ant.level(ant.round()+2);
       case 'ant':
         if(!ant) return 'ant not loaded';
         if(window.__showGame) window.__showGame('ant');
