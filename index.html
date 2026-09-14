@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="c400f1c · 14 Sep 20:01";</script>
+<script>window.SLOWBROOM_BUILD="78358f0 · 14 Sep 20:10";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -161,6 +161,7 @@
   .unblock{opacity:1; margin-left:auto}
   .blockbtn:hover, .unblock:hover{border-color:var(--accent); color:var(--accent)}
   .rules{margin:0; font-size:.7rem; color:var(--ink-faint); line-height:1.5}
+  .rules.contact b{color:#b8860b; font-weight:700}
   .warnmsg{
     margin:0; font-size:.78rem; line-height:1.5; padding:7px 10px; border-radius:4px;
     background:color-mix(in srgb, var(--accent) 12%, transparent);
@@ -187,6 +188,20 @@
   }
   .log .who:hover{text-decoration:underline}
   .log .me .who{color:var(--ink)}
+  .who.dev{
+    font-weight:700; color:#b8860b;
+    background:linear-gradient(100deg,#8a6508 0%,#d9a520 32%,#fff3c4 46%,#d9a520 60%,#8a6508 100%);
+    background-size:220% 100%;
+    -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+    animation:sheen 5.5s linear infinite;
+  }
+  @keyframes sheen{from{background-position:210% 0} to{background-position:-40% 0}}
+  @media (prefers-reduced-motion: reduce){ .who.dev{animation:none} }
+  .log .at.dev{
+    font-weight:700;
+    background:linear-gradient(100deg,#8a6508,#d9a520 45%,#fff3c4 55%,#8a6508);
+    -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+  }
   .log .at{color:var(--accent); font-weight:600}
   .log time{color:var(--ink-faint); font-size:.7rem; font-family:"IBM Plex Mono",monospace; margin-left:.4em}
   .say{display:flex; gap:8px; flex-wrap:wrap}
@@ -195,8 +210,8 @@
     border-radius:4px; background:var(--ground); color:var(--ink); min-width:0;
   }
   .say input:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
-  .say #chat-name, .say #test-name{flex:0 0 130px}
-  .say #chat-text, .say #test-text{flex:1 1 220px}
+  .say #chat-name{flex:0 0 130px}
+  .say #chat-text{flex:1 1 220px}
   .say button{
     font:inherit; font-size:.82rem; padding:7px 16px; border-radius:4px; cursor:pointer;
     border:1px solid var(--accent); background:var(--accent); color:#fff;
@@ -640,6 +655,7 @@
         <input id="nest-code" type="text" maxlength="5" placeholder="code" autocomplete="off">
         <button type="button" id="nest-join">Join</button>
       </div>
+      <span class="sub">Try code <b>TEST</b> to see it with three antlings.</span>
       <span class="sub" id="nest-status">Sorting alone.</span>
       <div class="peers" id="nest-peers"></div>
       <button type="button" id="nest-copy" hidden>Copy invite link</button>
@@ -686,7 +702,8 @@
      </label>
    </div>
    <ol class="log" id="chat-log"><li class="empty">No messages yet.</li></ol>
-   <p class="rules" id="chat-rules">Threats, slurs and abuse get one warning, then a five-minute pause. Everything else — chat away.</p>
+   <p class="rules" id="chat-rules">Threats, slurs and abuse get one warning, then a pause. Everything else — chat away.</p>
+   <p class="rules contact">Something broken, or someone behaving badly? Type <b>@madryad</b> to reach the person who made this.</p>
    <form class="say" id="chat-form">
      <input id="chat-name" type="text" maxlength="18" placeholder="your name" autocomplete="nickname">
      <input id="chat-text" type="text" maxlength="240" placeholder="say something — click a name to reply to them">
@@ -695,22 +712,6 @@
    <details class="tester" id="blocked-wrap" hidden>
      <summary>Blocked (<span id="blocked-count">0</span>)</summary>
      <div class="peers" id="blocked-list"></div>
-   </details>
-   <details class="tester" id="tester">
-     <summary>Test player</summary>
-     <p class="note">A second player, played by you, for trying the chat and mentions out. Anything it says goes to the real chat.</p>
-     <form class="say" id="test-form">
-       <input id="test-name" type="text" maxlength="18" value="Sam" placeholder="their name">
-       <input id="test-text" type="text" maxlength="240" placeholder="what Sam says">
-       <button type="submit">Send as them</button>
-     </form>
-     <label class="toggle"><input type="checkbox" id="test-live"> count them as playing
-       <select id="test-game">
-         <option value="mop">Mopping</option>
-         <option value="ant">Tidy Ant</option>
-         <option value="mosaic">Mosaic</option>
-       </select>
-     </label>
    </details>
  </section>
 
@@ -3416,6 +3417,7 @@
     return best;
   }
   function netSend(t,d){ if(coop && coop.net) coop.net.send(Object.assign({t}, d||{})); }
+  const inNest = () => !!coop;
   function pushCoopPresence(){
     if(!coop || !coop.net) return;
     const n=toN(ant.x,ant.y);
@@ -3436,6 +3438,10 @@
       }
       applyMask(d.m); applyPiles(d.p||[]);
     }else if(d.t==='who' && coop.isHost){ hostSnapshot(); }
+    else if(d.t==='kick' && coop.myId && d.who===coop.myId){
+      leaveNest();
+      document.getElementById('nest-status').textContent='the host closed the nest to you';
+    }
   }
   function hostSnapshot(){
     if(!coop || !coop.isHost) return;
@@ -3460,7 +3466,15 @@
       const hold=document.createElement('span'); hold.className='holds';
       hold.textContent = p.top ? (p.top.indexOf('gift:')===0 ? GIFTS[p.top.slice(5)].label
                                  : (ITEMS[p.top]? ITEMS[p.top].name.toLowerCase():'')) : '';
-      row.append(dot,nm,hold); list.append(row);
+      row.append(dot,nm,hold);
+      if(coop.isHost && !p.me){
+        const k=document.createElement('button');
+        k.type='button'; k.className='unblock'; k.textContent='kick';
+        k.title='Send '+(p.name||'them')+' out of this nest';
+        k.addEventListener('click',()=>kickPeer(p.id));
+        row.append(k);
+      }
+      list.append(row);
     }
   }
   function onNetPeers(rows){
@@ -3471,8 +3485,54 @@
     }
     setNestUI();
   }
+  // TEST is a rehearsal nest: three antlings wander about so the co-op view
+  // can be looked at without anyone else being online
+  let bots=[];
+  function makeBots(){
+    const names=['Pip','Bramble','Nettle'];
+    bots=names.map((n,i)=>({
+      id:'bot'+i, name:n, me:false, style:antStyle(n),
+      x:.2+i*.25, y:.3+i*.2, h:0, top:null,
+      vx:(Math.random()<.5?-1:1)*.00018, vy:(Math.random()<.5?-1:1)*.00013,
+      turn:R(1200,3000)
+    }));
+  }
+  function stepBots(dt){
+    if(!coop || !coop.test) return;
+    for(const b of bots){
+      b.turn-=dt;
+      if(b.turn<=0){
+        b.turn=R(1200,3400);
+        if(Math.random()<.5) b.vx=-b.vx; else b.vy=-b.vy;
+        b.top = Math.random()<.45 ? ['grass','sleaf','acorn','flower','button'][(Math.random()*5)|0] : null;
+      }
+      b.x+=b.vx*dt; b.y+=b.vy*dt;
+      if(b.x<.03||b.x>.95){ b.vx=-b.vx; b.x=clamp(b.x,.03,.95); }
+      if(b.y<.05||b.y>.95){ b.vy=-b.vy; b.y=clamp(b.y,.05,.95); }
+      b.h=Math.atan2(b.vy*fieldH(), b.vx*fieldW());
+    }
+    coop.peers=new Map(bots.map(b=>[b.id,b]));
+    coop.peers.set('me',{id:'me', me:true, name:myName(), style:myStyle(),
+                         x:toN(ant.x,ant.y).x, y:toN(ant.x,ant.y).y, h:ant.h, top:topCarried()});
+    setNestUI();
+  }
+
+  function kickPeer(id){
+    if(!coop || !coop.isHost) return;
+    if(coop.test){ bots=bots.filter(b=>b.id!==id); return; }
+    netSend('kick',{who:id});
+    coop.peers.delete(id); setNestUI();
+  }
+
   async function joinNest(code, host){
     const st=document.getElementById('nest-status');
+    if(String(code).toUpperCase()==='TEST'){
+      makeBots();
+      coop={code:'TEST', isHost:true, test:true, net:null, peers:new Map(), myId:'me', seed:4242};
+      buildLevel(); setNestUI();
+      st.textContent='Nest TEST · a rehearsal with three antlings';
+      return;
+    }
     const net=window.__net;
     if(!net){ st.textContent='no way to connect from here'; return; }
     st.textContent = host ? 'opening nest '+code+'…' : 'knocking at nest '+code+'…';
@@ -3488,7 +3548,7 @@
   }
   function leaveNest(){
     if(coop && coop.net) coop.net.leave();
-    coop=null; setNestUI();
+    coop=null; bots=[]; setNestUI();
     try{ if(location.hash) location.hash=''; }catch(e){}
   }
   window.__antNest={ join:joinNest, leave:leaveNest, active:()=>!!coop };
@@ -3686,7 +3746,8 @@
       doorOpen=Math.min(1, doorOpen+dt/700);
       if(ant.x > W-doorW()*.55 && fadeDir===0){ fadeDir=1; }
     }
-    if(coop){
+    if(coop && coop.test) stepBots(dt);
+    if(coop && coop.net){
       presTimer+=dt;
       if(presTimer>110){ presTimer=0; pushCoopPresence(); }
       if(coop.isHost){
@@ -4130,11 +4191,6 @@
   const nameEl=document.getElementById('chat-name');
   const textEl=document.getElementById('chat-text');
   const sendBtn=document.getElementById('chat-send');
-  const testForm=document.getElementById('test-form');
-  const testName=document.getElementById('test-name');
-  const testText=document.getElementById('test-text');
-  const testLive=document.getElementById('test-live');
-  const testGame=document.getElementById('test-game');
 
   let room=null, db=null, peers=[], myName='', myPeer='', liveCounts=null;
   const joinedAt=Date.now();
@@ -4148,7 +4204,6 @@
   function counts(){
     if(liveCounts){
       const c=Object.assign({},liveCounts);
-      if(testLive.checked && c[testGame.value]!==undefined) c[testGame.value]++;
       return c;
     }
     const c={mop:0,ant:0,mosaic:0};
@@ -4157,12 +4212,11 @@
       const g=p.presence && p.presence.game;
       if(c[g]!==undefined) c[g]++;
     }
-    if(testLive.checked && c[testGame.value]!==undefined) c[testGame.value]++;
     return c;
   }
   function renderPill(){
     const g=game(), c=counts(), n=c[g]||0, words=GAMES[g]||GAMES.mop;
-    const extra = testLive.checked && testGame.value===g ? ' (one of them is your test player)' : '';
+    const extra = '';
     text.textContent = (room||liveCounts)
       ? (n===1 ? '1 '+words.one+extra : n+' '+words.many+extra)
       : 'Just you here right now';
@@ -4179,14 +4233,15 @@
   function renderFromCache(){ renderLog(lastRows); }
   function renderLog(rows){
     lastRows=rows;
-    const shown=rows.filter(m=>!hidden(m.name));
+    const shown=rows.filter(m=>!hidden(m.name) && !banned(m.name));
     if(!shown.length){ logEl.innerHTML='<li class="empty">No messages yet — say hello.</li>'; return; }
     logEl.innerHTML='';
     for(const m of shown){
       const li=document.createElement('li');
       if(m.name===myName) li.className='me';
       const who=document.createElement('button');
-      who.type='button'; who.className='who'; who.textContent=m.name;
+      who.type='button'; who.className='who'+(devName(m.name)?' dev':''); who.textContent=m.name;
+      if(devName(m.name)) who.title='the person who made this';
       who.title='Reply to '+m.name;
       who.addEventListener('click',()=>{
         const tag='@'+m.name+' ';
@@ -4197,7 +4252,8 @@
       // @names picked out, everything else plain text
       String(m.text||'').split(/(@[\w][\w-]{0,17})/g).forEach(part=>{
         if(part.startsWith('@')){
-          const b=document.createElement('span'); b.className='at'; b.textContent=part; li.append(b);
+          const b=document.createElement('span');
+          b.className='at'+(devName(part.slice(1))?' dev':''); b.textContent=part; li.append(b);
         }else li.append(document.createTextNode(part));
       });
       const t=document.createElement('time'); t.textContent=fmt(m.ts||Date.now());
@@ -4375,7 +4431,8 @@
 
     supaBoot.pullMessages=pullMessages; supaBoot.pushPresence=pushPresence;
     pullRooms().then(()=>{
-      pullMessages(); pushPresence(); pullPresence(); pullBoard(); pullBlocks();
+      pullMessages(); pushPresence(); pullPresence(); pullBoard(); pullBlocks(); pullBans();
+      supaTimers.push(setInterval(pullBans,30000));
       if(roomsOK) supaTimers.push(setInterval(pullRooms,15000));
       supaTimers.push(setInterval(pullBlocks,20000));
     });
@@ -4550,6 +4607,27 @@
     showNotice(message, red);
   }
 
+  // personal details: warn once, and only send if they say it again
+  const PERSONAL=[
+    [/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i, 'an email address'],
+    [/(?:\+\d{1,3}[\s-]?)?(?:\(?\d{2,4}\)?[\s-]?){2,4}\d{2,4}/, 'a phone number'],
+    [/\b\d{1,4}\s+[a-z]+\s+(street|str|road|rd|avenue|ave|lane|ln|weg|strasse|straße|gasse|platz)\b/i, 'an address'],
+    [/\b(my\s+)?(insta(gram)?|snapchat|snap|whatsapp|telegram|signal|discord)\b[\s:@]*[a-z0-9._#-]{3,}/i, 'a personal handle'],
+    [/\b(iban|paypal|venmo|revolut)\b/i, 'payment details']
+  ];
+  let privacyAsked='';
+  function privacyOk(body){
+    let found=null;
+    for(const [re,what] of PERSONAL) if(re.test(body)){ found=what; break; }
+    if(!found) return true;
+    if(privacyAsked===body.trim()){ privacyAsked=''; return true; }
+    privacyAsked=body.trim();
+    showNotice('<b>That looks like '+found+'.</b> Nobody moderates this chat and odd people exist '+
+               'online — please be careful with personal contact details. Somewhere like Reddit or '+
+               'Steam is a safer place to stay in touch. Press send again if you are sure.', true);
+    return false;
+  }
+
   // returns true when the message may go out
   function allowed(body){
     const now=Date.now();
@@ -4604,6 +4682,12 @@
     return true;
   }
 
+  // ── the dev: one reserved name, written in gold ─────────────────────
+  const DEV='madryad';
+  let isDev=false;
+  try{ isDev = localStorage.getItem('sb-dev')==='1'; }catch(e){}
+  const devName = n => String(n||'').trim().toLowerCase()===DEV;
+
   // ── blocking: two people stop existing for each other ───────────────
   const keyOf = n => String(n||'').trim().toLowerCase().slice(0,18);
   let myBlocks=new Set(), blockedMe=new Set(), blocksOK=true;
@@ -4646,6 +4730,19 @@
       rest('blocks?blocker=eq.'+encodeURIComponent(keyOf(myName))+'&blocked=eq.'+encodeURIComponent(k),
            {method:'DELETE'}).catch(()=>{});
   }
+  let bans=new Map();
+  function pullBans(){
+    if(!CFG) return Promise.resolve();
+    return rest('bans?select=name,until')
+      .then(r=>{ if(!r.ok) throw 0; return r.json(); })
+      .then(rows=>{
+        bans=new Map();
+        for(const b of rows) if(Date.parse(b.until)>Date.now()) bans.set(keyOf(b.name), Date.parse(b.until));
+        renderFromCache();
+      }).catch(()=>{});
+  }
+  const banned = n => bans.has(keyOf(n));
+
   function pullBlocks(){
     if(!CFG || !blocksOK) return Promise.resolve();
     return rest('blocks?select=blocker,blocked')
@@ -4675,6 +4772,9 @@
     ['/levels',      'how many rounds and surfaces there are'],
     ['/debug',       'open the dev console (or ctrl+alt+D)'],
     ['/version',     'which build this page is'],
+    ['/dev',         'claim the dev name on this browser'],
+    ['/ban <name>',  'dev only: 30 minutes out for that name'],
+    ['/unban <name>','dev only: let them back in'],
     ['/selftest',    'check chat, database and nest wiring'],
     ['/nest',        'what the co-op connection is doing'],
     ['/help',        'this list']
@@ -4726,6 +4826,26 @@
       case 'help': return CHEATS.map(c=>c[0]+' — '+c[1]).join('   ·   ');
       case 'debug': return __dbg.toggle()? 'dev console open' : 'dev console closed';
       case 'version': return 'build '+(window.SLOWBROOM_BUILD||'artifact');
+      case 'dev': {
+        isDev=!isDev;
+        try{ localStorage.setItem('sb-dev', isDev?'1':'0'); }catch(e){}
+        if(isDev && !nameEl.value) nameEl.value='Madryad';
+        return isDev ? 'this browser is the dev now — the name Madryad is yours'
+                     : 'dev name released on this browser';
+      }
+      case 'ban': case 'unban': {
+        if(!isDev) return 'dev only';
+        if(!CFG) return 'needs the hosted copy';
+        const who=arg.trim().toLowerCase().slice(0,18);
+        if(!who) return 'who?';
+        if(cmd==='ban'){
+          upsert('bans',{name:who, until:new Date(Date.now()+30*60000).toISOString(),
+                         reason:'dev'}).then(pullBans).catch(()=>{});
+          return who+' is out for 30 minutes';
+        }
+        rest('bans?name=eq.'+encodeURIComponent(who),{method:'DELETE'}).then(pullBans).catch(()=>{});
+        return who+' may come back';
+      }
       case 'selftest': return selftest();
       case 'nest': return nestReport();
       case 'levels':
@@ -4787,7 +4907,19 @@
 
   function say(name, body){
     if(!name || !body.trim()) return;
+    if(banned(name) && !isDev){ showNotice(HARSH, true); return; }
+    if(devName(name) && !isDev){
+      showNotice('<b>That name is taken.</b> Madryad is the person who made this — pick another.', true);
+      return;
+    }
     if(!allowed(body)) return;
+    if(!privacyOk(body)) return;
+    // anything addressed to the dev lands in her private inbox too
+    if(CFG && /@\s*madryad\b/i.test(body)){
+      rest('dev_pings',{method:'POST', body:JSON.stringify({
+        from_name:name.slice(0,18), body:body.trim().slice(0,240), room:room$
+      })}).catch(()=>{});
+    }
     if(CFG){ supaSay(name, body.trim()); return; }
     if(!db) return;
     db.collection('chat').add({name:name.slice(0,18), text:body.trim().slice(0,240), ts:Date.now()})
@@ -4804,13 +4936,6 @@
     say(myName, textEl.value);
     textEl.value='';
   });
-  testForm.addEventListener('submit',e=>{
-    e.preventDefault();
-    say(testName.value.trim()||'Sam', testText.value);
-    testText.value='';
-  });
-  testLive.addEventListener('change',renderPill);
-  testGame.addEventListener('change',renderPill);
   nameEl.addEventListener('change',()=>{
     myName=nameEl.value.trim().slice(0,18);
     try{ localStorage.setItem('sb-name',myName); }catch(err){}
@@ -4852,7 +4977,7 @@
     if(t.tagName==='INPUT'||t.tagName==='SELECT') setTimeout(backToGame,0);
   });
   // escape out of the chat box and the game is listening again
-  [nameEl,textEl,testName,testText].forEach(el=>{
+  [nameEl,textEl].forEach(el=>{
     el.addEventListener('keydown',ev=>{
       if(ev.key==='Escape'){ ev.stopPropagation(); el.blur(); backToGame(); }
     });
