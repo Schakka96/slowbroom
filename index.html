@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 39 — Willow Bucket";</script>
+<script>window.SLOWBROOM_BUILD="build 40 — Copper Bristle";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -503,6 +503,20 @@
       return open;
     }
   };
+  ['error','warn'].forEach(level=>{
+    const orig=console[level];
+    console[level]=function(){
+      try{
+        const txt=[].slice.call(arguments).map(a=>{
+          if(a instanceof Error) return a.message;
+          if(typeof a==='object'){ try{ return JSON.stringify(a).slice(0,300); }catch(e){ return String(a); } }
+          return String(a);
+        }).join(' ').slice(0,400);
+        push('console', txt, level==='error'?'err':'warn');
+      }catch(e){}
+      return orig.apply(console, arguments);
+    };
+  });
   window.addEventListener('error',e=>{
     push('error',(e.message||'error')+'  @'+(e.filename||'').split('/').pop()+':'+e.lineno,'err');
   });
@@ -5871,6 +5885,20 @@
     if(!lib) return null;
     __dbg.log('nest','client ready, subscribing to nest-'+code);
     const sb=lib.createClient(CFG.url, CFG.anonKey, {realtime:{params:{eventsPerSecond:40}}});
+    try{
+      sb.realtime.onOpen(()=>__dbg.log('socket','open'));
+      sb.realtime.onClose(e=>{
+        const code=e&&e.code, why=(e&&e.reason)||'';
+        __dbg.err('socket','closed — code '+code+(why?' · '+why:'')+' '+({
+          1000:'(normal)', 1001:'(page went away)', 1006:'(dropped — blocked or network)',
+          1011:'(server error)', 4000:'(bad request)', 4001:'(unauthorised — key rejected)',
+          4002:'(forbidden)', 4008:'(rate limited)', 4009:'(too many channels)',
+          4010:'(too many connections)', 4011:'(too many joins)'
+        }[code]||''));
+        if(handlers.status) handlers.status('socket closed '+(code||''));
+      });
+      sb.realtime.onError(e=>__dbg.err('socket','error '+(e&&e.message||'')));
+    }catch(e){ __dbg.warn('socket','no hooks available on this client'); }
     const ch=sb.channel('nest-'+code, {config:{broadcast:{self:false}, presence:{key:me}}});
     let mine={};
     ch.on('broadcast',{event:'ev'}, msg=>{
@@ -5891,8 +5919,8 @@
     ch.on('presence',{event:'leave'},sync);
     let joined=false;
     await new Promise(res=>{
-      ch.subscribe(status=>{
-        __dbg.log('nest','channel '+status);
+      ch.subscribe((status, err)=>{
+        __dbg.log('nest','channel '+status+(err? ' · '+(err.message||err) : ''));
         if(handlers.status) handlers.status(status);
         if(status==='SUBSCRIBED'){ joined=true; ch.track(mine); res(); }
         else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT') res();
