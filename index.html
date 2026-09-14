@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="6126741 · 14 Sep 20:38";</script>
+<script>window.SLOWBROOM_BUILD="138889e · 14 Sep 20:39";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -249,6 +249,10 @@
     border-radius:4px; background:var(--ground); color:var(--ink)}
   .kofi{
     margin:10px 2px 0; text-align:right; font-size:.78rem; color:var(--ink-faint);
+  }
+  .buildtag{
+    font-family:"IBM Plex Mono",monospace; font-size:.68rem; color:var(--ink-faint);
+    opacity:.65; margin-right:1.2em;
   }
   .mop-l{
     height:1.02em; width:auto; vertical-align:-.12em; margin:0 .03em;
@@ -509,6 +513,10 @@
     if(e.ctrlKey && e.altKey && (e.key==='d'||e.key==='D')){ e.preventDefault(); __dbg.toggle(); }
   });
   __dbg.set('build', window.SLOWBROOM_BUILD || 'artifact');
+  document.addEventListener('DOMContentLoaded',()=>{
+    const t=document.getElementById('buildtag');
+    if(t) t.textContent='SlowBroom · '+(window.SLOWBROOM_BUILD || 'artifact build');
+  });
   __dbg.set('page', location.host || 'file');
   __dbg.set('config', window.SLOWBROOM_CONFIG ? 'supabase' : 'none');
   __dbg.set('claude', (window.claude && window.claude.use) ? 'yes' : 'no');
@@ -765,7 +773,7 @@
    </details>
  </section>
 
- <p class="kofi">Get me and Claude a
+ <p class="kofi"><span class="buildtag" id="buildtag"></span>Get me and Claude a
       <a class="ext" href="https://ko-fi.com/madryad" target="_blank" rel="noopener"><svg class="ico cup" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M3.4 5h13.3a4.3 4.3 0 0 1 .3 8.6h-.9a5.8 5.8 0 0 1-5.7 5H8.2A5.8 5.8 0 0 1 2.4 13V6a1 1 0 0 1 1-1Zm13.3 2h-.6v4.6h.6a2.3 2.3 0 0 0 0-4.6ZM6.1 8.4c-.9 0-1.5.7-1.5 1.5 0 1.8 2.6 3.3 3 3.5.4-.2 3-1.7 3-3.5 0-.8-.6-1.5-1.5-1.5-.7 0-1.2.4-1.5.9-.3-.5-.8-.9-1.5-.9ZM3 20h14a1 1 0 0 1 0 2H3a1 1 0 0 1 0-2Z"/></svg>coffee</a></p>
 </div>
 
@@ -2766,7 +2774,11 @@
     if(k>='1' && k<='4'){ e.preventDefault(); setSpeedIdx(+k-1); return; }
     if(k==='+'||k==='='){ e.preventDefault(); bump('mopw',1); return; }
     if(k==='-'||k==='_'){ e.preventDefault(); bump('mopw',-1); return; }
-    if(k===' '){ e.preventDefault(); S.paused=!S.paused; if(!S.paused) nextStep=performance.now(); }
+    if(k===' '){
+      e.preventDefault();
+      if(e.repeat) return;
+      S.paused=!S.paused; if(!S.paused) nextStep=performance.now();
+    }
   });
   window.addEventListener('keyup',e=>{
     if(!visible()) return;
@@ -4060,11 +4072,13 @@
     if(sent){ carryDirty=true; updateHud(); }
     return sent;
   }
+  const inFlightTo = p => flying.reduce((n,f)=>n+(f.pile===p?1:0),0);
   function liftPile(p){
     const room=capacity()-carried.length;
     const take=Math.min(room,p.items.length);
     for(let i=0;i<take;i++){ carried.push(p.cat); p.items.pop(); }
-    if(!p.items.length) piles.splice(piles.indexOf(p),1);
+    // things still flying towards it would land nowhere if the pile vanished
+    if(!p.items.length && !inFlightTo(p)) piles.splice(piles.indexOf(p),1);
     pilesDirty=true; carryDirty=true; updateHud();
     if(coop) netSend('piles',{p:pilesWire()});
   }
@@ -4080,9 +4094,10 @@
       setTimeout(()=>bannerEl.style.opacity='0',1100);
       return;
     }
-    const under=nearestPile(ant.x,ant.y,body*.35);
+    const under=nearestPile(ant.x,ant.y,body*.55);
     // standing on a pile: add to it if you are carrying its kind, otherwise pick it up
     if(under){
+      if(inFlightTo(under) && !carryCounts().get(under.cat)) return;   // let it settle first
       if(carryCounts().get(under.cat)) sendToPile(under,under.cat,carryCounts().get(under.cat));
       else liftPile(under);
       return;
@@ -4137,6 +4152,7 @@
     for(let i=flying.length-1;i>=0;i--){
       const f=flying[i]; f.t+=dt/(f.dur||340);
       if(f.t>=1){
+        if(piles.indexOf(f.pile)<0) piles.push(f.pile);
         f.pile.items.push({dx:f.x1-f.pile.x, dy:f.y1-f.pile.y, rot:f.rot, sc:f.sc, v:f.v});
         flying.splice(i,1); pilesDirty=true; updateHud();
         if(coop) netSend('piles',{p:pilesWire()});
@@ -4426,7 +4442,7 @@
     if(k>='1'&&k<='4'){ e.preventDefault(); setSpeed(+k-1); return; }
     if(k==='+'||k==='='){ e.preventDefault(); setSize(A.size+.12); return; }
     if(k==='-'||k==='_'){ e.preventDefault(); setSize(A.size-.12); return; }
-    if(k===' '){ e.preventDefault(); place(); }
+    if(k===' '){ e.preventDefault(); if(!e.repeat) place(); }
   });
   window.addEventListener('keyup',e=>{
     if(!visible()) return;
