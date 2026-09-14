@@ -20,6 +20,7 @@ head = f"""<!doctype html>
 <meta name="description" content="A simple social floor mopping game inspired by Hozy, with an ant sorting game and a mosaic painter alongside it.">
 <link rel="icon" href="{ICON}">
 <link rel="apple-touch-icon" href="{ICON}">
+<script src="config.js"></script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
