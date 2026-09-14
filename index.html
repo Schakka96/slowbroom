@@ -43,7 +43,7 @@
   }
   .shell{padding:14px 18px; box-sizing:border-box}
   .screen{
-    min-height:calc(100dvh - 28px); box-sizing:border-box;
+    height:calc(100dvh - 28px); min-height:360px; box-sizing:border-box; overflow:hidden;
     display:flex; flex-direction:column; gap:10px;
   }
   .wrap{
@@ -308,7 +308,7 @@
 
   @media (max-width:820px){
     .shell{padding:12px}
-    .screen{min-height:0}
+    .screen{height:auto; min-height:0; overflow:visible}
     .wrap{grid-template-columns:minmax(0,1fr)}
     .stage{height:54vh}
     .rail{max-height:none}
