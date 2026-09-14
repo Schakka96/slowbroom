@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 94 — Mahagony Mop";</script>
+<script>window.SLOWBROOM_BUILD="build 95 — Mahagony Mop";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -3688,7 +3688,24 @@
     cap2:['#c84434','#3f7ec4','#3f9a5c','#e0b53a'],
     match:['#d4483f','#c83a32','#e05a4a','#b82f28'],
     marble:['#4f8ac4','#d8566a','#7aa86a','#e0b24a'],
-    toy:['#d8566a','#4f8ac4','#e0b24a','#7aa86a']
+    toy:['#d8566a','#4f8ac4','#e0b24a','#7aa86a'],
+    drift:['#b8ad9a','#a69a86','#c9bfae','#948a78'],
+    sandd:['#e6d9bd','#d8c9a9','#f0e6cf','#cbb894'],
+    weed:['#3f6a4a','#4f7a3a','#2f5a4a','#5a7a42'],
+    slate:['#5a6068','#4a5058','#6a7078','#3f444b'],
+    sstone:['#c8a472','#b89260','#d6b484','#a88254'],
+    mica:['#cfd6c4','#d8cfd6','#c4d0dc','#dcd6c0'],
+    down:['#efe9dc','#e2dbc9','#f6f2e8','#d6cfbe'],
+    quill:['#8a7f6e','#6f6558','#a3978a','#5a5148'],
+    barred:['#c2a87e','#a68c68','#d4bc94','#8f7856'],
+    bulb:['#c8a56c','#b8945c','#d8b980','#a8844c'],
+    pod:['#8a7a46','#76683a','#9e8e56','#62552e'],
+    snail:['#c9a87a','#b8956a','#d9bc90','#a4835c'],
+    crab:['#c2384a','#d05a30','#a82b3c','#d4783a'],
+    stone2:['#8a6a48','#76583a','#9c7c58','#62462c'],
+    shell2:['#f2ece0','#e8dfcd','#f8f4ea','#ddd2bd'],
+    bread:['#c9a165','#b88e54','#d9b47a','#a87c46'],
+    cheese:['#e0b64a','#d8a63a','#ecc668','#c8952e']
   };
   const v4 = (cat,v)=>P[cat][v%4];
 
@@ -3835,7 +3852,7 @@
       c.strokeStyle='rgba(140,150,160,.55)'; c.lineWidth=s*.035;
       c.beginPath(); c.arc(0,0,s*.19,0,TAU); c.stroke();
       c.beginPath(); c.arc(0,0,s*.29,0,TAU); c.stroke(); }},
-    spoon:{ name:'Cutlery', size:1.05, draw(c,s,v){
+    spoon:{ name:'Spoons', size:1.05, draw(c,s,v){
       c.save(); c.rotate(-.7); c.fillStyle=v4('spoon',v);
       c.beginPath(); c.roundRect(-s*.05,-s*.05,s*.1,s*.42,s*.05); c.fill();
       c.beginPath(); c.ellipse(0,-s*.22,s*.13,s*.19,0,0,TAU); c.fill();
@@ -4471,62 +4488,326 @@
     c.restore();
   }
 
+  // ── the shore, the scree, the snow and the garden ──────────────────
+  function flake(c,s,arms,detail,col){
+    c.save();
+    c.strokeStyle=col; c.lineCap='round'; c.lineJoin='round';
+    c.lineWidth=s*.035;
+    for(let i=0;i<arms;i++){
+      c.save(); c.rotate(i/arms*TAU);
+      c.beginPath(); c.moveTo(0,0); c.lineTo(0,-s*.34); c.stroke();
+      for(let d=0;d<detail;d++){
+        const y=-s*(.12+d*(.22/Math.max(1,detail))), w=s*(.13-d*.02);
+        c.beginPath();
+        c.moveTo(0,y); c.lineTo(-w,y-w*.8);
+        c.moveTo(0,y); c.lineTo( w,y-w*.8);
+        c.stroke();
+      }
+      c.restore();
+    }
+    c.fillStyle=col;
+    c.beginPath(); c.arc(0,0,s*.045,0,TAU); c.fill();
+    c.restore();
+  }
+  Object.assign(ITEMS, {
+    /* the tide line */
+    driftwood:{ name:'Driftwood', size:1.3, draw(c,s,v){
+      c.save(); c.rotate(.22);
+      c.fillStyle='rgba(40,34,24,.24)';
+      c.beginPath(); c.roundRect(-s*.42,-s*.1,s*.86,s*.2,s*.08); c.fill();
+      c.fillStyle=v4('drift',v);
+      c.beginPath(); c.roundRect(-s*.44,-s*.12,s*.86,s*.2,s*.08); c.fill();
+      c.strokeStyle='rgba(120,108,92,.55)'; c.lineWidth=s*.022;
+      for(let i=0;i<4;i++){
+        c.beginPath(); c.moveTo(-s*.4,-s*.07+i*s*.05);
+        c.quadraticCurveTo(0,-s*.04+i*s*.05,s*.4,-s*.08+i*s*.05); c.stroke();
+      }
+      c.restore(); }},
+    sanddollar:{ name:'Sand dollars', size:.95, draw(c,s,v){
+      c.fillStyle='rgba(40,34,24,.2)';
+      c.beginPath(); c.arc(s*.03,s*.05,s*.28,0,TAU); c.fill();
+      c.fillStyle=v4('sandd',v);
+      c.beginPath(); c.arc(0,0,s*.28,0,TAU); c.fill();
+      c.fillStyle='rgba(150,130,100,.4)';
+      for(let i=0;i<5;i++){
+        const a=i/5*TAU-Math.PI/2;
+        c.save(); c.rotate(a);
+        c.beginPath(); c.ellipse(0,-s*.13,s*.035,s*.09,0,0,TAU); c.fill();
+        c.restore();
+      }
+      c.strokeStyle='rgba(150,130,100,.35)'; c.lineWidth=s*.02;
+      c.beginPath(); c.arc(0,0,s*.22,0,TAU); c.stroke(); }},
+    seaweed:{ name:'Seaweed', size:1.2, draw(c,s,v){
+      c.strokeStyle=v4('weed',v); c.lineCap='round'; c.lineWidth=s*.07;
+      c.beginPath(); c.moveTo(-s*.3,s*.4);
+      c.bezierCurveTo(s*.1,s*.14,-s*.14,-s*.1,s*.24,-s*.4); c.stroke();
+      c.lineWidth=s*.045;
+      c.beginPath(); c.moveTo(-s*.1,s*.14); c.quadraticCurveTo(-s*.3,0,-s*.36,-s*.2); c.stroke();
+      c.fillStyle=v4('weed',(v+2)%4);
+      for(let i=0;i<3;i++){
+        c.beginPath(); c.ellipse(-s*.2+i*s*.18, s*.24-i*s*.2, s*.07,s*.04, .6,0,TAU); c.fill();
+      }}},
+    /* the scree slope */
+    slate:{ name:'Slate chips', size:1, draw(c,s,v){
+      c.save(); c.rotate(-.24);
+      c.fillStyle='rgba(25,28,32,.3)';
+      c.beginPath(); c.moveTo(-s*.32,s*.16); c.lineTo(-s*.2,-s*.2); c.lineTo(s*.34,-s*.1); c.lineTo(s*.2,s*.22); c.closePath(); c.fill();
+      c.fillStyle=v4('slate',v); c.translate(-s*.03,-s*.04);
+      c.beginPath(); c.moveTo(-s*.32,s*.16); c.lineTo(-s*.2,-s*.2); c.lineTo(s*.34,-s*.1); c.lineTo(s*.2,s*.22); c.closePath(); c.fill();
+      c.strokeStyle='rgba(255,255,255,.18)'; c.lineWidth=s*.02;
+      c.beginPath(); c.moveTo(-s*.24,-s*.1); c.lineTo(s*.28,-s*.02); c.stroke();
+      c.restore(); }},
+    sandstone:{ name:'Sandstone', size:1.05, draw(c,s,v){
+      c.fillStyle='rgba(60,48,30,.24)';
+      c.beginPath(); c.ellipse(s*.04,s*.07,s*.3,s*.24,.2,0,TAU); c.fill();
+      c.fillStyle=v4('sstone',v);
+      c.beginPath(); c.ellipse(0,0,s*.3,s*.24,.2,0,TAU); c.fill();
+      c.strokeStyle='rgba(150,115,70,.4)'; c.lineWidth=s*.024;
+      for(let i=-1;i<=1;i++){
+        c.beginPath(); c.moveTo(-s*.28,i*s*.11);
+        c.quadraticCurveTo(0,i*s*.11-s*.04,s*.28,i*s*.11); c.stroke();
+      }}},
+    mica:{ name:'Mica flakes', size:.8, draw(c,s,v){
+      c.save(); c.rotate(.5);
+      const g=c.createLinearGradient(-s*.24,-s*.16,s*.24,s*.16);
+      g.addColorStop(0,'rgba(240,238,225,.85)');
+      g.addColorStop(.5,v4('mica',v));
+      g.addColorStop(1,'rgba(180,186,200,.75)');
+      c.fillStyle=g;
+      c.beginPath();
+      for(let i=0;i<6;i++){ const a=i/6*TAU, r=s*(i%2?.18:.26); c.lineTo(Math.cos(a)*r,Math.sin(a)*r*.7); }
+      c.closePath(); c.fill();
+      c.strokeStyle='rgba(255,255,255,.5)'; c.lineWidth=s*.015; c.stroke();
+      c.restore(); }},
+    /* down and quills */
+    down:{ name:'Down tufts', size:.9, draw(c,s,v){
+      const col=v4('down',v);
+      c.strokeStyle=col; c.lineWidth=s*.018; c.lineCap='round';
+      for(let i=0;i<14;i++){
+        const a=i/14*TAU+ (v*.2);
+        c.beginPath(); c.moveTo(0,0);
+        c.quadraticCurveTo(Math.cos(a)*s*.14, Math.sin(a)*s*.14,
+                           Math.cos(a+.3)*s*.26, Math.sin(a+.3)*s*.26);
+        c.stroke();
+      }
+      c.fillStyle=col;
+      c.beginPath(); c.arc(0,0,s*.05,0,TAU); c.fill(); }},
+    quill:{ name:'Quills', size:1.45, draw(c,s,v){
+      c.save(); c.rotate(-.75);
+      c.strokeStyle=v4('quill',v); c.lineWidth=s*.04; c.lineCap='round';
+      c.beginPath(); c.moveTo(0,s*.48); c.quadraticCurveTo(s*.03,0,0,-s*.48); c.stroke();
+      c.fillStyle='rgba(240,236,226,.55)';
+      c.beginPath(); c.ellipse(-s*.05,-s*.1,s*.07,s*.3,0,0,TAU); c.fill();
+      c.beginPath(); c.ellipse(s*.05,-s*.1,s*.07,s*.3,0,0,TAU); c.fill();
+      c.fillStyle='rgba(255,255,255,.7)';
+      c.beginPath(); c.ellipse(0,s*.42,s*.035,s*.08,0,0,TAU); c.fill();
+      c.restore(); }},
+    barredf:{ name:'Barred feathers', size:1.25, draw(c,s,v){
+      c.save(); c.rotate(-.6);
+      c.fillStyle=v4('barred',v);
+      c.beginPath(); c.ellipse(0,0,s*.13,s*.44,0,0,TAU); c.fill();
+      c.save();
+      c.beginPath(); c.ellipse(0,0,s*.13,s*.44,0,0,TAU); c.clip();
+      c.fillStyle='rgba(60,48,34,.55)';
+      for(let i=0;i<7;i++) c.fillRect(-s*.14,-s*.42+i*s*.13,s*.28,s*.05);
+      c.restore();
+      c.strokeStyle='rgba(250,246,238,.7)'; c.lineWidth=s*.026;
+      c.beginPath(); c.moveTo(0,-s*.42); c.lineTo(0,s*.48); c.stroke();
+      c.restore(); }},
+    /* snowfall */
+    flakeneedle:{ name:'Needle flakes', size:.8, draw(c,s,v){ flake(c,s,6,0,'rgba(236,246,255,.92)'); }},
+    flakeplate:{ name:'Plate flakes', size:.85, draw(c,s,v){
+      c.fillStyle='rgba(226,240,255,.8)';
+      c.beginPath();
+      for(let i=0;i<6;i++){ const a=i/6*TAU; c.lineTo(Math.cos(a)*s*.26,Math.sin(a)*s*.26); }
+      c.closePath(); c.fill();
+      c.strokeStyle='rgba(255,255,255,.9)'; c.lineWidth=s*.025; c.stroke();
+      flake(c,s*.7,6,1,'rgba(255,255,255,.7)'); }},
+    flakestar:{ name:'Star flakes', size:1, draw(c,s,v){ flake(c,s,6,2,'rgba(240,249,255,.95)'); }},
+    /* deep winter */
+    flakefern:{ name:'Fern flakes', size:1.15, draw(c,s,v){ flake(c,s,6,4,'rgba(244,251,255,.95)'); }},
+    flakecol:{ name:'Column flakes', size:.9, draw(c,s,v){
+      c.save(); c.rotate(.4);
+      c.fillStyle='rgba(226,240,255,.75)';
+      c.beginPath(); c.roundRect(-s*.07,-s*.22,s*.14,s*.44,s*.03); c.fill();
+      c.fillStyle='rgba(248,253,255,.9)';
+      for(const y of [-s*.24, s*.18]){
+        c.beginPath();
+        for(let i=0;i<6;i++){ const a=i/6*TAU; c.lineTo(Math.cos(a)*s*.2, y+Math.sin(a)*s*.06); }
+        c.closePath(); c.fill();
+      }
+      c.restore(); }},
+    flakerime:{ name:'Rimed flakes', size:1.05, draw(c,s,v){
+      flake(c,s,12,1,'rgba(232,244,255,.8)');
+      c.fillStyle='rgba(255,255,255,.75)';
+      for(let i=0;i<16;i++){
+        const a=R(0,TAU), r=R(s*.08,s*.3);
+        c.beginPath(); c.arc(Math.cos(a)*r,Math.sin(a)*r,s*R(.018,.04),0,TAU); c.fill();
+      }}},
+    /* the garden bed */
+    bulb:{ name:'Bulbs', size:1, draw(c,s,v){
+      c.fillStyle='rgba(50,36,20,.26)';
+      c.beginPath(); c.ellipse(s*.03,s*.08,s*.22,s*.26,0,0,TAU); c.fill();
+      c.fillStyle=v4('bulb',v);
+      c.beginPath(); c.moveTo(0,-s*.34);
+      c.bezierCurveTo(s*.26,-s*.1,s*.2,s*.3,0,s*.3);
+      c.bezierCurveTo(-s*.2,s*.3,-s*.26,-s*.1,0,-s*.34); c.fill();
+      c.strokeStyle='rgba(120,90,50,.45)'; c.lineWidth=s*.02;
+      for(let i=-1;i<=1;i++){
+        c.beginPath(); c.moveTo(i*s*.08,-s*.26); c.quadraticCurveTo(i*s*.14,0,i*s*.06,s*.28); c.stroke();
+      }
+      c.strokeStyle='rgba(180,170,140,.7)'; c.lineWidth=s*.026;
+      for(let i=0;i<4;i++){
+        c.beginPath(); c.moveTo(0,s*.28); c.lineTo(-s*.1+i*s*.07,s*.42); c.stroke();
+      }}},
+    seedpod:{ name:'Seed pods', size:1.1, draw(c,s,v){
+      c.save(); c.rotate(.6);
+      c.fillStyle=v4('pod',v);
+      c.beginPath(); c.ellipse(0,0,s*.1,s*.36,0,0,TAU); c.fill();
+      c.fillStyle='rgba(60,44,20,.4)';
+      for(let i=0;i<4;i++){
+        c.beginPath(); c.arc(0,-s*.24+i*s*.16,s*.05,0,TAU); c.fill();
+      }
+      c.strokeStyle='rgba(90,70,36,.5)'; c.lineWidth=s*.02;
+      c.beginPath(); c.moveTo(0,-s*.36); c.lineTo(0,s*.36); c.stroke();
+      c.restore(); }},
+    snail:{ name:'Snail shells', size:1, draw(c,s,v){
+      c.fillStyle='rgba(50,40,24,.25)';
+      c.beginPath(); c.arc(s*.03,s*.06,s*.28,0,TAU); c.fill();
+      c.fillStyle=v4('snail',v);
+      c.beginPath(); c.arc(0,0,s*.28,0,TAU); c.fill();
+      c.strokeStyle='rgba(90,64,34,.65)'; c.lineWidth=s*.05; c.lineCap='round';
+      c.beginPath();
+      for(let i=0;i<46;i++){ const a=i*.4, r=s*.27*(1-i/50); c.lineTo(Math.cos(a)*r,Math.sin(a)*r); }
+      c.stroke();
+      c.fillStyle='rgba(255,255,255,.28)';
+      c.beginPath(); c.ellipse(-s*.1,-s*.13,s*.09,s*.05,-.6,0,TAU); c.fill(); }},
+    /* the windfall */
+    crabapple:{ name:'Crab apples', size:.9, draw(c,s,v){
+      c.fillStyle='rgba(50,20,20,.26)';
+      c.beginPath(); c.arc(s*.03,s*.06,s*.25,0,TAU); c.fill();
+      const col=v4('crab',v);
+      const g=c.createRadialGradient(-s*.08,-s*.1,s*.02,0,0,s*.26);
+      g.addColorStop(0,'rgba(255,240,200,.85)'); g.addColorStop(.45,col); g.addColorStop(1,'rgba(90,20,24,.9)');
+      c.fillStyle=g; c.beginPath(); c.arc(0,0,s*.25,0,TAU); c.fill();
+      c.strokeStyle='#6b4a2c'; c.lineWidth=s*.03; c.lineCap='round';
+      c.beginPath(); c.moveTo(0,-s*.23); c.quadraticCurveTo(s*.06,-s*.34,s*.02,-s*.42); c.stroke(); }},
+    plumstone:{ name:'Plum stones', size:.8, draw(c,s,v){
+      c.fillStyle='rgba(50,36,20,.26)';
+      c.beginPath(); c.ellipse(s*.03,s*.06,s*.2,s*.26,0,0,TAU); c.fill();
+      c.fillStyle=v4('stone2',v);
+      c.beginPath(); c.ellipse(0,0,s*.2,s*.26,0,0,TAU); c.fill();
+      c.strokeStyle='rgba(70,52,30,.6)'; c.lineWidth=s*.02;
+      for(let i=-1;i<=1;i++){
+        c.beginPath(); c.moveTo(i*s*.08,-s*.22); c.quadraticCurveTo(i*s*.13,0,i*s*.07,s*.22); c.stroke();
+      }
+      c.beginPath(); c.ellipse(0,0,s*.2,s*.26,0,0,TAU); c.stroke(); }},
+    eggshell:{ name:'Eggshell', size:.85, draw(c,s,v){
+      c.save(); c.rotate(-.3);
+      c.fillStyle=v4('shell2',v);
+      c.beginPath();
+      c.moveTo(-s*.26,0);
+      c.quadraticCurveTo(0,-s*.34,s*.26,0);
+      c.lineTo(s*.2,s*.02);
+      for(let i=0;i<5;i++) c.lineTo(s*(.14-i*.07), s*(i%2?.1:.02));
+      c.closePath(); c.fill();
+      c.strokeStyle='rgba(180,170,150,.6)'; c.lineWidth=s*.018; c.stroke();
+      c.restore(); }},
+    /* the kitchen */
+    glass:{ name:'Glasses', size:1.15, draw(c,s,v){
+      c.fillStyle='rgba(30,40,45,.2)';
+      c.beginPath(); c.ellipse(s*.02,s*.3,s*.18,s*.05,0,0,TAU); c.fill();
+      const g=c.createLinearGradient(-s*.18,0,s*.18,0);
+      g.addColorStop(0,'rgba(226,240,244,.75)');
+      g.addColorStop(.45,'rgba(255,255,255,.35)');
+      g.addColorStop(1,'rgba(196,216,224,.7)');
+      c.fillStyle=g;
+      c.beginPath();
+      c.moveTo(-s*.18,-s*.3); c.lineTo(s*.18,-s*.3);
+      c.lineTo(s*.14,s*.3); c.lineTo(-s*.14,s*.3); c.closePath(); c.fill();
+      c.strokeStyle='rgba(255,255,255,.75)'; c.lineWidth=s*.022; c.stroke();
+      c.fillStyle='rgba(255,255,255,.5)';
+      c.beginPath(); c.roundRect(-s*.12,-s*.24,s*.05,s*.42,s*.025); c.fill(); }},
+    breadcrumb:{ name:'Bread crumbs', size:.75, draw(c,s,v){
+      c.fillStyle='rgba(70,50,24,.24)';
+      c.beginPath(); c.ellipse(s*.03,s*.06,s*.2,s*.16,.3,0,TAU); c.fill();
+      c.fillStyle=v4('bread',v);
+      c.beginPath(); c.ellipse(0,0,s*.2,s*.16,.3,0,TAU); c.fill();
+      c.fillStyle='rgba(255,246,222,.65)';
+      for(let i=0;i<5;i++){
+        c.beginPath(); c.arc(R(-s*.13,s*.13),R(-s*.1,s*.1),s*R(.018,.04),0,TAU); c.fill();
+      }
+      c.strokeStyle='rgba(150,110,56,.45)'; c.lineWidth=s*.02;
+      c.beginPath(); c.ellipse(0,0,s*.2,s*.16,.3,0,TAU); c.stroke(); }},
+    cheese:{ name:'Cheese rinds', size:.9, draw(c,s,v){
+      c.save(); c.rotate(.2);
+      c.fillStyle='rgba(70,56,20,.22)';
+      c.beginPath(); c.moveTo(-s*.26,s*.14); c.lineTo(s*.26,s*.02); c.lineTo(s*.2,-s*.16); c.lineTo(-s*.24,-s*.06); c.closePath(); c.fill();
+      c.fillStyle=v4('cheese',v); c.translate(-s*.02,-s*.04);
+      c.beginPath(); c.moveTo(-s*.26,s*.14); c.lineTo(s*.26,s*.02); c.lineTo(s*.2,-s*.16); c.lineTo(-s*.24,-s*.06); c.closePath(); c.fill();
+      c.fillStyle='rgba(180,140,40,.5)';
+      c.beginPath(); c.arc(-s*.06,0,s*.05,0,TAU); c.arc(s*.1,-s*.04,s*.035,0,TAU); c.fill();
+      c.fillStyle='rgba(120,92,40,.55)';
+      c.beginPath(); c.moveTo(-s*.26,s*.14); c.lineTo(s*.26,s*.02); c.lineTo(s*.26,s*.06); c.lineTo(-s*.26,s*.18); c.closePath(); c.fill();
+      c.restore(); }}
+  });
+
   /* ── levels ─────────────────────────────────────────────── */
   // Each round brings in a whole family of things and lets the oldest one go,
   // so what you are sorting changes as you go rather than simply growing.
   // Outside for a good long while — where the weather can turn — and then
   // in through the back door, one drawer and one box at a time.
+  // Twenty-four rounds outdoors, with three rooms of the house to finish:
+  // the shed, the kitchen and the office. Everything else is found ground.
   const FAMILIES=[
+    // the meadow and the wood
     {name:'First blades',        ground:'meadow', kinds:['grass','straw','stalk']},
     {name:'Seed season',         ground:'forest', kinds:['acorn','beech','birch','hazel']},
-    {name:'The pebble path',     ground:'gravel', kinds:['pebble','flint','quartz']},
     {name:'Leaf fall',           ground:'forest', kinds:['sleaf','bleaf','oakleaf']},
     {name:'Twigs and bark',      ground:'forest', kinds:['twig','bark','pinecone']},
     {name:'Hedgerow fruit',      ground:'forest', kinds:['berry','rosehip','sloe']},
-    {name:'Feathers',            ground:'meadow', kinds:['featherb','featherg','featherw']},
     {name:'Mushroom morning',    ground:'forest', kinds:['capred','capbrown','puffball']},
+    {name:'Moss and fern',       ground:'forest', kinds:['moss','lichen','fern']},
     {name:'The flower meadow',   ground:'meadow', kinds:['flower','petal','clover']},
     {name:'The grain field',     ground:'meadow', kinds:['wheat','oat','sunseed']},
-    {name:'Moss and fern',       ground:'forest', kinds:['moss','lichen','fern']},
-    {name:'The shell beach',     ground:'sand',   kinds:['shell','clam','seaglass']},
-    {name:'The pond edge',       ground:'pond',   kinds:['reed','lilypad','duckweed']},
     {name:'Beetle wings',        ground:'forest', kinds:['elytra','wingcase','husk']},
-    {name:'Picnic leftovers',    ground:'meadow', kinds:['crumb','raisin','sprinkle']},
-    // in through the back door
-    {name:'The button tin',      ground:'desk',   kinds:['button','buttonsq','toggle']},
-    {name:'The bead box',        ground:'desk',   kinds:['beadrd','beadsq','beadtube']},
-    {name:'The sewing basket',   ground:'carpet', kinds:['spool','pin','thimble']},
-    {name:'The pencil case',     ground:'desk',   kinds:['pen','pencil','marker','eraser']},
-    {name:'The paper drawer',    ground:'desk',   kinds:['stamp','ticket','clip']},
-    {name:'The coin jar',        ground:'desk',   kinds:['coinc','coins2','coing']},
-    {name:'The tool tin',        ground:'shed',   kinds:['screw','nail','bolt']},
-    {name:'The workbench',       ground:'shed',   kinds:['driver','wrench','hammer']},
-    {name:'The kitchen drawer',  ground:'wood',   kinds:['cork','cap','match']},
-    {name:'The dresser',         ground:'wood',   kinds:['dish','cup','bowl']},
-    {name:'The cutlery drawer',  ground:'wood',   kinds:['spoon','fork','knife']},
-    {name:'The cushion pile',    ground:'carpet', kinds:['pillow','pillowrd','bolster']},
-    {name:'The brick box',       ground:'carpet', kinds:['lego','lego4','legor']},
-    {name:'The toy chest',       ground:'carpet', kinds:['marble','jack','top']},
-    // the last two before the finale are the ones worth looking at
-    {name:'The sticker book',    ground:'carpet', kinds:['stfrog','stbear','stbird','stfish']},
-    {name:'The bookshelf',       ground:'wood',   kinds:['manga','tome','nonfic']}
+    // water and shore
+    {name:'The pond edge',       ground:'pond',   kinds:['reed','lilypad','duckweed']},
+    {name:'The shell beach',     ground:'sand',   kinds:['shell','clam','seaglass']},
+    {name:'The tide line',       ground:'sand',   kinds:['driftwood','sanddollar','seaweed']},
+    // stone
+    {name:'The pebble path',     ground:'gravel', kinds:['pebble','flint','quartz']},
+    {name:'The scree slope',     ground:'gravel', kinds:['slate','sandstone','mica']},
+    // feathers
+    {name:'Feathers',            ground:'meadow', kinds:['featherb','featherg','featherw']},
+    {name:'Down and quills',     ground:'forest', kinds:['down','quill','barredf']},
+    // snow
+    {name:'Snowfall',            ground:'snow',   kinds:['flakeneedle','flakeplate','flakestar']},
+    {name:'Deep winter',         ground:'snow',   kinds:['flakefern','flakecol','flakerime']},
+    // the shed, and the garden it opens onto
+    {name:'The shed',            ground:'shed',   kinds:['screw','nail','bolt','driver','wrench','hammer']},
+    {name:'The garden bed',      ground:'garden', kinds:['bulb','seedpod','snail']},
+    {name:'The windfall',        ground:'garden', kinds:['crabapple','plumstone','eggshell']},
+    // back indoors for the last two
+    {name:'The kitchen',         ground:'wood',   kinds:['spoon','fork','knife','glass','breadcrumb','cheese']},
+    {name:'The office',          ground:'desk',   kinds:['pen','pencil','stamp','manga','tome','nonfic']}
   ];
-  const OUTDOORS={meadow:1, forest:1, gravel:1, sand:1, pond:1};
+  const OUTDOORS={meadow:1, forest:1, gravel:1, sand:1, pond:1, snow:1, garden:1};
   const MAX_KINDS=15;
   // hand-set, one per round: how many piles you are keeping apart
   const PILES=[3,4,4,4,5,5,5,5,5,6,
-               6,6,6,6,7,7,7,7,7,8,
-               8,8,8,8,8,9,9,9,9,10,
-               10];
+               6,6,6,7,7,7,7,8,8,8,
+               9,9,9,10];
   const LEVELS=(()=>{
     const out=[];
     // how many things are on the floor, round by round
-    const totals=[12,18,24,30,38,46,56,66,78,90,104,118,134,150,168,186,
-                  204,222,240,258,276,294,312,330,348,366,384,402,420,440,460];
+    const totals=[12,18,24,30,38,46,56,66,78,90,
+                  104,118,134,150,168,186,204,222,240,260,
+                  285,310,340,375];
     for(let i=0;i<FAMILIES.length;i++){
       const newest=i;
       // later rounds hold one family longer, so the floor gets busier as well as newer
-      const span = i>=12 ? 4 : 3;
+      const span = i>=14 ? 4 : 3;
       const window_=[]; for(let k=newest-span+1;k<=newest;k++) if(k>=0) window_.push(k);
       const fade=[0.14,0.22,0.5,1].slice(4-span);
       const weights={};
@@ -4718,6 +4999,41 @@
       }
       speckle(c,900,['rgba(255,235,200,.06)','rgba(20,14,8,.16)']);
     },
+    snow(c){
+      const g=c.createLinearGradient(0,0,0,H);
+      g.addColorStop(0,'#eef4fb'); g.addColorStop(1,'#dbe6f2');
+      c.fillStyle=g; c.fillRect(0,0,W,H);
+      for(let i=0;i<120;i++){                     // drifts and hollows
+        const x=R(0,W), y=R(0,H), rx=R(30,120), ry=R(10,36);
+        c.fillStyle = Math.random()<.5 ? 'rgba(255,255,255,'+R(.2,.5)+')'
+                                       : 'rgba(176,196,220,'+R(.06,.18)+')';
+        c.beginPath(); c.ellipse(x,y,rx,ry,R(-.3,.3),0,TAU); c.fill();
+      }
+      for(let i=0;i<900;i++){                     // the glitter on top
+        const x=R(0,W), y=R(0,H);
+        c.fillStyle='rgba(255,255,255,'+R(.3,.9)+')';
+        c.fillRect(x,y,R(1,2.4),R(1,2.4));
+      }
+      speckle(c,400,['rgba(150,175,205,.1)']);
+    },
+    garden(c){
+      const t=A.tint/100;
+      c.fillStyle='hsl('+(28-6*t)+' '+(22+8*t)+'% '+(20+8*t)+'%)'; c.fillRect(0,0,W,H);
+      for(let i=0;i<1800;i++){                    // turned soil, clod by clod
+        const x=R(0,W), y=R(0,H), r=R(3,11);
+        c.fillStyle='hsl('+R(20,36)+' '+R(16,34)+'% '+R(14,32)+'% / '+R(.4,.9)+')';
+        c.beginPath(); c.ellipse(x,y,r,r*R(.5,.85),R(0,TAU),0,TAU); c.fill();
+      }
+      c.lineCap='round';
+      for(let i=0;i<40;i++){                      // a root or two, and rake lines
+        const y=R(0,H);
+        c.strokeStyle='rgba(120,96,58,'+R(.06,.16)+')'; c.lineWidth=R(3,9);
+        c.beginPath(); c.moveTo(0,y);
+        for(let x=0;x<=W;x+=30) c.lineTo(x,y+Math.sin(x/80+i)*R(2,6));
+        c.stroke();
+      }
+      speckle(c,900,['rgba(255,230,190,.05)','rgba(10,6,2,.16)','rgba(120,150,80,.07)']);
+    },
     gravel(c){
       const t=A.tint/100;
       c.fillStyle='hsl('+(60-14*t)+' '+(12+6*t)+'% '+(40+8*t)+'%)'; c.fillRect(0,0,W,H);
@@ -4881,6 +5197,7 @@
     if(level<2 || kind) return null;
     const L=LEVELS[level%LEVELS.length];
     if(!OUTDOORS[L.ground]) return null;          // nothing rains on a drawer
+    if(L.ground==='snow') return 'snow';          // it is snowing, that is the point
     return Math.random()<.45 ? ANT_WX[(Math.random()*ANT_WX.length)|0] : null;
   }
   function seedAntWeather(){
