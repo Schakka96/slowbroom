@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 74 — Rust Parquet";</script>
+<script>window.SLOWBROOM_BUILD="build 75 — Frost Parquet";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -2632,6 +2632,9 @@
     }else if(d.t==='oops'){
       __dbg.err('peer', (d.name||'someone')+"'s game hit an error: "+d.msg);
     }
+    else if(d.t==='bye'){
+      if(mcoop.peers.delete(d.id)) setMopNestUI();
+    }
     else if(d.t==='away'){
       const p=mcoop.peers.get(d.id);
       if(p){ p.away=!!d.away; p.seen=Date.now(); setMopNestUI(); }
@@ -2933,7 +2936,7 @@
     for(const p of mcoop.peers.values()){
       if(p.me || !p.seen) continue;
       const age=now-p.seen;
-      if(age>6000 && !p.quiet){
+      if(age>6000 && !p.quiet && !p.away){
         p.quiet=true;
         __dbg.warn('nest','no word from '+(p.name||'them')+' for 6s — asking again');
         if(mcoop.net) mcoop.net.send({t:'who'});
@@ -2941,9 +2944,9 @@
       if(age<3000 && p.quiet) p.quiet=false;
     }
     for(const [id,p] of mcoop.peers)
-      if(!p.me && p.seen && now-p.seen>25000){
+      if(!p.me && p.seen && now-p.seen > (p.away? 15*60000 : 25000)){
         __dbg.warn('nest','dropping '+(p.name||id)+' — nothing heard for '+
-                   Math.round((now-p.seen)/1000)+'s');
+                   Math.round((now-p.seen)/1000)+'s'+(p.away?' (was away)':''));
         mcoop.peers.delete(id); gone=true;
       }
     if(gone) setMopNestUI();
@@ -3323,6 +3326,7 @@
     if(mcoop && mcoop.net) mcoop.net.send({t:'away', id:mcoop.myId, name:mopName(), away});
   });
   window.__mopShout = d => { if(mcoop && mcoop.net) mcoop.net.send(d); };
+  window.__mopBye = () => { if(mcoop && mcoop.net) mcoop.net.send({t:'bye', id:mcoop.myId}); };
   window.__mopLeave=leaveMopNest;
   window.__mopRoom=()=>{
     if(!mcoop) return null;
@@ -4524,7 +4528,7 @@
     for(const p of coop.peers.values()){
       if(p.me || !p.seen) continue;
       const age=now-p.seen;
-      if(age>6000 && !p.quiet){
+      if(age>6000 && !p.quiet && !p.away){
         p.quiet=true;
         __dbg.warn('nest','no word from '+(p.name||'them')+' for 6s — asking again');
         netSend('who');                      // nudge: if they are alive, they will answer
@@ -4535,9 +4539,11 @@
       }
     }
     for(const [id,p] of coop.peers)
-      if(!p.me && p.seen && now-p.seen>25000){
+      // a player who told us they are away has a frozen tab: their browser
+      // stops the timers, so silence from them means nothing
+      if(!p.me && p.seen && now-p.seen > (p.away? 15*60000 : 25000)){
         __dbg.warn('nest','dropping '+(p.name||id)+' — nothing heard for '+
-                   Math.round((now-p.seen)/1000)+'s');
+                   Math.round((now-p.seen)/1000)+'s'+(p.away?' (was away)':''));
         coop.peers.delete(id); gone=true;
       }
     if(gone) setNestUI();
@@ -4583,6 +4589,12 @@
     }
     else if(d.t==='pong' && d.to===coop.myId){
       __dbg.log('ping','round trip via '+(d.from||'them')+': '+(Date.now()-d.at)+' ms');
+    }
+    else if(d.t==='bye'){
+      if(coop.peers.delete(d.id)){
+        __dbg.log('nest',(d.name||'someone')+' left the nest');
+        setNestUI();
+      }
     }
     else if(d.t==='away'){
       const p=coop.peers.get(d.id);
@@ -4803,6 +4815,13 @@
     if(coop && coop.net) netSend('away',{id:coop.myId, name:myName(), away});
     if(mcoopShare) mcoopShare(away);
   });
+  // closing the tab should not leave a ghost standing on the floor
+  const sayBye=()=>{
+    try{ if(coop && coop.net) netSend('bye',{id:coop.myId, name:myName()}); }catch(e){}
+    try{ if(window.__mopBye) window.__mopBye(); }catch(e){}
+  };
+  window.addEventListener('pagehide', sayBye);
+  window.addEventListener('beforeunload', sayBye);
   let mcoopShare=null;
   window.__mopAway = fn => { mcoopShare=fn; };
   window.__coopPing = () => {
