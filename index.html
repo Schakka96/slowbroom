@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="b469103 · 14 Sep 20:26";</script>
+<script>window.SLOWBROOM_BUILD="d950aab · 14 Sep 20:29";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -163,6 +163,20 @@
   .log li:hover .blockbtn, .blockbtn:focus-visible{opacity:1}
   .unblock{opacity:1; margin-left:auto}
   .blockbtn:hover, .unblock:hover{border-color:var(--accent); color:var(--accent)}
+  .lockbar{
+    margin:0; display:flex; align-items:center; gap:10px; font-size:.76rem;
+    padding:6px 9px; border-radius:4px; color:var(--ink);
+    background:color-mix(in srgb, var(--accent) 12%, transparent);
+    border-left:3px solid var(--accent);
+  }
+  .lockbar b{color:var(--accent)}
+  .log .whisper{opacity:.95}
+  .log .towhom{
+    font-family:"IBM Plex Mono",monospace; font-size:.66rem; color:var(--accent);
+    border:1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    border-radius:99px; padding:0 6px; margin-right:.25em;
+  }
+  .mention.whisper{border-left-color:var(--accent); border-left-width:3px}
   .rules{margin:0; font-size:.7rem; color:var(--ink-faint); line-height:1.5}
   .rules.contact b{color:#b8860b; font-weight:700}
   .warnmsg{
@@ -737,6 +751,7 @@
    <ol class="log" id="chat-log"><li class="empty">No messages yet.</li></ol>
    <p class="rules" id="chat-rules"></p>
    <p class="rules contact">Something broken, or someone behaving badly? Type <b>@madryad</b> to reach the person who made this.</p>
+   <p class="lockbar" id="lockbar" hidden></p>
    <form class="say" id="chat-form">
      <input id="chat-name" type="text" maxlength="18" placeholder="your name" autocomplete="nickname">
      <input id="chat-text" type="text" maxlength="240" placeholder="say something — click a name to reply to them">
@@ -4624,12 +4639,23 @@
   function renderFromCache(){ renderLog(lastRows); }
   function renderLog(rows){
     lastRows=rows;
-    const shown=rows.filter(m=>!hidden(m.name) && !banned(m.name));
+    const mine=keyOf(myName);
+    const shown=rows.filter(m=>{
+      if(hidden(m.name) || banned(m.name)) return false;
+      if(!m.dm) return true;
+      return keyOf(m.dm)===mine || keyOf(m.name)===mine;     // whispers stay between two
+    });
     if(!shown.length){ logEl.innerHTML='<li class="empty">No messages yet — say hello.</li>'; return; }
     logEl.innerHTML='';
     for(const m of shown){
       const li=document.createElement('li');
       if(m.name===myName) li.className='me';
+      if(m.dm){
+        li.className=(li.className+' whisper').trim();
+        const to=document.createElement('span'); to.className='towhom';
+        to.textContent = keyOf(m.dm)===mine ? '→ you' : '→ '+m.dm;
+        li.append(to, document.createTextNode(' '));
+      }
       const who=document.createElement('button');
       who.type='button'; who.className='who'+(devName(m.name)?' dev':''); who.textContent=m.name;
       if(devName(m.name)) who.title='the person who made this';
@@ -4650,6 +4676,12 @@
       const t=document.createElement('time'); t.textContent=fmt(m.ts||Date.now());
       li.append(t);
       if(keyOf(m.name)!==keyOf(myName)){
+        const lk=document.createElement('button');
+        lk.type='button'; lk.className='blockbtn';
+        lk.textContent = keyOf(lockedTo)===keyOf(m.name) ? 'unlock' : 'whisper';
+        lk.title='Talk only with '+m.name;
+        lk.addEventListener('click',()=>setLock(keyOf(lockedTo)===keyOf(m.name)? '' : m.name));
+        li.append(lk);
         const bl=document.createElement('button');
         bl.type='button'; bl.className='blockbtn'; bl.textContent='block';
         bl.title='Block '+m.name+' — you stop seeing each other';
@@ -4663,12 +4695,17 @@
     logEl.scrollTop=logEl.scrollHeight;
   }
 
+  // while you are in a nest or a mopping room, the whole room's chat shows up
+  // on the field, not only the messages aimed at you
+  const inCoop = () => !!((window.__antNest && window.__antNest.active()) ||
+                          (window.__mopRoom && window.__mopRoom()));
+
   // ── the mention overlay, on whichever field is showing ─────────────
   function flash(m){
     const box=document.getElementById(game()==='ant'?'mentions-ant':'mentions-bloom');
     if(!box) return;
     const el=document.createElement('div');
-    el.className='mention'; el.title='Reply to '+m.name;
+    el.className='mention'+(m.dm?' whisper':''); el.title='Reply to '+m.name;
     const b=document.createElement('b'); b.textContent=m.name;
     el.append(b, document.createTextNode(' ' + String(m.text||'').slice(0,120)));
     el.addEventListener('click',()=>{ addTag(m.name); });
@@ -4775,22 +4812,28 @@
   function supaBoot(){
     let firstOk=false;
     const pullMessages = () =>
-      rest('messages?select=id,created_at,name,body'+(roomsOK?'&room=eq.'+room$:'')+
+      rest('messages?select=id,created_at,name,body'+(dmOK?',dm':'')+(roomsOK?'&room=eq.'+room$:'')+
            '&order=created_at.desc&limit=60')
         .then(r=>r.ok?r.json():[])
         .then(rows=>{
           if(!firstOk){ firstOk=true; setStatus('live'); __dbg.log('chat','first message pull ok'); }
-          const list=rows.map(m=>({id:String(m.id), name:m.name, text:m.body, ts:Date.parse(m.created_at)}))
+          const list=rows.map(m=>({id:String(m.id), name:m.name, text:m.body, dm:m.dm||null,
+                                   ts:Date.parse(m.created_at)}))
                          .sort((a,b)=>a.ts-b.ts);
           renderLog(list);
           for(const m of list){
             if(seen.has(m.id)) continue;
             seen.add(m.id);
             if(m.ts < joinedAt-1000 || m.name===myName || hidden(m.name)) continue;
-            if(mentionsMe(m.text)) flash(m);
+            const forMe = m.dm && keyOf(m.dm)===keyOf(myName);
+            if(m.dm && !forMe) continue;
+            if(forMe || mentionsMe(m.text) || inCoop()) flash(m);
           }
         })
-        .catch(()=>setStatus('offline — retrying'));
+        .catch(()=>{
+          if(dmOK){ dmOK=false; __dbg.warn('chat','no dm column — whispers off (run supabase/update3.sql)'); }
+          setStatus('offline — retrying');
+        });
 
     const pushPresence = () =>
       upsert('presence', roomsOK
@@ -4843,6 +4886,7 @@
   function supaSay(name, body){
     const row={name:name.slice(0,18), body:body.slice(0,240), game:game()};
     if(roomsOK) row.room=room$;
+    if(lockedTo && dmOK) row.dm=lockedTo.slice(0,18);
     rest('messages',{method:'POST', body:JSON.stringify(row)})
       .then(()=>{ setStatus('live'); })
       .catch(()=>setStatus('could not send — try again'));
@@ -4888,7 +4932,9 @@
         seen.add(ch.doc.id);
         if((m.ts||0) < joinedAt-1000) continue;      // history, not news
         if(m.name===myName || hidden(m.name)) continue;
-        if(mentionsMe(m.text)) flash(m);
+        const forMe = m.dm && keyOf(m.dm)===keyOf(myName);
+        if(m.dm && !forMe) continue;
+        if(forMe || mentionsMe(m.text) || inCoop()) flash(m);
       }
     }, e=>setStatus('chat offline ('+e.code+')'));
   }
@@ -5075,6 +5121,29 @@
   let isDev=false;
   try{ isDev = localStorage.getItem('sb-dev')==='1'; }catch(e){}
   const devName = n => String(n||'').trim().toLowerCase()===DEV;
+
+  // ── whispering: lock on to one person and stay with them ────────────
+  let lockedTo='', dmOK=true;
+  try{ lockedTo=localStorage.getItem('sb-locked')||''; }catch(e){}
+  function setLock(name){
+    lockedTo = name ? String(name).slice(0,18) : '';
+    try{ localStorage.setItem('sb-locked', lockedTo); }catch(e){}
+    renderLock(); renderFromCache();
+  }
+  function renderLock(){
+    const bar=document.getElementById('lockbar');
+    if(!bar) return;
+    bar.hidden=!lockedTo;
+    if(!lockedTo) return;
+    bar.innerHTML='';
+    const t=document.createElement('span');
+    t.innerHTML='Whispering to <b>'+lockedTo.replace(/[<>&]/g,'')+'</b> — only they see it';
+    const x=document.createElement('button');
+    x.type='button'; x.className='unblock'; x.textContent='back to the room';
+    x.addEventListener('click',()=>setLock(''));
+    bar.append(t,x);
+    if(textEl) textEl.placeholder='whisper to '+lockedTo+'…';
+  }
 
   // ── blocking: two people stop existing for each other ───────────────
   const keyOf = n => String(n||'').trim().toLowerCase().slice(0,18);
@@ -5356,7 +5425,7 @@
     if(v>=80&&v<=220){ sizeEl.value=v; }
   }catch(e){}
   applySize(+sizeEl.value);
-  renderBlocked();
+  renderBlocked(); renderLock();
   sizeEl.addEventListener('input',()=>applySize(+sizeEl.value));
 
   // ── the game keeps the keyboard: hand focus back after every control ─
