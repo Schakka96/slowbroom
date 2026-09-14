@@ -4131,7 +4131,7 @@
   const testLive=document.getElementById('test-live');
   const testGame=document.getElementById('test-game');
 
-  let room=null, db=null, peers=[], myName='', myPeer='';
+  let room=null, db=null, peers=[], myName='', myPeer='', liveCounts=null;
   const joinedAt=Date.now();
   const seen=new Set();
 
@@ -4398,7 +4398,6 @@
   async function useCap(n){
     try{ return (await window.claude?.use?.(n)) || null; }catch(e){ return null; }
   }
-  let liveCounts=null;
   async function boot(){
     __dbg.set('transport', CFG? 'supabase' : 'claude runtime');
     if(CFG){
