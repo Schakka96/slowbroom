@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 43 — Quiet Bristle";</script>
+<script>window.SLOWBROOM_BUILD="build 44 — Warm Bristle";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -2515,7 +2515,9 @@
     const away=n-here;
     st.textContent='Room '+mcoop.code+' · '+n+' of '+MOP_MAX+' mopper'+(n===1?'':'s')+
                    (away? ' ('+away+' in another room)':'')+
-                   (mcoop.isHost?' · you host':'')+' · '+via+(mcoop.wire? ' · '+mcoop.wire : '');
+                   (mcoop.isHost?' · you host':'')+' · '+via+(mcoop.wire? ' · '+mcoop.wire : '')+
+                   (window.__socketCloses? ' · '+window.__lastSocketClose+
+                     ' ×'+window.__socketCloses : '');
     list.innerHTML='';
     for(const p of mcoop.peers.values()){
       const row=document.createElement('div'); row.className='peer';
@@ -3926,7 +3928,8 @@
     const away=n-here;
     st.textContent='Nest '+coop.code+' · '+n+' of '+NEST_MAX+' antling'+(n===1?'':'s')+
       (away? ' ('+away+' on another round)':'')+
-      (coop.isHost?' · you host':'')+' · '+via+(coop.wire? ' · '+coop.wire : '');
+      (coop.isHost?' · you host':'')+' · '+via+(coop.wire? ' · '+coop.wire : '')+
+      (window.__socketCloses? ' · '+window.__lastSocketClose+' ×'+window.__socketCloses : '');
     list.innerHTML='';
     for(const p of coop.peers.values()){
       const row=document.createElement('div'); row.className='peer';
@@ -5397,6 +5400,7 @@
     ['/nest',        'what the co-op connection is doing'],
     ['/room',        'dump the mopping room state'],
     ['/nestcheck',   'test whether co-op works from this browser'],
+    ['/flap',        'why the connection keeps dropping'],
     ['/help',        'this list']
   ];
   // ── diagnostics ────────────────────────────────────────────────────
@@ -5506,6 +5510,13 @@
       }
       case 'selftest': return selftest();
       case 'nest': return nestReport();
+      case 'flap': {
+        __dbg.toggle(true);
+        __dbg.log('flap','channel states: '+((window.__chanStates||[]).join(' → ')||'none'));
+        __dbg.log('flap','socket closes: '+(window.__socketCloses||0)+
+                  (window.__lastSocketClose? ' · last: '+window.__lastSocketClose : ''));
+        return 'see the dev console';
+      }
       case 'nestcheck': return nestCheck(arg);
       case 'room': {
         __dbg.toggle(true);
@@ -5922,6 +5933,11 @@
     hook('open',()=>__dbg.log('socket','open'));
     hook('close',e=>{
       const code=e&&e.code, why=(e&&e.reason)||'';
+      const label=({1000:'normal',1001:'page went away',1006:'dropped — blocked or network',
+        1011:'server error',4001:'key rejected',4002:'forbidden',4008:'rate limited',
+        4009:'too many channels',4010:'too many connections',4011:'too many joins'}[code]||'code '+code);
+      window.__lastSocketClose='socket '+label+(why?' · '+why:'');
+      window.__socketCloses=(window.__socketCloses||0)+1;
       __dbg.err('socket','closed — code '+code+(why?' · '+why:'')+' '+({
         1000:'(normal)', 1001:'(page went away)', 1006:'(dropped — blocked or network)',
         1011:'(server error)', 4000:'(bad request)', 4001:'(unauthorised — key rejected)',
@@ -5957,6 +5973,9 @@
     let joined=false;
     await new Promise(res=>{
       ch.subscribe((status, err)=>{
+        window.__chanStates=(window.__chanStates||[]);
+        window.__chanStates.push(status+'@'+new Date().toISOString().slice(14,22));
+        if(window.__chanStates.length>12) window.__chanStates.shift();
         __dbg.log('nest','channel '+status+(err? ' · '+(err.message||err) : ''));
         if(handlers.status) handlers.status(status);
         if(status==='SUBSCRIBED'){ joined=true; ch.track(mine); res(); }
