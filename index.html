@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 82 — Amber Lantern";</script>
+<script>window.SLOWBROOM_BUILD="build 83 — Quiet Lantern";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -848,8 +848,8 @@
     <div class="ctl">
       <div class="row"><span class="lbl" id="pick-l">Picking up</span></div>
       <div class="seg" role="group" aria-labelledby="pick-l">
-        <button type="button" data-pick="auto" aria-pressed="true">Always · shift to skip</button>
-        <button type="button" data-pick="shift" aria-pressed="false">Only with shift</button>
+        <button type="button" data-pick="shift" aria-pressed="true">Hold shift to pick up</button>
+        <button type="button" data-pick="auto" aria-pressed="false">Pick up everything</button>
       </div>
     </div>
 
@@ -891,7 +891,7 @@
       <span class="sp"></span>
     </div>
     <p class="note"><b>1</b>–<b>4</b> set the speed, <b>−</b> and <b>+</b> change the ant's size,
-      <b>0</b> blows a patch of floor clear. Hold <b>shift</b> to walk over things without picking them up. Anything you walk over is picked up. Space sets the biggest handful down where you stand; standing on a pile drops items.</p>
+      <b>0</b> blows a patch of floor clear. Hold <b>shift</b> to pick things up as you walk over them. Anything you walk over is picked up. Space sets the biggest handful down where you stand; standing on a pile drops items.</p>
   </aside>
 </div>
  </div>
@@ -3948,8 +3948,9 @@
     FAMILIES.forEach(f=>f.kinds.forEach(k=>pick.push(k)));
     const chosen=[];
     for(let i=0;i<MAX_KINDS;i++) chosen.push(pick[Math.floor(i*pick.length/MAX_KINDS)]);
-    chosen.forEach((k,i)=>finale[k]=(finale[k]||0)+Math.round(600/MAX_KINDS));
-    out.push({name:'The everything drawer', ground:'desk', mix:finale});
+    // fewer, larger things: 600 at this size would be a carpet, not a floor
+    chosen.forEach((k,i)=>finale[k]=(finale[k]||0)+Math.round(430/MAX_KINDS));
+    out.push({name:'The everything drawer', ground:'wood', mix:finale});
     return out.concat([
       {name:'The flower shop',   ground:'shop',   kind:'shop', gift:'flowers', count:15},
       {name:'The long hall',     ground:'hall',   kind:'hall'},
@@ -3970,7 +3971,7 @@
   /* ── state ──────────────────────────────────────────────── */
   const SPEED_NAMES=['Amble','Scurry','Dash','Bolt'];
   const SPEED_MULT=[3.2,6.4,11.5,19.5];   // body lengths per second
-  const A = { speed:1, hold:true, tint:20, size:1, pickMode:'auto' };
+  const A = { speed:1, hold:true, tint:20, size:1, pickMode:'shift' };
   let W=0,H=0,dpr=1, ground=null, itemsLayer=null, pilesLayer=null;
   let items=[], piles=[], carried=[], flying=[];
   let ant={x:0,y:0,h:0,th:0}, body=26, baseBody=26, itemPx=22, total=0;
@@ -4299,12 +4300,12 @@
     total=Object.values(L.mix).reduce((a,b)=>a+b,0);
     // the world opens up as the rounds grow: close in at first, wide at the end
     // the world opens up as the rounds grow, but only a little
-    const zoom = 1.7 - .25*Math.min(1, level/Math.max(1,LAST_SORT));
+    const zoom = 1.7 - .12*Math.min(1, level/Math.max(1,LAST_SORT));
     baseBody = Math.min(W,H)/15*zoom;
     body=clamp(baseBody*A.size, 12, 90);
     // busy rounds shrink things only slightly now, so the last levels look
     // like the early ones rather than like confetti
-    itemPx=clamp(Math.min(W,H)/17 * zoom * clamp(1-total/2400,.72,1), 9, 46);
+    itemPx=clamp(Math.min(W,H)/17 * zoom * clamp(1-total/3200,.82,1), 11, 58);
     cache.clear();
     groundSeed=(Math.random()*1e9)|0;
     ground=makeLayer();
@@ -4332,7 +4333,7 @@
   }
 
   function buildSpecial(L){
-    const zoom=1.45;
+    const zoom=1.58;
     baseBody=Math.min(W,H)/15*zoom;
     body=clamp(baseBody*A.size, 12, 90);
     itemPx=clamp(Math.min(W,H)/15*zoom, 10, 46);
@@ -5167,7 +5168,7 @@
     if(kind){ stepSpecial(dt,now); return; }
     // pick up
     const rr=body*.5;
-    // hold Shift to walk over things and leave them where they are
+    // things stay where they are unless you hold Shift to gather them up
     const picking = A.pickMode==='shift' ? shiftDown : !shiftDown;
     for(let i=items.length-1;i>=0 && picking && carried.length<capacity();i--){
       const it=items[i];
@@ -5662,10 +5663,10 @@
     const nBots=(typeof bots!=='undefined'? bots:[]);
     layout();
     const L=LEVELS[Math.min(level,LEVELS.length-1)];
-    const zoom = L.kind ? 1.45 : (1.7 - .25*Math.min(1, level/Math.max(1,LAST_SORT)));
+    const zoom = L.kind ? 1.58 : (1.7 - .12*Math.min(1, level/Math.max(1,LAST_SORT)));
     baseBody=Math.min(W,H)/15*zoom;
     body=clamp(baseBody*A.size, 12, 90);
-    itemPx=clamp(Math.min(W,H)/(L.kind?15:17) * zoom * clamp(1-total/2400,.72,1), 9, 46);
+    itemPx=clamp(Math.min(W,H)/(L.kind?15:17) * zoom * clamp(1-total/3200,.82,1), 11, 58);
     cache.clear();
     ground=makeLayer();
     withSeed(groundSeed, ()=> GROUNDS[L.ground](ground.ctx));
