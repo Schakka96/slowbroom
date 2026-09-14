@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="8c90893 · 14 Sep 20:31";</script>
+<script>window.SLOWBROOM_BUILD="6126741 · 14 Sep 20:38";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -2444,6 +2444,7 @@
     if(!mcoop || S.mode!=='mop') return;
     for(const p of mcoop.peers.values()){
       if(p.me || typeof p.x!=='number') continue;
+      if(!sameFloor(p)){ p.lx=undefined; continue; }      // they walked into another room
       const pos=mFromN(p.x,p.y);
       if(p.lx!==undefined && (Math.abs(pos.x-p.lx)>0.2 || Math.abs(pos.y-p.ly)>0.2)){
         const wd=Math.max(6,(p.w||14)*IN);
@@ -2456,7 +2457,7 @@
   function drawMopPeers(){
     if(!mcoop) return;
     for(const p of mcoop.peers.values()){
-      if(p.me || typeof p.x!=='number') continue;
+      if(p.me || typeof p.x!=='number' || !sameFloor(p)) continue;
       const pos=mFromN(p.x,p.y), wd=Math.max(6,(p.w||14)*IN);
       drawMop(pos.x,pos.y,p.h||0,wd);
       ctx.font='600 '+Math.max(9,Math.round(cell*1.1))+'px Karla, sans-serif';
@@ -2466,6 +2467,7 @@
       ctx.textAlign='left';
     }
   }
+  const sameFloor = p => (p.lvl===undefined || p.lvl===level) && (p.ridx===undefined || p.ridx===roomIdx);
   function setMopNestUI(){
     const st=document.getElementById('mnest-status'), list=document.getElementById('mnest-peers');
     document.getElementById('mnest-host').hidden=!!mcoop;
@@ -2475,12 +2477,16 @@
     const n=mcoop.peers.size;
     if(mcoop.test) return;                       // the practice room writes its own line
     const via = (mcoop.net && mcoop.net.kind==='supabase') ? 'public' : 'claude.ai';
+    const here=[...mcoop.peers.values()].filter(sameFloor).length;
+    const away=n-here;
     st.textContent='Room '+mcoop.code+' · '+n+' of '+MOP_MAX+' mopper'+(n===1?'':'s')+
-                   (mcoop.isHost?' · you host':'')+' · '+via;
+                   (away? ' ('+away+' in another room)':'')+
+                   (mcoop.isHost?' · you host':'')+' · '+via+(mcoop.wire? ' · '+mcoop.wire : '');
     list.innerHTML='';
     for(const p of mcoop.peers.values()){
       const row=document.createElement('div'); row.className='peer';
       const nm=document.createElement('span'); nm.textContent=(p.name||'mopper')+(p.me?' (you)':'');
+      if(!p.me && !sameFloor(p)){ nm.style.opacity='.55'; nm.textContent+=' · another room'; }
       row.append(nm);
       if(mcoop.isHost && !p.me){
         const k=document.createElement('button');
@@ -2578,7 +2584,8 @@
     st.textContent = host? 'opening room '+code+'…' : 'knocking at room '+code+'…';
     // hold the room open first: presence can arrive before connect() resolves
     mcoop={code, isHost:!!host, net:null, peers:new Map(), myId:net.myId, since:Date.now()};
-    const conn=await net.connect('mop-'+code, {event:onMopEvent, peers:onMopPeers});
+    const conn=await net.connect('mop-'+code, {event:onMopEvent, peers:onMopPeers,
+      status:t=>{ mcoop && (mcoop.wire=t); setMopNestUI(); }});
     if(!conn){ mcoop=null; st.textContent='could not reach that room — try again'; return; }
     mcoop.net=conn; mcoop.myId=conn.myId||net.myId;
     __dbg.set('mop room', code+(host?' (host)':'')); __dbg.log('nest','joined mop room '+code);
@@ -2602,7 +2609,8 @@
     if(!mcoop || !mcoop.net) return;
     const n=mToN(px,py);
     mcoop.net.presence({name:mopName(), x:+n.x.toFixed(4), y:+n.y.toFixed(4),
-                        h:+heading.toFixed(2), w:S.mopw, since:mcoop.since});
+                        h:+heading.toFixed(2), w:S.mopw, since:mcoop.since,
+                        lvl:level, ridx:roomIdx});
   }
 
   function checkLevel(){
@@ -3301,7 +3309,7 @@
   const fpad = () => itemPx*.8;
   const ox0 = () => fpad();
   const oy0 = () => fpad();
-  const fieldW = () => Math.max(1, W-doorW()*1.7-fpad()*2);
+  const fieldW = () => Math.max(1, W-doorW()*1.9-fpad()*2);
   const fieldH = () => Math.max(1, H-fpad()*2);
   const toN = (x,y) => ({x:(x-ox0())/fieldW(), y:(y-oy0())/fieldH()});
   const fromN = (nx,ny) => ({x:ox0()+nx*fieldW(), y:oy0()+ny*fieldH()});
@@ -3819,11 +3827,14 @@
     document.getElementById('nest-leave').hidden=!coop;
     document.getElementById('nest-copy').hidden=!coop;
     if(!coop){ st.textContent='Sorting alone.'; list.innerHTML=''; return; }
-    const n=coop.peers.size;
     if(coop.test) return;
+    const n=coop.peers.size;
     const via = (coop.net && coop.net.kind==='supabase') ? 'public' : 'claude.ai';
+    const here=[...coop.peers.values()].filter(p=>p.lvl===undefined||p.lvl===level).length;
+    const away=n-here;
     st.textContent='Nest '+coop.code+' · '+n+' of '+NEST_MAX+' antling'+(n===1?'':'s')+
-      (coop.isHost?' · you host':'')+' · '+via;
+      (away? ' ('+away+' on another round)':'')+
+      (coop.isHost?' · you host':'')+' · '+via+(coop.wire? ' · '+coop.wire : '');
     list.innerHTML='';
     for(const p of coop.peers.values()){
       const row=document.createElement('div'); row.className='peer';
@@ -3831,8 +3842,11 @@
       const stl=p.style||antStyle(p.name); dot.style.background=stl.body;
       const nm=document.createElement('span'); nm.textContent=(p.name||'antling')+(p.me?' (you)':'');
       const hold=document.createElement('span'); hold.className='holds';
-      hold.textContent = p.top ? (p.top.indexOf('gift:')===0 ? GIFTS[p.top.slice(5)].label
-                                 : (ITEMS[p.top]? ITEMS[p.top].name.toLowerCase():'')) : '';
+      const elsewhere = p.lvl!==undefined && p.lvl!==level;
+      hold.textContent = elsewhere ? 'round '+(p.lvl+1)
+        : (p.top ? (p.top.indexOf('gift:')===0 ? GIFTS[p.top.slice(5)].label
+                    : (ITEMS[p.top]? ITEMS[p.top].name.toLowerCase():'')) : '');
+      if(elsewhere) nm.style.opacity='.55';
       row.append(dot,nm,hold);
       if(coop.isHost && !p.me){
         const k=document.createElement('button');
@@ -3915,7 +3929,8 @@
     st.textContent = host ? 'opening nest '+code+'…' : 'knocking at nest '+code+'…';
     coop={code, isHost:!!host, net:null, peers:new Map(), myId:net.myId,
           since:Date.now(), seed: host ? (Math.random()*1e9|0) : null};
-    const conn=await net.connect('ant-'+code, {event:onNetEvent, peers:onNetPeers});
+    const conn=await net.connect('ant-'+code, {event:onNetEvent, peers:onNetPeers,
+      status:t=>{ coop && (coop.wire=t); setNestUI(); }});
     if(!conn){ coop=null; st.textContent='could not reach the nest — try again'; return; }
     coop.net=conn; coop.myId=conn.myId||net.myId;
     __dbg.set('ant nest', code+(host?' (host)':''));
@@ -4053,8 +4068,18 @@
     pilesDirty=true; carryDirty=true; updateHud();
     if(coop) netSend('piles',{p:pilesWire()});
   }
+  // the nest swallows anything left on it, so keep piles away from the hole
+  function nearNest(x,y){
+    const w=doorW()*1.5, cxx=W-w*.18, cyy=H*.5, hr=w*.42;
+    return Math.hypot(x-cxx, y-cyy) < hr*1.55 + body*.4;
+  }
   function place(){
     if(kind) return;                         // a gift is not put down
+    if(nearNest(ant.x,ant.y)){
+      bannerEl.textContent='Not on the nest.'; bannerEl.style.opacity='1';
+      setTimeout(()=>bannerEl.style.opacity='0',1100);
+      return;
+    }
     const under=nearestPile(ant.x,ant.y,body*.35);
     // standing on a pile: add to it if you are carrying its kind, otherwise pick it up
     if(under){
@@ -4260,6 +4285,8 @@
     if(!coop) return;
     for(const p of coop.peers.values()){
       if(p.me) continue;
+      if(typeof p.x!=='number') continue;
+      if(p.lvl!==undefined && p.lvl!==level) continue;   // they are on another round
       const x=ox0()+p.x*fieldW(), y=oy0()+p.y*fieldH();
       drawAntBody(c, x, y, p.h||0, t/150, p.style||antStyle(p.name), t);
       if(p.top){
@@ -5724,6 +5751,7 @@
         rows.push(Object.assign({}, p, {id:key, me:key===me}));
       }
       __dbg.log('nest','presence: '+rows.length+' ['+rows.map(r=>(r.name||'?')+(r.me?'*':'')).join(', ')+']');
+      if(handlers.status) handlers.status('presence '+rows.length);
       handlers.peers(rows);
     };
     ch.on('presence',{event:'sync'},sync);
@@ -5733,6 +5761,7 @@
     await new Promise(res=>{
       ch.subscribe(status=>{
         __dbg.log('nest','channel '+status);
+        if(handlers.status) handlers.status(status);
         if(status==='SUBSCRIBED'){ joined=true; ch.track(mine); res(); }
         else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT') res();
       });
@@ -5748,8 +5777,9 @@
       },
       presence(p){
         mine=Object.assign({}, p);
-        ch.track(mine).then(r=>{ if(r!=='ok') __dbg.warn('nest','track → '+r); },
-                            ()=>__dbg.err('nest','track threw'));
+        ch.track(mine).then(r=>{
+          if(r!=='ok'){ __dbg.warn('nest','track → '+r); if(handlers.status) handlers.status('track '+r); }
+        },()=>{ __dbg.err('nest','track threw'); if(handlers.status) handlers.status('track failed'); });
       },
       leave(){ try{ ch.unsubscribe(); sb.removeChannel(ch); }catch(e){} }
     };
