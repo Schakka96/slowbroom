@@ -113,7 +113,10 @@ function testRaw(seconds, label){
       finish();
     };
     ws.onerror=()=>log('   socket error','bad');
-    setTimeout(finish, seconds*1000);
+    setTimeout(()=>{ done=true; clearInterval(hb);
+      log('   held the whole '+seconds+'s without dropping','ok');
+      try{ ws.close(); }catch(e){}
+      resolve({joined, closes, acks, heard, lastCode}); }, seconds*1000);
   });
 }
 
@@ -142,8 +145,11 @@ function testLib(seconds){
           },125);
         }
       });
-      setTimeout(()=>{ done=true; try{ch.unsubscribe();sb.removeChannel(ch);}catch(e){}
-        resolve({loaded:true, states, heard}); }, seconds*1000);
+      setTimeout(()=>{ done=true;
+        const dropped=states.filter(s=>s==='CLOSED'||s==='CHANNEL_ERROR').length;
+        log('   held '+seconds+'s · drops before teardown: '+dropped, dropped?'bad':'ok');
+        try{ch.unsubscribe();sb.removeChannel(ch);}catch(e){}
+        resolve({loaded:true, states, heard, dropped}); }, seconds*1000);
     };
     document.head.appendChild(s);
   });
@@ -163,7 +169,7 @@ document.getElementById('run').onclick=async ()=>{
   else if(!short.joined) v='<b>Websockets cannot reach the server from this browser.</b> HTTPS works but the websocket does not, which is the signature of an extension, firewall or proxy that blocks them. Try a private window or another network.';
   else if(short.closes) v='<b>The websocket joins and is then closed</b> (code '+short.lastCode+') even without the library. That is the server or the network dropping it, not the game’s code.';
   else if(lib.loaded===false) v='<b>Plain websockets are fine, but the library could not load.</b> The game will use its direct wire — type /direct in the game and rejoin.';
-  else if((lib.states||[]).filter(s=>s==='CLOSED'||s==='CHANNEL_ERROR').length) v='<b>The plain websocket held for 12 seconds, but the library’s channel dropped.</b> That points at the library, not your connection — type /direct in the game and rejoin to bypass it.';
+  else if(lib.dropped) v='<b>The plain websocket held for 12 seconds, but the library’s channel dropped.</b> That points at the library, not your connection — type /direct in the game and rejoin to bypass it.';
   else v='<b>Everything held for 12 seconds.</b> Plain socket: '+short.heard+' messages echoed. Library: '+lib.heard+' echoed. The connection is healthy from this browser.';
   verdict(v);
   log('— verdict —');
