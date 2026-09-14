@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 104 — Mahagony Mop";</script>
+<script>window.SLOWBROOM_BUILD="build 105 — Mahagony Mop";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -6998,6 +6998,10 @@
   const sendBtn=document.getElementById('chat-send');
 
   let room=null, db=null, peers=[], myName='', myPeer='', liveCounts=null;
+  // How many people may be in the chat at once. The games themselves never
+  // stop working — this only caps what the database is asked to carry.
+  const CROWD_CAP=300;
+  let liveTotal=0, tooBusy=false;
   const joinedAt=Date.now();
   const seen=new Set();
 
@@ -7020,6 +7024,7 @@
     return c;
   }
   function renderPill(){
+    if(tooBusy){ text.textContent='Busy — '+CROWD_CAP+' people are playing, try again shortly'; return; }
     const g=game(), c=counts(), n=c[g]||0, words=GAMES[g]||GAMES.mop;
     const extra = '';
     text.textContent = (room||liveCounts)
@@ -7195,7 +7200,7 @@
     room$=id; try{ localStorage.setItem('sb-room',String(id)); }catch(e){}
     seen.clear(); logEl.innerHTML='<li class="empty">…</li>';
     renderRooms();
-    if(supaBoot.pullMessages) supaBoot.pullMessages();
+    if(supaBoot.pullMessages) supaBoot.pullMessages(true);   // a different room, start over
     if(supaBoot.pushPresence) supaBoot.pushPresence();
   }
   roomEl.addEventListener('change',()=>joinRoom(+roomEl.value||1));
@@ -7213,16 +7218,27 @@
 
   function supaBoot(){
     let firstOk=false;
-    const pullMessages = () =>
-      rest('messages?select=id,created_at,name,body'+(dmOK?',dm':'')+(roomsOK?'&room=eq.'+room$:'')+
-           '&order=created_at.desc&limit=60')
+    // The chat used to re-download the same sixty messages every three
+    // seconds. Ids are handed out in order, so after the first page we only
+    // ever ask for what came after the last one we hold.
+    let msgCache=[], lastId=0;
+    const pullMessages = (full) => {
+      const base='messages?select=id,created_at,name,body'+(dmOK?',dm':'')+
+                 (roomsOK?'&room=eq.'+room$:'');
+      const fresh = full || !lastId;
+      if(full){ msgCache=[]; lastId=0; }
+      return rest(fresh ? base+'&order=created_at.desc&limit=60'
+                        : base+'&id=gt.'+lastId+'&order=id.asc&limit=60')
         .then(r=>r.ok?r.json():[])
         .then(rows=>{
           if(!firstOk){ firstOk=true; setStatus('live'); __dbg.log('chat','first message pull ok'); }
           const list=rows.map(m=>({id:String(m.id), name:m.name, text:m.body, dm:m.dm||null,
                                    ts:Date.parse(m.created_at)}))
                          .sort((a,b)=>a.ts-b.ts);
-          renderLog(list);
+          if(!list.length && !fresh) return;        // nothing said since last time
+          msgCache = fresh ? list : msgCache.concat(list).slice(-60);
+          for(const m of msgCache){ const n=+m.id; if(n>lastId) lastId=n; }
+          renderLog(msgCache);
           for(const m of list){
             if(seen.has(m.id)) continue;
             seen.add(m.id);
@@ -7236,6 +7252,7 @@
           if(dmOK){ dmOK=false; __dbg.warn('chat','no dm column — whispers off (run supabase/update3.sql)'); }
           setStatus('offline — retrying');
         });
+    };
 
     const pushPresence = () =>
       upsert('presence', roomsOK
@@ -7243,21 +7260,48 @@
         : {client_id:clientId, name:myName||null, game:game(), seen_at:new Date().toISOString()})
         .catch(()=>{});
 
-    const pullPresence = () =>
+    // Counting used to mean every player downloading every other player's
+    // row, which grows with the square of the crowd. The database counts for
+    // us now and sends back one small object; the old way is the fallback.
+    let countRpc=true;
+    const noteCounts = (c, byRoom, total) => {
+      liveCounts=c; roomCounts=byRoom; liveTotal=total;
+      __dbg.set('here', 'mop '+c.mop+' · ant '+c.ant+' · mosaic '+c.mosaic+' · '+total+' in all');
+      renderPill(); renderRooms();
+    };
+    const pullPresenceRows = () =>
       rest('presence?select=game,seen_at,client_id'+(roomsOK?',room':''))
         .then(r=>r.ok?r.json():[])
         .then(rows=>{
           const fresh=Date.now()-45000;
           const c={mop:0,ant:0,mosaic:0}, byRoom={};
+          let total=0;
           for(const r0 of rows){
             if(Date.parse(r0.seen_at) < fresh) continue;
+            total++;
             if(c[r0.game]!==undefined) c[r0.game]++;
             const rm=r0.room||1; byRoom[rm]=(byRoom[rm]||0)+1;
           }
-          liveCounts=c; roomCounts=byRoom;
-          __dbg.set('here', 'mop '+c.mop+' · ant '+c.ant+' · mosaic '+c.mosaic);
-          renderPill(); renderRooms();
+          noteCounts(c, byRoom, total);
         }).catch(()=>{});
+    const pullPresence = () => {
+      if(!countRpc) return pullPresenceRows();
+      return rest('rpc/live_counts')
+        .then(r=>{
+          if(!r.ok) throw new Error('rpc '+r.status);
+          return r.json();
+        })
+        .then(j=>{
+          const c={mop:j.mop|0, ant:j.ant|0, mosaic:j.mosaic|0};
+          noteCounts(c, j.rooms||{}, j.total|0);
+        })
+        .catch(()=>{
+          countRpc=false;
+          __dbg.warn('chat','no live_counts function — counting the slow way '+
+                            '(run supabase/update6.sql)');
+          return pullPresenceRows();
+        });
+    };
 
     const pullBoard = () =>
       rest('moppers?select=name,rooms&order=rooms.desc&limit=6')
@@ -7266,19 +7310,39 @@
         .catch(()=>{});
 
     supaBoot.pullMessages=pullMessages; supaBoot.pushPresence=pushPresence;
-    pullRooms().then(()=>{
-      pullMessages(); pushPresence(); pullPresence(); pullBoard(); pullBlocks(); pullBans();
-      const wake = fn => () => { if(!document.hidden) fn(); };
-      supaTimers.push(setInterval(wake(pullBans),30000));
-      if(roomsOK) supaTimers.push(setInterval(wake(pullRooms),15000));
-      supaTimers.push(setInterval(wake(pullBlocks),20000));
-    });
-    const awake = fn => () => { if(!document.hidden) fn(); };
-    supaTimers.push(setInterval(awake(pullMessages),3000), setInterval(awake(pushPresence),15000),
-                    setInterval(awake(pullPresence),6000), setInterval(awake(pullBoard),20000));
-    document.addEventListener('visibilitychange',()=>{
-      if(!document.hidden){ pullMessages(); pullPresence(); pushPresence(); }
-    });
+    // Count the room before announcing ourselves: if it is already full we
+    // never write a presence row and never start a timer, so a crowd cannot
+    // grow past the cap and eat a month of quota in an afternoon.
+    const openTheChat = () => {
+      if(liveTotal >= CROWD_CAP){
+        tooBusy=true;
+        setStatus('the chat is full right now — the games all still work');
+        renderPill();
+        if(sendBtn) sendBtn.disabled=true;
+        if(textEl) textEl.placeholder='the chat is full right now';
+        __dbg.warn('chat','at the '+CROWD_CAP+'-player cap: not joining');
+        // keep counting, slowly, so we can come in when a place opens up
+        supaTimers.push(setInterval(()=>{
+          if(document.hidden) return;
+          pullPresence().then(()=>{ if(liveTotal < CROWD_CAP-5){ tooBusy=false; location.reload(); } });
+        }, 30000));
+        return;
+      }
+      pullRooms().then(()=>{
+        pullMessages(true); pushPresence(); pullBoard(); pullBlocks(); pullBans();
+        const wake = fn => () => { if(!document.hidden) fn(); };
+        supaTimers.push(setInterval(wake(pullBans),30000));
+        if(roomsOK) supaTimers.push(setInterval(wake(pullRooms),15000));
+        supaTimers.push(setInterval(wake(pullBlocks),20000));
+      });
+      const awake = fn => () => { if(!document.hidden) fn(); };
+      supaTimers.push(setInterval(awake(pullMessages),3000), setInterval(awake(pushPresence),15000),
+                      setInterval(awake(pullPresence),6000), setInterval(awake(pullBoard),20000));
+      document.addEventListener('visibilitychange',()=>{
+        if(!document.hidden){ pullMessages(); pullPresence(); pushPresence(); }
+      });
+    };
+    pullPresence().then(openTheChat, openTheChat);
     document.addEventListener('gamechange',pushPresence);
     window.addEventListener('beforeunload',()=>{
       try{ navigator.sendBeacon && rest('presence?client_id=eq.'+encodeURIComponent(clientId),
