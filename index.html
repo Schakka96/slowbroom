@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 75 — Frost Parquet";</script>
+<script>window.SLOWBROOM_BUILD="build 76 — Maple Parquet";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -951,6 +951,15 @@
     l.width=Math.max(1,Math.round(W*dpr)); l.height=Math.max(1,Math.round(H*dpr));
     const c=l.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0);
     return {cv:l, ctx:c};
+  }
+  function hiddenClockMop(tickFn){
+    let w=null, fb=null;
+    const run=()=>{ if(document.hidden){ try{ tickFn(performance.now()); }catch(e){} } };
+    try{
+      const src='let t=null;onmessage=function(e){if(e.data){t=setInterval(function(){postMessage(1)},40)}else{clearInterval(t)}};';
+      w=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
+      w.onmessage=run; w.postMessage(1);
+    }catch(e){ fb=setInterval(run,100); }
   }
   const mopPx = () => S.mopw*IN*(SURFACES[level%SURFACES.length].mopScale||1);
 
@@ -2993,8 +3002,9 @@
   const panel = document.getElementById('tab-bloom');
   const visible = () => !panel.hidden;
   let pendingResize=false;
-  let frameErrors=0;
+  let frameErrors=0, rafOn2=false;
   function frame(now){
+    rafOn2=false;
     try{ tick(now); }
     catch(e){
       frameErrors++;
@@ -3429,7 +3439,11 @@
   applyMode();
   hueRun=S.hue; syncAccent();
   newGrid();
-  requestAnimationFrame(frame);
+  hiddenClockMop(now=>{ try{ tick(now); }catch(e){} });
+  document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden && !rafOn2){ rafOn2=true; last=0; requestAnimationFrame(frame); }
+  });
+  rafOn2=true; requestAnimationFrame(frame);
 })();
 </script>
 
@@ -5290,8 +5304,9 @@
     c.restore();
   }
 
-  let last=0, frameErrors=0;
+  let last=0, frameErrors=0, rafOn=false;
   function frame(now){
+    rafOn=false;
     // one thrown error used to stop the loop for good: never again
     try{ tick(now); }
     catch(e){
@@ -5306,6 +5321,23 @@
       last=0;
     }
     requestAnimationFrame(frame);
+  }
+
+  // A window that is covered by another stops getting animation frames, which
+  // freezes the game inside it. A worker's timer is not throttled the same way,
+  // so it drives the loop while the window is out of sight.
+  function hiddenClock(tickFn){
+    let w=null, fallback=null;
+    const run=()=>{ if(document.hidden) { try{ tickFn(performance.now()); }catch(e){} } };
+    try{
+      const src='let t=null;onmessage=function(e){if(e.data){t=setInterval(function(){postMessage(1)},40)}else{clearInterval(t)}};';
+      w=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
+      w.onmessage=run;
+      w.postMessage(1);
+    }catch(e){
+      fallback=setInterval(run, 100);      // worse, but better than a frozen game
+    }
+    return ()=>{ if(w) w.terminate(); if(fallback) clearInterval(fallback); };
   }
   let fpsAcc=0, fpsN=0, fpsAt=0, slowFor=0, fastFor=0;
   window.__lowPower=false;
@@ -5564,9 +5596,14 @@
     }
   }, 4000);
 
+  hiddenClock(now=>{ try{ tick(now); }catch(e){} });
+  document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden && !rafOn){ rafOn=true; last=0; requestAnimationFrame(frame); }
+  });
+
   restoreA();
   buildLevel();
-  requestAnimationFrame(frame);
+  rafOn=true; requestAnimationFrame(frame);
 })();
 
 /* ───────────────────────── tabs ───────────────────────── */
