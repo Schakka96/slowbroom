@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 70 — Honey Parquet";</script>
+<script>window.SLOWBROOM_BUILD="build 72 — Cedar Parquet";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -2723,7 +2723,8 @@
     if(!mcoop){ st.textContent='Mopping alone.'; list.innerHTML=''; return; }
     const n=mcoop.peers.size;
     if(mcoop.test) return;                       // the practice room writes its own line
-    const K={supabase:'public', direct:'public · direct wire', room:'claude.ai'};
+    const K={supabase:'public', direct:'public · direct wire', relay:'public · slow relay',
+             room:'claude.ai'};
     const via = K[(mcoop.net&&mcoop.net.kind)||''] || 'not connected';
     const here=[...mcoop.peers.values()].filter(sameFloor).length;
     const away=n-here;
@@ -4626,7 +4627,8 @@
     if(!coop){ st.textContent='Sorting alone.'; list.innerHTML=''; return; }
     if(coop.test) return;
     const n=coop.peers.size;
-    const K={supabase:'public', direct:'public · direct wire', room:'claude.ai'};
+    const K={supabase:'public', direct:'public · direct wire', relay:'public · slow relay',
+             room:'claude.ai'};
     const via = K[(coop.net&&coop.net.kind)||''] || 'not connected';
     const here=[...coop.peers.values()].filter(p=>p.lvl===undefined||p.lvl===level).length;
     const away=n-here;
@@ -6255,6 +6257,7 @@
     ['/record [s]',  'record a co-op session and copy the report'],
     ['/reset',       'leave every room and start the connection fresh'],
     ['/direct',      'use the direct wire instead of the library'],
+    ['/relay',       'carry co-op over plain HTTP instead of a socket'],
     ['/help',        'this list']
   ];
   // ── diagnostics ────────────────────────────────────────────────────
@@ -6453,6 +6456,12 @@
           : 'nobody'));
         if(!r && !a) return 'not in a room or a nest';
         return 'see the dev console';
+      }
+      case 'relay': {
+        if(!window.__setRelay) return 'not available here';
+        const on=window.__setRelay(!(window.__netMode&&window.__netMode().relay));
+        return on ? 'relay on — rejoin the room (slower, but it does not need a socket)'
+                  : 'relay off — rejoin the room';
       }
       case 'flap': {
         __dbg.toggle(true);
@@ -7161,6 +7170,12 @@
           handlers.status && handlers.status('CLOSED');
           if(gone) return;
           closedFor++;
+          if(closedFor>=3){
+            __dbg.err('direct','the socket will not stay up — moving to the plain HTTP relay');
+            window.__setRelay(true);
+            handlers.status && handlers.status('RELAY');
+            return;                      // the game will rejoin over the relay
+          }
           setTimeout(()=>{ if(!gone){ alive=false; open(); } }, Math.min(8000, 600*closedFor));
         };
         ws.onerror=()=>__dbg.err('direct','socket error');
@@ -7182,9 +7197,64 @@
     });
   }
 
+  // ── the slow road: co-op over plain HTTP, when a socket will not hold ──
+  function viaRest(code, handlers){
+    const base=CFG.url+'/rest/v1/nest_events';
+    const H={apikey:CFG.anonKey, Authorization:'Bearer '+CFG.anonKey, 'Content-Type':'application/json'};
+    let lastId=0, timer=null, gone=false, started=false;
+    const poll=()=>{
+      if(gone) return;
+      fetch(base+'?code=eq.'+encodeURIComponent(code)+'&id=gt.'+lastId+
+            '&order=id.asc&limit=80&select=id,payload', {headers:H})
+        .then(r=>r.ok?r.json():[])
+        .then(rows=>{
+          for(const row of rows){
+            lastId=Math.max(lastId,row.id);
+            const p=row.payload;
+            if(p && p.id!==me){ countIn(p); handlers.event(p); }
+          }
+          if(!started){
+            started=true;
+            handlers.status && handlers.status('SUBSCRIBED');
+            __dbg.log('relay','joined '+code+' over plain HTTP');
+          }
+        })
+        .catch(()=>{});
+    };
+    // start from whatever is already there, so we do not replay old moves
+    const prime = fetch(base+'?code=eq.'+encodeURIComponent(code)+
+                        '&order=id.desc&limit=1&select=id', {headers:H})
+      .then(r=>r.ok?r.json():[])
+      .then(rows=>{ if(rows[0]) lastId=rows[0].id; })
+      .catch(()=>{});
+    return prime.then(()=>{
+      poll();
+      timer=setInterval(poll, 700);
+      return {
+        kind:'relay', myId:me,
+        fast(d){ this.send(Object.assign({t:'pos'}, d)); },
+        send(d){
+          countOut(d);
+          if(gone) return;
+          fetch(base,{method:'POST', headers:H,
+            body:JSON.stringify({code, payload:Object.assign({id:me}, d)})}).catch(()=>{});
+        },
+        presence(p){ this.send(Object.assign({t:'pos'}, p, {id:me})); },
+        leave(){ gone=true; clearInterval(timer); }
+      };
+    });
+  }
+
   let direct=false;
   try{ direct = localStorage.getItem('sb-direct')==='1'; }catch(e){}
-  window.__netMode=()=>({direct, quickCloses:window.__quickCloses||0});
+  let relay=false;
+  try{ relay = localStorage.getItem('sb-relay')==='1'; }catch(e){}
+  window.__netMode=()=>({direct, relay, quickCloses:window.__quickCloses||0});
+  window.__setRelay=v=>{
+    relay=!!v;
+    try{ localStorage.setItem('sb-relay', relay?'1':'0'); }catch(e){}
+    return relay;
+  };
   window.__setDirect=v=>{
     direct=!!v;
     try{ localStorage.setItem('sb-direct', direct?'1':'0'); }catch(e){}
@@ -7195,6 +7265,7 @@
     myId:me,
     async connect(code, handlers){
       if(!CFG) return viaRoom(code,handlers);
+      if(relay) return viaRest(code,handlers);
       if(direct) return viaRaw(code,handlers);
       // watch the library's channel: if it cannot hold a room for six seconds,
       // switch to the direct wire and stay there
@@ -7204,7 +7275,10 @@
           if(t==='SUBSCRIBED') joinedAt=Date.now();
           if((t==='CLOSED'||t==='CHANNEL_ERROR') && joinedAt && Date.now()-joinedAt<6000){
             window.__quickCloses=(window.__quickCloses||0)+1;
-            if(window.__quickCloses>=2 && !direct){
+            if(window.__quickCloses>=4 && !relay){
+              __dbg.warn('nest','sockets will not hold here — switching to the plain HTTP relay');
+              window.__setRelay(true);
+            }else if(window.__quickCloses>=2 && !direct){
               __dbg.warn('nest','the library keeps losing the channel — switching to the direct wire');
               window.__setDirect(true);
             }
