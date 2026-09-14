@@ -13,8 +13,13 @@ ICON = ("data:image/svg+xml,"
   "stroke='%238fa0ad' stroke-width='1.4'/%3E"
   "%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' "
   "stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E")
-stamp = subprocess.run(["git","rev-parse","--short","HEAD"],capture_output=True,text=True).stdout.strip() or "dev"
-BUILD = stamp + " · " + datetime.datetime.now().strftime("%d %b %H:%M")
+# a name a person can actually repeat back: "build 57 — Copper Kettle"
+ADJ = ["Copper","Pale","Amber","Quiet","Warm","Slate","Soft","Golden","Dusty","Green",
+       "Honey","Linen","Cedar","Ivory","Rust","Frost","Maple","Clay","Umber","Willow"]
+NOUN = ["Kettle","Bucket","Bristle","Parquet","Lantern","Broom","Pail","Thimble","Acorn",
+        "Ladder","Basin","Feather","Kerchief","Cinder","Pebble","Kettle","Sill","Nest"]
+n = int(subprocess.run(["git","rev-list","--count","HEAD"],capture_output=True,text=True).stdout.strip() or 0) + 1
+BUILD = "build {} — {} {}".format(n, ADJ[n % len(ADJ)], NOUN[(n // len(ADJ)) % len(NOUN)])
 head = f"""<!doctype html>
 <html lang="en">
 <head>
