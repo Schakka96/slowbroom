@@ -288,6 +288,11 @@
   }
   .pad button:active{background:var(--accent); color:#fff; border-color:var(--accent)}
   .pad .sp{visibility:hidden}
+  .tally{
+    margin:0; font-family:"IBM Plex Mono",monospace; font-size:.72rem;
+    color:var(--ink-faint); font-variant-numeric:tabular-nums;
+  }
+  .tally b{color:var(--accent); font-weight:500}
   .note{font-size:.73rem; color:var(--ink-faint); line-height:1.55; margin:0}
 
   .carry{display:flex; flex-direction:column; gap:5px; min-height:44px}
@@ -417,7 +422,13 @@
       </div>
     </div>
 
+    <div class="ctl" id="sound-ctl">
+      <div class="row"><label for="volume">Sound</label><output id="volume-o">60%</output></div>
+      <input type="range" id="volume" min="0" max="100" step="5" value="60">
+    </div>
+
     <hr>
+    <p class="tally" id="tally">No rooms finished yet.</p>
     <div class="acts">
       <button type="button" id="hold-btn" aria-pressed="true">Holding</button>
       <button type="button" id="wander-btn" aria-pressed="false">Sweep it clean</button>
@@ -1451,8 +1462,36 @@
     try{ fn(); } finally{ Math.random=orig; }
   }
   let parts=[], glassClip={inset:.045,r:0}, flash=0, flashIn=2600, drift=0;
+  let bolt=[], flicker=0;
+  function strike(){
+    bolt=[];
+    let X=R(W*.15,W*.85), Y=0;
+    const branchAt=3+((Math.random()*3)|0);
+    const main=[{x:X,y:Y}];
+    while(Y<H*R(.5,.75)){
+      Y+=H*R(.05,.1); X+=R(-W*.05,W*.05);
+      main.push({x:X,y:Y});
+    }
+    bolt.push(main);
+    for(let b=0;b<2;b++){                       // a couple of forks
+      const from=main[Math.min(main.length-1, branchAt+b*2)];
+      if(!from) continue;
+      const arm=[from]; let bx=from.x, by=from.y;
+      for(let i=0;i<3;i++){ by+=H*R(.03,.07); bx+=R(-W*.07,W*.07); arm.push({x:bx,y:by}); }
+      bolt.push(arm);
+    }
+    flash=1; flicker=110;
+    if(window.__sfx) window.__sfx.thunder(R(.25,1));
+  }
+  function drawBolt(){
+    for(const line of bolt){
+      ctx.beginPath(); ctx.moveTo(line[0].x,line[0].y);
+      for(let i=1;i<line.length;i++) ctx.lineTo(line[i].x,line[i].y);
+      ctx.stroke();
+    }
+  }
   function seedWeatherParticles(){
-    parts=[]; flash=0; flashIn=R(1200,4000); drift=0;
+    parts=[]; flash=0; bolt=[]; flicker=0; flashIn=R(1200,4000); drift=0;
     const add=n=>{ for(let i=0;i<n;i++) parts.push(mk()); };
     let mk=()=>({});
     switch(weather){
@@ -1505,18 +1544,23 @@
     }
     if(weather==='storm'){
       flashIn-=dt;
-      if(flashIn<=0){ flash=1; flashIn=R(2600,8000); }
+      if(flashIn<=0){ strike(); flashIn=R(3000,9000); }
       if(flash>0){
-        flash=Math.max(0, flash-dt/300);
-        ctx.globalAlpha=Math.min(.55, flash*flash*.7);
+        flash=Math.max(0, flash-dt/1050);          // a slow, real fade
+        const f=flash;
+        // the sky lights first and keeps glowing after the bolt has gone
+        ctx.globalAlpha=Math.min(.6, f*f*.75) * (1 + (flicker>0?.5:0));
         ctx.fillStyle='#fdf7e2'; ctx.fillRect(0,0,W,H);
-        if(flash>.55){
-          ctx.globalAlpha=flash; ctx.strokeStyle='rgba(255,252,226,.95)';
-          ctx.lineWidth=Math.max(1.5,H*.005);
-          let X=W*(.2+((flashIn|0)%60)/100), Y=0;
-          ctx.beginPath(); ctx.moveTo(X,Y);
-          while(Y<H*.6){ Y+=H*.1; X+=((Y*7|0)%17-8)*W*.006; ctx.lineTo(X,Y); }
-          ctx.stroke();
+        flicker=Math.max(0,flicker-dt);
+        if(bolt.length && f>.12){
+          const a=Math.min(1, f*1.4);
+          ctx.lineCap='round'; ctx.lineJoin='round';
+          ctx.globalAlpha=a*.35; ctx.strokeStyle='rgba(226,238,255,.9)';
+          ctx.lineWidth=Math.max(4,H*.02*f);
+          drawBolt();
+          ctx.globalAlpha=a; ctx.strokeStyle='rgba(255,253,236,.98)';
+          ctx.lineWidth=Math.max(1.4,H*.005*(.5+f*.8));
+          drawBolt();
         }
       }
     }
@@ -1616,6 +1660,7 @@
     }else{ weather='none'; weatherLabel=''; tod='midday'; todLabel=''; }
     withSeed(surfaceSeed, ()=> s.draw(base.ctx, W, H));
     seedWeatherParticles();
+    if(window.__sfx) window.__sfx.weather(S.mode==='mop' ? (s.glassy? weather : 'none') : 'none');
     surfaceLabel = (s.wood && lastPal) ? woodName(lastPal)+' '+s.name
                  : s.name.charAt(0).toUpperCase()+s.name.slice(1);
     if(todLabel) surfaceLabel += ', '+todLabel;
@@ -1802,6 +1847,10 @@
     cy=Math.min(rows-1,Math.max(0,Math.floor((py-oy)/cell)));
     cover(px,py, mopPx()*.46);
     mopStroke(ppx,ppy,px,py);
+    if(window.__sfx){
+      const moved=Math.hypot(px-ppx,py-ppy)/Math.max(1,dt);
+      window.__sfx.tool(Math.min(1, moved/ (cell/160)), onGlass());
+    }
     syncAccent(); updateReadout();
   }
 
@@ -2061,6 +2110,24 @@
   }
 
   let shimmer=0, sparks=[];
+  // how many rooms this browser has finished, and who did it
+  const stats = (()=>{
+    try{ return JSON.parse(localStorage.getItem('sb-stats')||'{}'); }catch(e){ return {}; }
+  })();
+  stats.rooms = stats.rooms|0;
+  function saveStats(){ try{ localStorage.setItem('sb-stats',JSON.stringify(stats)); }catch(e){} }
+  function renderTally(){
+    const el=document.getElementById('tally'); if(!el) return;
+    const who = stats.name ? stats.name : '';
+    el.innerHTML = stats.rooms
+      ? (who? who+' has mopped ' : 'Mopped ')+'<b>'+stats.rooms+'</b> room'+(stats.rooms===1?'':'s')
+      : 'No rooms finished yet.';
+  }
+  window.__mopStats = {
+    setName(n){ stats.name=n; saveStats(); renderTally(); },
+    get(){ return {name:stats.name||'', rooms:stats.rooms}; }
+  };
+
   function wipeClean(){
     if(dust) dust.ctx.clearRect(0,0,W,H);
     if(clean){
@@ -2074,6 +2141,7 @@
     if(S.mode!=='mop'||done||!N) return;
     if(painted/N < .999) return;
     wipeClean();
+    stats.rooms++; saveStats(); renderTally();
     shimmer=1; sparks=[];
     for(let i=0;i<26;i++) sparks.push({x:R(0,W), y:R(0,H), t:R(0,.6), r:R(IN*1.2,IN*4)});
     bannerEl.textContent='Spotless.'; bannerEl.style.opacity='1';
@@ -2115,10 +2183,12 @@
     const go = started && !S.paused && moving();
     if(go && S.wander) autoSteer(dt);
     if(S.mode==='mosaic'){
+      if(window.__sfx) window.__sfx.tool(0,false);
       if(go && now>=nextStep){ stepGrid(); nextStep=now+pace(); }
       drawMosaic(now);
     }else{
       if(go) advance(dt);
+      else if(window.__sfx) window.__sfx.tool(0,false);
       {
         dryWet(dt); drawMopScene(); drawShimmerMop(dt); checkLevel();
         if(travel){
@@ -2339,6 +2409,19 @@
   }
   setSpeedIdx(S.speed);
   bind('mopw','mopw',v=>v+' in');
+  const volEl=document.getElementById('volume'), volOut=document.getElementById('volume-o');
+  if(window.__sfx){
+    const st=window.__sfx.state();
+    volEl.value=Math.round(st.on? st.vol*100 : 0);
+  }
+  volOut.textContent=volEl.value+'%';
+  volEl.addEventListener('input',()=>{
+    const v=+volEl.value; volOut.textContent=v+'%';
+    if(!window.__sfx) return;
+    window.__sfx.toggle(v>0);
+    if(v>0) window.__sfx.volume(v/100);
+  });
+  renderTally();
   applyMode();
   hueRun=S.hue; syncAccent();
   newGrid();
@@ -3200,7 +3283,7 @@
   const seen=new Set();
 
   try{ myName=localStorage.getItem('sb-name')||''; }catch(e){}
-  if(myName) nameEl.value=myName;
+  if(myName){ nameEl.value=myName; if(window.__mopStats) window.__mopStats.setName(myName); }
   const game = () => window.__game || 'mop';
 
   // ── the pill ───────────────────────────────────────────────────────
@@ -3289,7 +3372,8 @@
     if(!db){
       setStatus('chat unavailable in this view');
       sendBtn.disabled=true; textEl.disabled=true;
-      logEl.innerHTML='<li class="empty">The chat needs the published page — it is off in this view.</li>';
+      logEl.innerHTML='<li class="empty">Chat and the live player count run on the claude.ai copy of this page. '+
+        'This copy is a plain static file, so it has no server to talk to.</li>';
       return;
     }
     setStatus('live');
@@ -3390,6 +3474,7 @@
     myName=nameEl.value.trim().slice(0,18);
     if(!myName){ nameEl.focus(); return; }
     try{ localStorage.setItem('sb-name',myName); }catch(err){}
+    if(window.__mopStats) window.__mopStats.setName(myName);
     if(room) room.presence({name:myName});
     say(myName, textEl.value);
     textEl.value='';
@@ -3450,6 +3535,154 @@
   window.addEventListener('load',()=>setTimeout(backToGame,0));
 
   boot();
+})();
+</script>
+
+<script>
+/* ──────────────── sound: everything synthesised, no files ──────────────── */
+(function(){
+  let ctx=null, master=null, bed=null, bedGain=null, bedFilter=null, bedLfo=null, bedLfoGain=null;
+  let mopSrc=null, mopFilter=null, mopGain=null, mopPeak=null;
+  let tickTimer=null, ready=false;
+  const S={on:true, vol:.6, weather:'none'};
+  try{
+    const raw=JSON.parse(localStorage.getItem('sb-sound')||'{}');
+    if(typeof raw.on==='boolean') S.on=raw.on;
+    if(typeof raw.vol==='number') S.vol=Math.min(1,Math.max(0,raw.vol));
+  }catch(e){}
+  const save=()=>{ try{ localStorage.setItem('sb-sound',JSON.stringify({on:S.on,vol:S.vol})); }catch(e){} };
+
+  function noiseBuffer(sec){
+    const n=Math.floor(ctx.sampleRate*sec), buf=ctx.createBuffer(1,n,ctx.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<n;i++) d[i]=Math.random()*2-1;
+    return buf;
+  }
+  function loopNoise(){
+    const src=ctx.createBufferSource();
+    src.buffer=noiseBuffer(3); src.loop=true; src.start();
+    return src;
+  }
+  function build(){
+    if(ready) return;
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC) return;
+    ctx=new AC();
+    master=ctx.createGain(); master.gain.value=S.on?S.vol:0; master.connect(ctx.destination);
+
+    bedFilter=ctx.createBiquadFilter(); bedFilter.type='bandpass';
+    bedFilter.frequency.value=1200; bedFilter.Q.value=.7;
+    bedGain=ctx.createGain(); bedGain.gain.value=0;
+    bed=loopNoise();
+    bed.connect(bedFilter); bedFilter.connect(bedGain); bedGain.connect(master);
+    bedLfo=ctx.createOscillator(); bedLfo.frequency.value=.12;
+    bedLfoGain=ctx.createGain(); bedLfoGain.gain.value=0;
+    bedLfo.connect(bedLfoGain); bedLfoGain.connect(bedGain.gain); bedLfo.start();
+
+    mopFilter=ctx.createBiquadFilter(); mopFilter.type='bandpass';
+    mopFilter.frequency.value=900; mopFilter.Q.value=1.1;
+    mopPeak=ctx.createBiquadFilter(); mopPeak.type='peaking';
+    mopPeak.frequency.value=2400; mopPeak.Q.value=6; mopPeak.gain.value=0;
+    mopGain=ctx.createGain(); mopGain.gain.value=0;
+    mopSrc=loopNoise();
+    mopSrc.connect(mopFilter); mopFilter.connect(mopPeak); mopPeak.connect(mopGain);
+    mopGain.connect(master);
+    ready=true;
+    applyWeatherSound(S.weather);
+  }
+  function resume(){ if(ctx && ctx.state==='suspended') ctx.resume(); }
+
+  // ── weather beds ──────────────────────────────────────────────────
+  const BEDS={
+    rain:   {f:1900, q:.6,  g:.17, lfo:0},
+    storm:  {f:1500, q:.5,  g:.24, lfo:.03},
+    sand:   {f:820,  q:.9,  g:.19, lfo:.07},
+    gale:   {f:430,  q:1.4, g:.2,  lfo:.11},
+    hail:   {f:3200, q:.7,  g:.1,  lfo:0},
+    snow:   {f:600,  q:.6,  g:.03, lfo:.02},
+    thick:  {f:520,  q:.6,  g:.045,lfo:.02},
+    flurry: {f:700,  q:.6,  g:.025,lfo:.02},
+    cloudy: {f:380,  q:.8,  g:.035,lfo:.05},
+    clear:  {f:500,  q:.7,  g:.016,lfo:.03}
+  };
+  function applyWeatherSound(w){
+    if(!ready) return;
+    const b=BEDS[w];
+    const t=ctx.currentTime;
+    if(!b){
+      bedGain.gain.setTargetAtTime(0,t,.4);
+      stopTicks(); return;
+    }
+    bedFilter.frequency.setTargetAtTime(b.f,t,.5);
+    bedFilter.Q.setTargetAtTime(b.q,t,.5);
+    bedGain.gain.setTargetAtTime(b.g,t,.6);
+    bedLfo.frequency.setTargetAtTime(w==='gale'?.16:.1,t,.5);
+    bedLfoGain.gain.setTargetAtTime(b.lfo,t,.5);
+    if(w==='hail') startTicks(); else stopTicks();
+  }
+  // hail: little ticks on the glass
+  function startTicks(){
+    stopTicks();
+    tickTimer=setInterval(()=>{
+      if(!ready||!S.on||ctx.state!=='running') return;
+      for(let i=0;i<2+((Math.random()*3)|0);i++) tick(Math.random()*.12);
+    },130);
+  }
+  function stopTicks(){ if(tickTimer){ clearInterval(tickTimer); tickTimer=null; } }
+  function tick(delay){
+    const t=ctx.currentTime+delay;
+    const src=ctx.createBufferSource(); src.buffer=noiseBuffer(.05);
+    const f=ctx.createBiquadFilter(); f.type='highpass'; f.frequency.value=2600+Math.random()*2200;
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(.0001,t);
+    g.gain.exponentialRampToValueAtTime(.09+Math.random()*.08,t+.004);
+    g.gain.exponentialRampToValueAtTime(.0001,t+.07);
+    src.connect(f); f.connect(g); g.connect(master); src.start(t); src.stop(t+.09);
+  }
+  // thunder, delayed by how far the strike was
+  function thunder(distance){
+    if(!ready||!S.on) return;
+    const t=ctx.currentTime + .25 + distance*2.4;
+    const dur=1.6+distance*2.2;
+    const src=ctx.createBufferSource(); src.buffer=noiseBuffer(dur);
+    const lp=ctx.createBiquadFilter(); lp.type='lowpass';
+    lp.frequency.setValueAtTime(700-distance*380,t);
+    lp.frequency.exponentialRampToValueAtTime(90,t+dur);
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(.0001,t);
+    g.gain.exponentialRampToValueAtTime(.55*(1-distance*.55),t+.06);
+    g.gain.exponentialRampToValueAtTime(.12*(1-distance*.5),t+.5);
+    g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+    src.connect(lp); lp.connect(g); g.connect(master);
+    src.start(t); src.stop(t+dur+.1);
+  }
+  // ── the tool on the floor ─────────────────────────────────────────
+  function setTool(speed, glass){
+    if(!ready) return;
+    const t=ctx.currentTime, v=Math.min(1,speed);
+    mopFilter.frequency.setTargetAtTime(glass ? 2100+v*1500 : 700+v*700, t, .08);
+    mopFilter.Q.setTargetAtTime(glass?2.4:1.1,t,.1);
+    mopPeak.gain.setTargetAtTime(glass ? 14*v : 0, t, .12);
+    mopPeak.frequency.setTargetAtTime(glass ? 2600+v*2600 : 2000, t, .12);
+    mopGain.gain.setTargetAtTime(v*(glass?.12:.2), t, .07);
+  }
+  window.__sfx={
+    weather(w){ S.weather=w; applyWeatherSound(w); },
+    tool:setTool,
+    thunder,
+    toggle(on){
+      S.on=on; save();
+      if(on){ build(); resume(); }
+      if(ready) master.gain.setTargetAtTime(on?S.vol:0, ctx.currentTime, .05);
+    },
+    volume(v){
+      S.vol=v; save();
+      if(ready && S.on) master.gain.setTargetAtTime(v, ctx.currentTime, .05);
+    },
+    state(){ return {on:S.on, vol:S.vol}; }
+  };
+  // browsers only allow audio after the person does something
+  const wake=()=>{ if(S.on){ build(); resume(); } };
+  ['pointerdown','keydown'].forEach(ev=>window.addEventListener(ev,wake,{once:false, passive:true}));
 })();
 </script>
 
