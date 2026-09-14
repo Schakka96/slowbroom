@@ -56,8 +56,11 @@
     align-items:stretch; flex:1 1 auto; min-height:0;
   }
   .wrap[hidden]{display:none}
-  header.mast{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap}
-  .tabs{display:flex; gap:2px; margin-left:auto; border:1px solid var(--edge); border-radius:5px; padding:2px}
+  header.mast{display:flex; align-items:flex-start; gap:14px 18px; flex-wrap:wrap}
+  .mast-right{
+    margin-left:auto; display:flex; flex-direction:column; align-items:flex-end; gap:7px;
+  }
+  .tabs{display:flex; gap:2px; border:1px solid var(--edge); border-radius:5px; padding:2px}
   .tabs button{
     font:inherit; font-size:.82rem; padding:6px 14px; border:0; border-radius:3px;
     background:transparent; color:var(--ink-soft); cursor:pointer;
@@ -77,7 +80,7 @@
   .ico{height:1.05em; width:1.05em; flex:none}
   .ico.cup{color:#ff5e5b}
   .live{
-    margin:0; order:8; width:100%; text-align:right; font-size:.78rem; color:var(--ink-soft);
+    margin:0; font-size:.78rem; color:var(--ink-soft);
     display:flex; justify-content:flex-end; align-items:center; gap:.45em;
   }
   .live span:last-child{
@@ -338,8 +341,10 @@
     .wrap{grid-template-columns:minmax(0,1fr)}
     .stage{height:54vh}
     .rail{max-height:none}
-    .tabs{margin-left:0; width:100%}
+    .mast-right{margin-left:0; width:100%; align-items:stretch}
+    .tabs{width:100%}
     .tabs button{flex:1}
+    .live{justify-content:flex-start}
   }
 </style>
 </head>
@@ -359,12 +364,14 @@
       <p id="blurb-main"></p>
       <p class="fine" id="blurb-fine"></p>
     </div>
+    <div class="mast-right">
     <div class="tabs" role="tablist" aria-label="Games">
       <button type="button" role="tab" data-tab="mop" aria-selected="true" aria-controls="tab-bloom">Mopping</button>
       <button type="button" role="tab" data-tab="ant" aria-selected="false" aria-controls="tab-ant">Tidy Ant</button>
       <button type="button" role="tab" data-tab="mosaic" aria-selected="false" aria-controls="tab-bloom">Mosaic</button>
     </div>
     <p class="live" id="presence" aria-live="polite"><span class="dot"></span><span id="presence-text">Counting who else is here…</span></p>
+    </div>
   </header>
 
 <div class="wrap" id="tab-bloom" role="tabpanel">
@@ -3325,10 +3332,12 @@
     setNestUI();
   }
   async function joinNest(code, host){
+    const st=document.getElementById('nest-status');
     const net=window.__net;
-    if(!net){ document.getElementById('nest-status').textContent='no way to connect from here'; return; }
+    if(!net){ st.textContent='no way to connect from here'; return; }
+    st.textContent = host ? 'opening nest '+code+'…' : 'knocking at nest '+code+'…';
     const conn=await net.connect(code, {event:onNetEvent, peers:onNetPeers});
-    if(!conn){ document.getElementById('nest-status').textContent='could not reach the nest'; return; }
+    if(!conn){ st.textContent='could not reach the nest — try again'; return; }
     coop={code, isHost:!!host, net:conn, peers:new Map(), myId:conn.myId,
           seed: host ? (Math.random()*1e9|0) : null};
     setNestUI();
@@ -4097,11 +4106,12 @@
 
   let supaTimers=[];
   function supaBoot(){
-    setStatus('live');
+    let firstOk=false;
     const pullMessages = () =>
       rest('messages?select=id,created_at,name,body&order=created_at.desc&limit=60')
         .then(r=>r.ok?r.json():[])
         .then(rows=>{
+          if(!firstOk){ firstOk=true; setStatus('live'); }
           const list=rows.map(m=>({id:String(m.id), name:m.name, text:m.body, ts:Date.parse(m.created_at)}))
                          .sort((a,b)=>a.ts-b.ts);
           renderLog(list);
@@ -4162,8 +4172,11 @@
   }
   let liveCounts=null;
   async function boot(){
-    if(CFG){ supaBoot(); return; }
+    if(CFG){ setStatus('connecting…'); supaBoot(); return; }
+    setStatus('waking the room…');
+    const slow=setTimeout(()=>setStatus('still connecting — one moment'),2500);
     room = await useCap('room');
+    clearTimeout(slow);
     if(room){
       room.presence({game:game(), name:myName||null});
       room.onPeers(ch=>{ peers=ch.peers; renderPill(); }, ()=>{ room=null; renderPill(); });
@@ -4580,10 +4593,15 @@
     ch.on('presence',{event:'sync'},sync);
     ch.on('presence',{event:'join'},sync);
     ch.on('presence',{event:'leave'},sync);
+    let joined=false;
     await new Promise(res=>{
-      ch.subscribe(status=>{ if(status==='SUBSCRIBED'){ ch.track(mine); res(); } });
-      setTimeout(res, 6000);
+      ch.subscribe(status=>{
+        if(status==='SUBSCRIBED'){ joined=true; ch.track(mine); res(); }
+        else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT') res();
+      });
+      setTimeout(res, 5000);
     });
+    if(!joined){ try{ sb.removeChannel(ch); }catch(e){} return null; }
     return {
       kind:'supabase', myId:me,
       send(d){ ch.send({type:'broadcast', event:'ev', payload:d}).catch(()=>{}); },
@@ -4618,6 +4636,11 @@
       leave(){ off.forEach(f=>{ try{ f(); }catch(e){} }); room.presence({nest:null}).catch(()=>{}); }
     };
   }
+
+  // fetch the realtime library in the background so hosting is instant
+  if(CFG && 'requestIdleCallback' in window)
+    requestIdleCallback(()=>loadSupa().catch(()=>{}), {timeout:4000});
+  else if(CFG) setTimeout(()=>loadSupa().catch(()=>{}), 2500);
 
   window.__net={
     myId:me,
