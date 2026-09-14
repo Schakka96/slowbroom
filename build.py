@@ -1,3 +1,4 @@
+import subprocess, datetime
 #!/usr/bin/env python3
 """Wrap the artifact body in a standalone document for GitHub Pages."""
 import sys, pathlib
@@ -12,6 +13,8 @@ ICON = ("data:image/svg+xml,"
   "stroke='%238fa0ad' stroke-width='1.4'/%3E"
   "%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' "
   "stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E")
+stamp = subprocess.run(["git","rev-parse","--short","HEAD"],capture_output=True,text=True).stdout.strip() or "dev"
+BUILD = stamp + " · " + datetime.datetime.now().strftime("%d %b %H:%M")
 head = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -20,7 +23,7 @@ head = f"""<!doctype html>
 <meta name="description" content="A simple social floor mopping game inspired by Hozy, with an ant sorting game and a mosaic painter alongside it.">
 <link rel="icon" href="{ICON}">
 <link rel="apple-touch-icon" href="{ICON}">
-<script src="config.js"></script>
+<script src="config.js"></script>\n<script>window.SLOWBROOM_BUILD="{BUILD}";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
