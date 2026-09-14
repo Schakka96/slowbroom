@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 47 — Golden Bristle";</script>
+<script>window.SLOWBROOM_BUILD="build 48 — Dusty Bristle";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -384,6 +384,13 @@
     font:inherit; font-size:.76rem; padding:6px 10px; border:1px dashed var(--accent);
     background:transparent; color:var(--accent); border-radius:4px; cursor:pointer;
   }
+  #newbuild{
+    position:fixed; left:12px; bottom:12px; z-index:60;
+    font:inherit; font-size:.8rem; padding:9px 14px; border-radius:99px; cursor:pointer;
+    border:1px solid var(--accent); background:var(--accent); color:#fff;
+    box-shadow:0 8px 24px rgba(0,0,0,.25);
+  }
+  #newbuild:hover{filter:brightness(1.08)}
   #devpanel{
     position:fixed; inset:auto 12px 12px auto; width:min(560px,92vw); max-height:60vh;
     display:flex; flex-direction:column; z-index:50;
@@ -535,6 +542,32 @@
   });
   window.SLOWBROOM_BUILD = window.SLOWBROOM_BUILD || 'artifact 42 — Amber Broom';
   __dbg.set('build', window.SLOWBROOM_BUILD);
+
+  // GitHub tells browsers to keep this page for ten minutes, and a hard reload
+  // does not always beat that. So the page checks for itself and offers the way out.
+  if(window.SLOWBROOM_BUILD.indexOf('artifact')!==0){
+    const check=()=>{
+      fetch(location.pathname+'?cb='+Date.now(), {cache:'no-store'})
+        .then(r=>r.ok?r.text():null)
+        .then(txt=>{
+          if(!txt) return;
+          const m=txt.match(/SLOWBROOM_BUILD="([^"]+)"/);
+          if(!m || m[1]===window.SLOWBROOM_BUILD) return;
+          push('build','newer build available: '+m[1],'warn');
+          let bar=document.getElementById('newbuild');
+          if(bar) return;
+          bar=document.createElement('button');
+          bar.id='newbuild'; bar.type='button';
+          bar.textContent='New version — '+m[1]+' · click to load it';
+          bar.addEventListener('click',()=>{
+            location.replace(location.pathname+'?v='+Date.now()+location.hash);
+          });
+          document.body.appendChild(bar);
+        }).catch(()=>{});
+    };
+    setTimeout(check, 2500);
+    setInterval(check, 120000);
+  }
   document.addEventListener('DOMContentLoaded',()=>{
     const t=document.getElementById('buildtag');
     if(t) t.textContent='SlowBroom · '+window.SLOWBROOM_BUILD;
