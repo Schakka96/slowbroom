@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 97 — Mahagony Mop";</script>
+<script>window.SLOWBROOM_BUILD="build 98 — Mahagony Mop";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -3596,6 +3596,18 @@
   const hintEl = document.getElementById('ant-hint');
   const readEl = document.getElementById('ant-readout');
   const bannerEl = document.getElementById('ant-banner');
+  let bannerTimers=[];
+  function saySo(text, ms){
+    bannerTimers.forEach(clearTimeout); bannerTimers=[];
+    bannerEl.textContent=text; bannerEl.style.opacity='1';
+    if(ms) bannerTimers.push(setTimeout(()=>{ bannerEl.style.opacity='0'; }, ms));
+  }
+  // every ending message is a pending timer; a restart must cancel them all,
+  // or "The End." reappears over the round you just started
+  function hushBanner(){
+    bannerTimers.forEach(clearTimeout); bannerTimers=[];
+    bannerEl.style.opacity='0'; bannerEl.textContent='';
+  }
   const carryEl = document.getElementById('carry-list');
   const capEl = document.getElementById('carry-cap');
   const barEl = document.getElementById('ant-bar');
@@ -4902,6 +4914,7 @@
   let level=0, complete=false, shimmer=0, doorOpen=0, fade=0, fadeDir=0;
   let itemsDirty=true, pilesDirty=true, carryDirty=true;
   let kind='', gift=null, ended=0, antWx=null, wxParts=[], groundSeed=1, bouquet=false;
+  let laidGift=null;
   let royalSparks=[], royalT=0;
   const held=new Set();
   let grabbing=false;                       // 0 held down: gather by hand
@@ -5353,7 +5366,8 @@
     if(coop && coop.seed!=null) withSeed((coop.seed+level*7919)>>>0, gen); else gen();
     tintEl.value=A.tint; tintOut.textContent=tintName();
     ant.x=Math.min(W*.12, body*2); ant.y=H/2; ant.h=0; ant.th=0;
-    complete=false; shimmer=0; doorOpen=0; ended=0; gift=null;
+    complete=false; shimmer=0; doorOpen=0; ended=0; gift=null; laidGift=null;
+    hushBanner();
     antWx=pickAntWeather(); seedAntWeather();
     if(window.__sfx && window.__sfx.royal) window.__sfx.royal(0);
     itemsDirty=pilesDirty=carryDirty=true;
@@ -5372,7 +5386,8 @@
     withSeed(groundSeed, ()=> GROUNDS[L.ground](ground.ctx));
     itemsLayer=makeLayer(); pilesLayer=makeLayer();
     items=[]; piles=[]; carried=[]; flying=[]; antWx=null; wxParts=[];
-    complete=true; bouquet=false; shimmer=0; doorOpen=1; ended=0;
+    complete=true; bouquet=false; shimmer=0; doorOpen=1; ended=0; laidGift=null;
+    hushBanner();
     let giftKind=L.gift;
     if(coop){
       const ids=[...coop.peers.keys()].sort();
@@ -5759,9 +5774,7 @@
     else if(d.t==='who'){ pushCoopPos(true); if(coop.isHost){ coop.lastSig=null; hostSnapshot(); } }
     else if(d.t==='kick' && coop.myId && d.who===coop.myId){
       spillAll();                       // leave what you are holding behind
-      bannerEl.textContent='Everything you were carrying stays here.';
-      bannerEl.style.opacity='1';
-      setTimeout(()=>bannerEl.style.opacity='0',2200);
+      saySo('Everything you were carrying stays here.', 2200);
       // give the drop a moment to reach the host before the line goes down
       setTimeout(()=>{
         leaveNest();
@@ -6163,6 +6176,26 @@
     }
   }
 
+  const queenAt = () => ({x:W*.86, y:H*.5});
+  const atQueen = () => kind==='throne' &&
+    Math.hypot(ant.x-queenAt().x, ant.y-queenAt().y) < body*2.6;
+  // the bouquet goes down in front of her, and then the room answers
+  function giveGift(){
+    if(ended) return;
+    ended=1; fadeDir=0;
+    const q=queenAt();
+    laidGift={x:q.x-body*1.5, y:q.y+body*.55, t:0};
+    royalSparks=[];
+    for(let i=0;i<70;i++)
+      royalSparks.push({x:R(W*.1,W*.98), y:R(0,H), r:R(body*.08,body*.3), t:R(0,.7),
+                        hue:R(38,54)});
+    royalT=0;
+    if(window.__sfx && window.__sfx.royalFinale) window.__sfx.royalFinale();
+    saySo('For you, my queen.');
+    bannerTimers.push(setTimeout(()=>{ bannerEl.textContent='You made your Queen proud and happy'; }, 2200));
+    bannerTimers.push(setTimeout(()=>{ ended=2; bannerEl.textContent='The End.'; }, 6000));
+    readEl.textContent='The End — press Restart game to begin again';
+  }
   // Kicked out with your arms full: everything goes on the floor where you
   // stand, so the nest keeps what you were carrying.
   function spillAll(){
@@ -6181,10 +6214,10 @@
     if(coop && coop.isHost) sharePiles();
   }
   function place(){
+    if(kind==='throne'){ if(atQueen()) giveGift(); return; }
     if(kind) return;                         // a gift is not put down
     if(nearNest(ant.x,ant.y)){
-      bannerEl.textContent='Not on the nest.'; bannerEl.style.opacity='1';
-      setTimeout(()=>bannerEl.style.opacity='0',1100);
+      saySo('Not on the nest.', 1100);
       return;
     }
     const under=nearestPile(ant.x,ant.y,body*.55);
@@ -6265,8 +6298,7 @@
     const tidy = piles.length===kinds && new Set(piles.map(p=>p.cat)).size===piles.length;
     if(!complete && !items.length && !carried.length && !flying.length && tidy){
       complete=true; shimmer=0.0001;
-      bannerEl.textContent='Tidy.'; bannerEl.style.opacity='1';
-      setTimeout(()=>bannerEl.style.opacity='0',1600);
+      saySo('Tidy.', 1600);
       updateHud();
       readEl.textContent='All sorted — the nest is open';
     }
@@ -6323,26 +6355,14 @@
       }
       if(!bouquet && gift.have>=gift.need){
         bouquet=true; shimmer=.0001;
-        bannerEl.textContent='A bouquet for the queen.'; bannerEl.style.opacity='1';
-        setTimeout(()=>bannerEl.style.opacity='0',1800);
+        saySo('A bouquet for the queen.', 1800);
       }
     }
     if(kind!=='shop' || bouquet) shimmer=Math.min(1.6,shimmer+dt/1200);
     if(kind==='throne'){
-      const near=Math.hypot(ant.x-W*.86, ant.y-H*.5) < body*2.2;
-      if(near && !ended){
-        ended=1; fadeDir=0;
-        royalSparks=[];
-        for(let i=0;i<70;i++)
-          royalSparks.push({x:R(W*.1,W*.98), y:R(0,H), r:R(body*.08,body*.3), t:R(0,.7),
-                            hue:R(38,54)});
-        royalT=0;
-        if(window.__sfx && window.__sfx.royalFinale) window.__sfx.royalFinale();
-        bannerEl.textContent='For you, my queen.'; bannerEl.style.opacity='1';
-        setTimeout(()=>{ bannerEl.textContent='You made your Queen proud and happy'; }, 2200);
-        setTimeout(()=>{ ended=2; bannerEl.textContent='The End.'; }, 6000);
-        readEl.textContent='The End — press Restart game to begin again';
-      }
+      if(!ended) readEl.textContent = atQueen()
+        ? 'press space to lay the bouquet at her feet'
+        : 'walk up to the queen';
       return;
     }
     if(complete && ant.x > W-doorW()*.55 && fadeDir===0) fadeDir=1;
@@ -6403,7 +6423,7 @@
 
   function drawAnt(c,t){
     drawAntBody(c, ant.x, ant.y, ant.h, (ant.walk||0)/(body*.5), myStyle(), t);
-    if(gift && gift.have){ drawGift(c,ant.x,ant.y,gift,t); }
+    if(gift && gift.have && !laidGift){ drawGift(c,ant.x,ant.y,gift,t); }
     const m=carryCounts(); let k=0;
     for(const [cat,n] of [...m.entries()].sort((a,b)=>b[1]-a[1])){
       if(k>=4) break;
@@ -6599,7 +6619,10 @@
       const x=f.x0+(f.x1-f.x0)*e, y=f.y0+(f.y1-f.y0)*e - Math.sin(t*Math.PI)*body*.9;
       drawItem(ctx,f.cat,f.v,x,y,f.rot+t*2,f.sc);
     }
-    if(kind==='throne') drawQueen(ctx,now); else drawDoor(ctx,now);
+    if(kind==='throne'){
+      drawQueen(ctx,now);
+      if(laidGift && gift) drawGift(ctx, laidGift.x, laidGift.y+body*.6, gift, now);
+    } else drawDoor(ctx,now);
     drawPeers(ctx,now);
     drawAnt(ctx,now);
     drawShimmer(ctx,now);
