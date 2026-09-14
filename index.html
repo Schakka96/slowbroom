@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 88 — Reluctant Antenna";</script>
+<script>window.SLOWBROOM_BUILD="build 89 — Mahagony Mop";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -258,6 +258,8 @@
   .kofi{
     margin:10px 2px 0; text-align:right; font-size:.78rem; color:var(--ink-faint);
   }
+  .buildline{max-width:900px; margin:14px auto 0; padding:0 18px;
+    display:flex; gap:8px; align-items:center; justify-content:center}
   .faq{max-width:900px; margin:6px auto 0; padding:0 18px}
   .faq>summary{cursor:pointer; font-size:14px; color:var(--muted); padding:8px 0;
     list-style:none}
@@ -737,7 +739,7 @@
     <div class="blurb">
       <p id="blurb-main"></p>
       <p class="fine" id="blurb-fine"></p>
-     <p class="kofi"><button type="button" class="devlink" id="devlink" title="Open the dev console" hidden>dev</button><span class="buildtag" id="buildtag"></span>Want to support the site? A
+     <p class="kofi">Want to support the site? A
       <a class="ext" href="https://ko-fi.com/madryad" target="_blank" rel="noopener"><svg class="ico cup" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M3.4 5h13.3a4.3 4.3 0 0 1 .3 8.6h-.9a5.8 5.8 0 0 1-5.7 5H8.2A5.8 5.8 0 0 1 2.4 13V6a1 1 0 0 1 1-1Zm13.3 2h-.6v4.6h.6a2.3 2.3 0 0 0 0-4.6ZM6.1 8.4c-.9 0-1.5.7-1.5 1.5 0 1.8 2.6 3.3 3 3.5.4-.2 3-1.7 3-3.5 0-.8-.6-1.5-1.5-1.5-.7 0-1.2.4-1.5.9-.3-.5-.8-.9-1.5-.9ZM3 20h14a1 1 0 0 1 0 2H3a1 1 0 0 1 0-2Z"/></svg>coffee</a> always helps.</p>
     </div>
     <div class="mast-right">
@@ -877,7 +879,7 @@
     <canvas id="ant-c"></canvas>
     <div class="hint" id="ant-hint">
       <span class="l1"><kbd>←</kbd> <kbd>↑</kbd> <kbd>↓</kbd> <kbd>→</kbd> to walk</span>
-      <span class="l2">walk over things to pick them up · <kbd>space</kbd> sets down a pile</span>
+      <span class="l2">walk over things to pick them up · <kbd>space</kbd> sets down a pile, held it blows</span>
     </div>
     <div class="banner" id="ant-banner"></div>
     <div class="mentions" id="mentions-ant" aria-live="polite"></div>
@@ -906,15 +908,14 @@
     </div>
     <div class="acts">
       <button type="button" id="ant-hold-btn" aria-pressed="true">Holding</button>
-      <button type="button" id="ant-blow">Blow (0)</button>
+      <button type="button" id="ant-blow">Blow (hold space)</button>
       <button type="button" id="ant-restart">Restart level</button>
       <button type="button" id="ant-restart-all">Restart game</button>
     </div>
     <div class="ctl">
       <div class="row"><span class="lbl" id="pick-l">Picking up</span></div>
       <div class="seg" role="group" aria-labelledby="pick-l">
-        <button type="button" data-pick="auto" aria-pressed="true">Hold shift to skip things</button>
-        <button type="button" data-pick="shift" aria-pressed="false">Only pick up with shift</button>
+        <button type="button" id="ant-pick" aria-pressed="true">Picking things up</button>
       </div>
     </div>
 
@@ -956,7 +957,7 @@
       <span class="sp"></span>
     </div>
     <p class="note"><b>1</b>–<b>4</b> set the speed, <b>−</b> and <b>+</b> change the ant's size,
-      <b>0</b> blows a patch of floor clear. Hold <b>shift</b> to walk over things without picking them up. Space sets the biggest handful down where you stand; standing on a pile drops items.</p>
+a tap of <b>space</b> sets the biggest handful down where you stand, and holding it blows the floor clear. Standing on a pile drops items into it.</p>
   </aside>
 </div>
  </div>
@@ -993,6 +994,8 @@
      <div class="peers" id="blocked-list"></div>
    </details>
  </section>
+
+ <p class="buildline"><button type="button" class="devlink" id="devlink" title="Open the dev console" hidden>dev</button><span class="buildtag" id="buildtag"></span></p>
 
  <details class="faq" id="faq">
    <summary>Questions &amp; answers</summary>
@@ -4525,7 +4528,10 @@
       let kinds=[], weightOf={};
       for(const k of window_)
         for(const kind of FAMILIES[k].kinds){ kinds.push(kind); weightOf[kind]=weights[k]; }
-      while(kinds.length>MAX_KINDS) kinds.shift();          // the oldest go first
+      // the first rounds stay small on purpose: three to six piles to keep
+      // apart, and only then does the floor start asking for more
+      const cap = i<10 ? Math.min(6, 3+Math.floor(i/2)) : Math.min(MAX_KINDS, 6+(i-9));
+      while(kinds.length>cap) kinds.shift();                // the oldest go first
       const total=totals[Math.min(i,totals.length-1)];
       let sum=0; kinds.forEach(k=>sum+=weightOf[k]);
       const mix={};
@@ -4566,7 +4572,7 @@
   /* ── state ──────────────────────────────────────────────── */
   const SPEED_NAMES=['Amble','Scurry','Dash','Bolt'];
   const SPEED_MULT=[3.2,6.4,11.5,19.5];   // body lengths per second
-  const A = { speed:1, hold:true, tint:20, size:1, pickMode:'auto' };
+  const A = { speed:1, hold:true, tint:20, size:1, pick:true };
   let W=0,H=0,dpr=1, ground=null, itemsLayer=null, pilesLayer=null;
   let items=[], piles=[], carried=[], flying=[];
   let ant={x:0,y:0,h:0,th:0}, body=26, baseBody=26, itemPx=22, total=0;
@@ -5822,8 +5828,7 @@
     if(kind){ stepSpecial(dt,now); stepFade(dt); return; }
     // pick up
     const rr=body*.5;
-    // hold Shift to walk over things and leave them where they are
-    const picking = A.pickMode==='shift' ? shiftDown : !shiftDown;
+    const picking = A.pick;
     for(let i=items.length-1;i>=0 && picking && carried.length<capacity();i--){
       const it=items[i];
       if(Math.hypot(it.x-ant.x,it.y-ant.y)<rr+catPx(it.cat)*.3){
@@ -6240,18 +6245,35 @@
     if(d){ e.preventDefault(); setDir(d,true); return; }
     if(window.__composing) return;
     const k=e.key;
-    if(k==='0'){ e.preventDefault(); blow(); return; }
     if(k>='1'&&k<='4'){ e.preventDefault(); setSpeed(+k-1); return; }
     if(k==='+'||k==='='){ e.preventDefault(); setSize(A.size+.12); return; }
     if(k==='-'||k==='_'){ e.preventDefault(); setSize(A.size-.12); return; }
-    if(k===' '){ e.preventDefault(); if(!e.repeat) place(); }
+    if(k===' '){
+      e.preventDefault();
+      if(e.repeat) return;
+      // a tap puts a handful down; keeping it held starts blowing
+      spaceBlew=false;
+      clearTimeout(spaceHold);
+      spaceHold=setTimeout(function puff(){
+        spaceBlew=true; blow();
+        spaceHold=setTimeout(puff, 260);
+      }, 280);
+    }
   });
+  let spaceHold=0, spaceBlew=false;
+  const letGoOfSpace=()=>{ clearTimeout(spaceHold); spaceHold=0; spaceBlew=false; };
   window.addEventListener('keyup',e=>{
     if(!visible()) return;
+    if(e.key===' '){
+      clearTimeout(spaceHold); spaceHold=0;
+      if(!spaceBlew) place();
+      spaceBlew=false;
+      return;
+    }
     const d=KEYS[e.key];
     if(d){ held.delete(d); if(held.size) setDir([...held][held.size-1],false); }
   });
-  window.addEventListener('blur',()=>held.clear());
+  window.addEventListener('blur',()=>{ held.clear(); letGoOfSpace(); });
   document.querySelectorAll('.pad button[data-adir]').forEach(b=>{
     const on=e=>{ e.preventDefault(); setDir(b.dataset.adir,true); };
     const off=()=>held.delete(b.dataset.adir);
@@ -6260,14 +6282,12 @@
   });
   document.getElementById('ant-drop').addEventListener('click',place);
   document.getElementById('ant-blow').addEventListener('click',()=>{ blow(); });
-  document.querySelectorAll('.seg button[data-pick]').forEach(b=>{
-    b.addEventListener('click',()=>{
-      A.pickMode=b.dataset.pick;
-      document.querySelectorAll('.seg button[data-pick]').forEach(o=>
-        o.setAttribute('aria-pressed',String(o.dataset.pick===A.pickMode)));
-      saveA();
-    });
-  });
+  const pickBtn=document.getElementById('ant-pick');
+  function paintPick(){
+    pickBtn.setAttribute('aria-pressed',String(A.pick));
+    pickBtn.textContent = A.pick ? 'Picking things up' : 'Leaving things be';
+  }
+  pickBtn.addEventListener('click',()=>{ A.pick=!A.pick; paintPick(); saveA(); });
   document.getElementById('ant-restart').addEventListener('click',buildLevel);
   document.getElementById('ant-restart-all').addEventListener('click',()=>{
     level=0; gift=null; ended=0; fade=0; fadeDir=0;
@@ -6307,16 +6327,15 @@
   });
 
   function saveA(){ try{ localStorage.setItem('tidy-ant',
-    JSON.stringify({speed:A.speed, hold:A.hold, size:A.size, pickMode:A.pickMode, level})); }catch(e){} }
+    JSON.stringify({speed:A.speed, hold:A.hold, size:A.size, pick:A.pick, level})); }catch(e){} }
   function restoreA(){
     try{
       const o=JSON.parse(localStorage.getItem('tidy-ant')||'{}');
       if(typeof o.speed==='number') A.speed=clamp(o.speed|0,0,SPEED_NAMES.length-1);
       if(typeof o.hold==='boolean') A.hold=o.hold;
       if(typeof o.size==='number') A.size=clamp(o.size,.55,1.8);
-      if(o.pickMode==='auto'||o.pickMode==='shift') A.pickMode=o.pickMode;
-      document.querySelectorAll('.seg button[data-pick]').forEach(b=>
-        b.setAttribute('aria-pressed',String(b.dataset.pick===A.pickMode)));
+      if(typeof o.pick==='boolean') A.pick=o.pick;
+      paintPick();
       if(typeof o.level==='number' && !coop) level=clamp(o.level|0,0,LEVELS.length-1);
       window.__antProgress={
         round:()=>level, rounds:()=>LEVELS.length,

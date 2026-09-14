@@ -13,14 +13,9 @@ ICON = ("data:image/svg+xml,"
   "stroke='%238fa0ad' stroke-width='1.4'/%3E"
   "%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' "
   "stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E")
-# a name a person can actually repeat back: "build 57 — Copper Kettle"
-ADJ = ["Damp","Smug","Dusty","Sensible","Peckish","Unbothered","Slightly Wonky","Brave",
-       "Reluctant","Well-Meaning","Crumbly","Overconfident","Tidy","Mildly Soapy",
-       "Industrious","Bewildered","Punctual","Sticky","Dignified","Faintly Lemon"]
-NOUN = ["Bucket","Weevil","Bristle","Kettle","Antenna","Squeegee","Thimble","Beetle",
-        "Doorknob","Breadcrumb","Parquet","Gusset","Pail","Acorn","Trolley","Mop Head"]
+# the build carries a number and one name, on purpose: "build 89 — Mahagony Mop"
 n = int(subprocess.run(["git","rev-list","--count","HEAD"],capture_output=True,text=True).stdout.strip() or 0) + 1
-BUILD = "build {} — {} {}".format(n, ADJ[n % len(ADJ)], NOUN[(n // len(ADJ)) % len(NOUN)])
+BUILD = "build {} — Mahagony Mop".format(n)
 head = f"""<!doctype html>
 <html lang="en">
 <head>
