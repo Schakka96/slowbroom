@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 89 — Mahagony Mop";</script>
+<script>window.SLOWBROOM_BUILD="build 90 — Mahagony Mop";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -255,6 +255,7 @@
   .toggle{display:flex; align-items:center; gap:7px; font-size:.78rem; color:var(--ink-soft); margin-top:8px}
   .toggle select{font:inherit; font-size:.78rem; padding:3px 6px; border:1px solid var(--edge);
     border-radius:4px; background:var(--ground); color:var(--ink)}
+  .blurb .kofi{justify-content:flex-start; text-align:left; margin-left:0}
   .kofi{
     margin:10px 2px 0; text-align:right; font-size:.78rem; color:var(--ink-faint);
   }
@@ -879,7 +880,7 @@
     <canvas id="ant-c"></canvas>
     <div class="hint" id="ant-hint">
       <span class="l1"><kbd>←</kbd> <kbd>↑</kbd> <kbd>↓</kbd> <kbd>→</kbd> to walk</span>
-      <span class="l2">walk over things to pick them up · <kbd>space</kbd> sets down a pile, held it blows</span>
+      <span class="l2">walk over things to pick them up · <kbd>space</kbd> sets down a pile · <kbd>alt</kbd> blows</span>
     </div>
     <div class="banner" id="ant-banner"></div>
     <div class="mentions" id="mentions-ant" aria-live="polite"></div>
@@ -908,7 +909,7 @@
     </div>
     <div class="acts">
       <button type="button" id="ant-hold-btn" aria-pressed="true">Holding</button>
-      <button type="button" id="ant-blow">Blow (hold space)</button>
+      <button type="button" id="ant-blow">Blow (alt)</button>
       <button type="button" id="ant-restart">Restart level</button>
       <button type="button" id="ant-restart-all">Restart game</button>
     </div>
@@ -957,7 +958,7 @@
       <span class="sp"></span>
     </div>
     <p class="note"><b>1</b>–<b>4</b> set the speed, <b>−</b> and <b>+</b> change the ant's size,
-a tap of <b>space</b> sets the biggest handful down where you stand, and holding it blows the floor clear. Standing on a pile drops items into it.</p>
+<b>space</b> sets the biggest handful down where you stand and <b>alt</b> blows the floor clear. Standing on a pile drops items into it.</p>
   </aside>
 </div>
  </div>
@@ -4511,7 +4512,12 @@ a tap of <b>space</b> sets the biggest handful down where you stand, and holding
     {name:'The bookshelf',       ground:'wood',   kinds:['manga','tome','nonfic']}
   ];
   const OUTDOORS={meadow:1, forest:1, gravel:1, sand:1, pond:1};
-  const MAX_KINDS=14;
+  const MAX_KINDS=15;
+  // hand-set, one per round: how many piles you are keeping apart
+  const PILES=[3,4,4,4,5,5,5,5,5,6,
+               6,6,6,6,7,7,7,7,7,8,
+               8,8,8,8,8,9,9,9,9,10,
+               10];
   const LEVELS=(()=>{
     const out=[];
     // how many things are on the floor, round by round
@@ -4528,9 +4534,7 @@ a tap of <b>space</b> sets the biggest handful down where you stand, and holding
       let kinds=[], weightOf={};
       for(const k of window_)
         for(const kind of FAMILIES[k].kinds){ kinds.push(kind); weightOf[kind]=weights[k]; }
-      // the first rounds stay small on purpose: three to six piles to keep
-      // apart, and only then does the floor start asking for more
-      const cap = i<10 ? Math.min(6, 3+Math.floor(i/2)) : Math.min(MAX_KINDS, 6+(i-9));
+      const cap = PILES[i];
       while(kinds.length>cap) kinds.shift();                // the oldest go first
       const total=totals[Math.min(i,totals.length-1)];
       let sum=0; kinds.forEach(k=>sum+=weightOf[k]);
@@ -6248,32 +6252,15 @@ a tap of <b>space</b> sets the biggest handful down where you stand, and holding
     if(k>='1'&&k<='4'){ e.preventDefault(); setSpeed(+k-1); return; }
     if(k==='+'||k==='='){ e.preventDefault(); setSize(A.size+.12); return; }
     if(k==='-'||k==='_'){ e.preventDefault(); setSize(A.size-.12); return; }
-    if(k===' '){
-      e.preventDefault();
-      if(e.repeat) return;
-      // a tap puts a handful down; keeping it held starts blowing
-      spaceBlew=false;
-      clearTimeout(spaceHold);
-      spaceHold=setTimeout(function puff(){
-        spaceBlew=true; blow();
-        spaceHold=setTimeout(puff, 260);
-      }, 280);
-    }
+    if(k==='Alt'){ e.preventDefault(); if(!e.repeat) blow(); return; }
+    if(k===' '){ e.preventDefault(); if(!e.repeat) place(); }
   });
-  let spaceHold=0, spaceBlew=false;
-  const letGoOfSpace=()=>{ clearTimeout(spaceHold); spaceHold=0; spaceBlew=false; };
   window.addEventListener('keyup',e=>{
     if(!visible()) return;
-    if(e.key===' '){
-      clearTimeout(spaceHold); spaceHold=0;
-      if(!spaceBlew) place();
-      spaceBlew=false;
-      return;
-    }
     const d=KEYS[e.key];
     if(d){ held.delete(d); if(held.size) setDir([...held][held.size-1],false); }
   });
-  window.addEventListener('blur',()=>{ held.clear(); letGoOfSpace(); });
+  window.addEventListener('blur',()=>held.clear());
   document.querySelectorAll('.pad button[data-adir]').forEach(b=>{
     const on=e=>{ e.preventDefault(); setDir(b.dataset.adir,true); };
     const off=()=>held.delete(b.dataset.adir);
@@ -6384,6 +6371,8 @@ a tap of <b>space</b> sets the biggest handful down where you stand, and holding
   } };
 
   window.__antCheat={
+    shopRound: ()=>LEVELS.findIndex(l=>l.kind==='shop')+1,
+    lastRound: ()=>LEVELS.length,
     level(n){
       const want=clamp((n|0)-1, 0, LEVELS.length-1);
       if(coop && coop.net && !coop.isHost){
@@ -7273,14 +7262,15 @@ a tap of <b>space</b> sets the biggest handful down where you stand, and holding
                       ' · library '+(window.supabase?'loaded':'not loaded yet'));
     return 'see the dev console';
   }
+  // only the things that touch other people, or the wiring, are dev-only:
+  // jumping to a round changes nobody's game but your own
   const DEV_ONLY=new Set(['debug','selftest','nest','room','nestcheck','flap','peers',
-                          'codes','ban','unban','ant','mop','clean','gift','end',
-                          'weather','sky','antweather','levels']);
+                          'codes','ban','unban']);
   function runCheat(line){
     const m=line.slice(1).trim().match(/^([a-z]+)\s*(.*)$/i);
     if(!m) return 'try /help';
     const cmd=m[1].toLowerCase(), arg=(m[2]||'').trim();
-    if(DEV_ONLY.has(cmd) && !isDev) return 'not a command here';
+    if(DEV_ONLY.has(cmd) && !isDev) return 'dev only — say /dev and the passphrase first';
     const ant=window.__antCheat, mop=window.__mopCheat;
     switch(cmd){
       case 'help': return CHEATS.filter(c=>isDev||!DEV_ONLY.has(c[0].slice(1).split(' ')[0]))
@@ -7454,11 +7444,11 @@ a tap of <b>space</b> sets the biggest handful down where you stand, and holding
       case 'gift':
         if(!ant) return 'ant not loaded';
         if(window.__showGame) window.__showGame('ant');
-        return ant.level(16);
+        return ant.level(ant.shopRound());
       case 'end':
         if(!ant) return 'ant not loaded';
         if(window.__showGame) window.__showGame('ant');
-        return ant.level(19);
+        return ant.level(ant.lastRound());
       case 'antweather': return ant? ant.weather(arg||'none') : 'ant not loaded';
       case 'mop':
         if(!mop) return 'mop not loaded';
