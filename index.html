@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 72 — Cedar Parquet";</script>
+<script>window.SLOWBROOM_BUILD="build 73 — Ivory Parquet";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -7211,7 +7211,10 @@
           for(const row of rows){
             lastId=Math.max(lastId,row.id);
             const p=row.payload;
-            if(p && p.id!==me){ countIn(p); handlers.event(p); }
+            if(!p || p.id===me) continue;
+            if(p.t==='batch'){
+              for(const inner of (p.b||[])){ countIn(inner); handlers.event(inner); }
+            }else{ countIn(p); handlers.event(p); }
           }
           if(!started){
             started=true;
@@ -7230,18 +7233,40 @@
     return prime.then(()=>{
       poll();
       timer=setInterval(poll, 700);
-      return {
+      // Every message here costs a database row, so they travel in bundles:
+      // one row every 400ms carrying whatever happened, with only the newest
+      // position kept. That is about 2.5 rows a second instead of eight.
+      let outQ=[], flushT=null, lastPos=null;
+      const flush=()=>{
+        flushT=null;
+        if(gone || (!outQ.length && !lastPos)) return;
+        const batch=outQ.slice(); outQ=[];
+        if(lastPos){ batch.push(lastPos); lastPos=null; }
+        fetch(base,{method:'POST', headers:H,
+          body:JSON.stringify({code, payload:{id:me, t:'batch', b:batch}})}).catch(()=>{});
+      };
+      const api={
         kind:'relay', myId:me,
-        fast(d){ this.send(Object.assign({t:'pos'}, d)); },
+        fast(d){ countOut({t:'pos'}); lastPos=Object.assign({t:'pos', id:me}, d);
+                 if(!flushT) flushT=setTimeout(flush,400); },
         send(d){
           countOut(d);
           if(gone) return;
-          fetch(base,{method:'POST', headers:H,
-            body:JSON.stringify({code, payload:Object.assign({id:me}, d)})}).catch(()=>{});
+          outQ.push(Object.assign({id:me}, d));
+          if(outQ.length>30) return flush();
+          if(!flushT) flushT=setTimeout(flush,400);
         },
-        presence(p){ this.send(Object.assign({t:'pos'}, p, {id:me})); },
-        leave(){ gone=true; clearInterval(timer); }
+        presence(p){ api.fast(p); },
+        leave(){ gone=true; clearInterval(timer); clearInterval(sweep); clearTimeout(flushT); }
       };
+      // somebody has to take the bins out: each client clears old rows now and then
+      const sweep=setInterval(()=>{
+        if(gone) return;
+        fetch(base+'?code=eq.'+encodeURIComponent(code)+
+              '&at=lt.'+encodeURIComponent(new Date(Date.now()-180000).toISOString()),
+              {method:'DELETE', headers:H}).catch(()=>{});
+      }, 30000);
+      return api;
     });
   }
 
