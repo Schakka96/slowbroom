@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SlowBroom — connection test</title>
+<script src="config.js"></script>
+<style>
+  :root{color-scheme:light dark}
+  body{
+    margin:0; padding:20px; background:#12121a; color:#e8e6f0;
+    font:13px/1.6 "SF Mono",Menlo,Consolas,monospace;
+  }
+  h1{font:600 16px/1.3 system-ui,sans-serif; margin:0 0 4px}
+  p.lead{font:13px/1.5 system-ui,sans-serif; color:#9b96ad; margin:0 0 16px; max-width:70ch}
+  button{
+    font:inherit; font-size:13px; padding:8px 16px; margin:0 8px 16px 0; cursor:pointer;
+    background:#2f6df6; color:#fff; border:0; border-radius:5px;
+  }
+  button.ghost{background:transparent; color:#b9b4c8; border:1px solid #3a3948}
+  #out{white-space:pre-wrap; word-break:break-word}
+  .ok{color:#8de0b0} .bad{color:#ff8b82} .warn{color:#ffd27f} .dim{color:#6f7b92}
+  .verdict{
+    margin:16px 0; padding:12px 14px; border-radius:6px; border-left:3px solid #2f6df6;
+    background:#1b1b26; font:14px/1.5 system-ui,sans-serif;
+  }
+</style>
+</head>
+<body>
+<h1>SlowBroom — connection test</h1>
+<p class="lead">Runs four checks against the game's server and says which one fails.
+Press Run, wait about 40 seconds, then press Copy and paste the result.</p>
+<button id="run">Run the tests</button>
+<button id="copy" class="ghost">Copy</button>
+<div id="verdict"></div>
+<div id="out"></div>
+<script>
+const CFG = window.SLOWBROOM_CONFIG || {};
+const out = document.getElementById('out');
+const t0 = Date.now();
+const lines = [];
+function log(msg, cls){
+  const t = ((Date.now()-t0)/1000).toFixed(1).padStart(5,' ');
+  lines.push(t+'s  '+msg);
+  const d=document.createElement('div');
+  if(cls) d.className=cls;
+  d.textContent=t+'s  '+msg;
+  out.appendChild(d);
+}
+function verdict(html){
+  document.getElementById('verdict').innerHTML='<div class="verdict">'+html+'</div>';
+}
+document.getElementById('copy').onclick=()=>{
+  navigator.clipboard.writeText(lines.join('\n')).then(
+    ()=>{ const b=document.getElementById('copy'); b.textContent='copied'; setTimeout(()=>b.textContent='Copy',1500); });
+};
+
+// ── 1. can we reach the database over plain HTTP? ────────────────────
+async function testRest(){
+  log('1. database over HTTPS …');
+  try{
+    const r = await fetch(CFG.url+'/rest/v1/messages?select=id&limit=1',
+      {headers:{apikey:CFG.anonKey, Authorization:'Bearer '+CFG.anonKey}});
+    log('   HTTP '+r.status+(r.ok?'  ok':'  FAILED'), r.ok?'ok':'bad');
+    return r.ok;
+  }catch(e){ log('   unreachable: '+e.message,'bad'); return false; }
+}
+
+// ── 2. a plain websocket, spoken by hand ─────────────────────────────
+function testRaw(seconds, label){
+  return new Promise(resolve=>{
+    log('2. '+label+' …');
+    const url = CFG.url.replace(/^http/,'ws')+'/realtime/v1/websocket?apikey='+
+                encodeURIComponent(CFG.anonKey)+'&vsn=1.0.0';
+    let ws, ref=0, joined=false, closes=0, acks=0, heard=0, lastCode='', hb=null, done=false;
+    const topic='realtime:nest-wiretest';
+    const finish=()=>{
+      if(done) return; done=true;
+      clearInterval(hb); try{ ws.close(); }catch(e){}
+      resolve({joined, closes, acks, heard, lastCode});
+    };
+    try{ ws=new WebSocket(url); }catch(e){ log('   cannot open a websocket: '+e.message,'bad'); return resolve({joined:false,closes:1,acks:0,heard:0,lastCode:'blocked'}); }
+    ws.onopen=()=>{
+      log('   socket open','ok');
+      ws.send(JSON.stringify({topic,event:'phx_join',
+        payload:{config:{broadcast:{self:true},presence:{key:'wire'+Math.random().toString(36).slice(2,6)}}},ref:String(++ref)}));
+      hb=setInterval(()=>{
+        try{ ws.send(JSON.stringify({topic:'phoenix',event:'heartbeat',payload:{},ref:String(++ref)})); }catch(e){}
+      },25000);
+    };
+    ws.onmessage=m=>{
+      const d=JSON.parse(m.data);
+      if(d.event==='phx_reply'&&d.payload&&d.payload.status==='ok'){
+        acks++;
+        if(!joined){
+          joined=true; log('   joined the channel','ok');
+          ws.send(JSON.stringify({topic,event:'presence',payload:{type:'presence',event:'track',payload:{name:'wire'}},ref:String(++ref)}));
+          let n=0;
+          const beat=setInterval(()=>{
+            if(done||n++>seconds*8){ clearInterval(beat); return; }
+            ws.send(JSON.stringify({topic,event:'broadcast',
+              payload:{type:'broadcast',event:'ev',payload:{n}},ref:String(++ref)}));
+          },125);                                  // the game's real rate
+        }
+      }
+      if(d.event==='broadcast') heard++;
+      if(d.event==='presence_state'||d.event==='presence_diff') log('   presence event','dim');
+      if(d.event==='phx_error'){ log('   channel error: '+JSON.stringify(d.payload).slice(0,100),'bad'); }
+    };
+    ws.onclose=e=>{
+      closes++; lastCode=e.code+(e.reason?' '+e.reason:'');
+      log('   socket CLOSED code '+lastCode,'bad');
+      finish();
+    };
+    ws.onerror=()=>log('   socket error','bad');
+    setTimeout(finish, seconds*1000);
+  });
+}
+
+// ── 3. the library, doing what the game does ─────────────────────────
+function testLib(seconds){
+  return new Promise(resolve=>{
+    log('3. the supabase library, '+seconds+'s …');
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
+    s.onerror=()=>{ log('   library did not load (blocked?)','bad'); resolve({loaded:false}); };
+    s.onload=()=>{
+      const sb=window.supabase.createClient(CFG.url,CFG.anonKey,{realtime:{params:{eventsPerSecond:20}}});
+      const ch=sb.channel('nest-wirelib',{config:{broadcast:{self:true},presence:{key:'lib'}}});
+      let states=[], heard=0, done=false;
+      ch.on('broadcast',{event:'ev'},()=>heard++);
+      ch.subscribe(async (st,err)=>{
+        states.push(st);
+        log('   channel '+st+(err?' · '+(err.message||err):''), st==='SUBSCRIBED'?'ok':'warn');
+        if(st==='SUBSCRIBED'){
+          const r=await ch.track({name:'lib'}).catch(e=>'threw');
+          log('   track → '+r, r==='ok'?'ok':'bad');
+          let n=0;
+          const beat=setInterval(()=>{
+            if(done||n++>seconds*8){ clearInterval(beat); return; }
+            ch.send({type:'broadcast',event:'ev',payload:{n}});
+          },125);
+        }
+      });
+      setTimeout(()=>{ done=true; try{ch.unsubscribe();sb.removeChannel(ch);}catch(e){}
+        resolve({loaded:true, states, heard}); }, seconds*1000);
+    };
+    document.head.appendChild(s);
+  });
+}
+
+document.getElementById('run').onclick=async ()=>{
+  out.innerHTML=''; lines.length=0; verdict('running …');
+  document.getElementById('run').disabled=true;
+  log('build: this is the standalone test page');
+  log('project: '+(CFG.url||'NO CONFIG'));
+  log('browser: '+navigator.userAgent.slice(0,110),'dim');
+  const rest = await testRest();
+  const short = await testRaw(12,'plain websocket, 12s at the game’s message rate');
+  const lib = await testLib(12);
+  let v='';
+  if(!rest) v='<b>The database is unreachable.</b> Something is blocking requests to supabase.co entirely — a network filter, a VPN or an extension.';
+  else if(!short.joined) v='<b>Websockets cannot reach the server from this browser.</b> HTTPS works but the websocket does not, which is the signature of an extension, firewall or proxy that blocks them. Try a private window or another network.';
+  else if(short.closes) v='<b>The websocket joins and is then closed</b> (code '+short.lastCode+') even without the library. That is the server or the network dropping it, not the game’s code.';
+  else if(lib.loaded===false) v='<b>Plain websockets are fine, but the library could not load.</b> The game will use its direct wire — type /direct in the game and rejoin.';
+  else if((lib.states||[]).filter(s=>s==='CLOSED'||s==='CHANNEL_ERROR').length) v='<b>The plain websocket held for 12 seconds, but the library’s channel dropped.</b> That points at the library, not your connection — type /direct in the game and rejoin to bypass it.';
+  else v='<b>Everything held for 12 seconds.</b> Plain socket: '+short.heard+' messages echoed. Library: '+lib.heard+' echoed. The connection is healthy from this browser.';
+  verdict(v);
+  log('— verdict —');
+  log(v.replace(/<[^>]+>/g,''));
+  document.getElementById('run').disabled=false;
+};
+</script>
+</body>
+</html>
