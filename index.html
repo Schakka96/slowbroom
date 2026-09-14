@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 90 — Mahagony Mop";</script>
+<script>window.SLOWBROOM_BUILD="build 91 — Mahagony Mop";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -259,6 +259,7 @@
   .kofi{
     margin:10px 2px 0; text-align:right; font-size:.78rem; color:var(--ink-faint);
   }
+  .seg button.off{opacity:.5; border-style:dashed}
   .buildline{max-width:900px; margin:14px auto 0; padding:0 18px;
     display:flex; gap:8px; align-items:center; justify-content:center}
   .faq{max-width:900px; margin:6px auto 0; padding:0 18px}
@@ -916,7 +917,7 @@
     <div class="ctl">
       <div class="row"><span class="lbl" id="pick-l">Picking up</span></div>
       <div class="seg" role="group" aria-labelledby="pick-l">
-        <button type="button" id="ant-pick" aria-pressed="true">Picking things up</button>
+        <button type="button" id="ant-pick" aria-pressed="true">Auto-pickup mode (click to hold shift instead)</button>
       </div>
     </div>
 
@@ -958,7 +959,7 @@
       <span class="sp"></span>
     </div>
     <p class="note"><b>1</b>–<b>4</b> set the speed, <b>−</b> and <b>+</b> change the ant's size,
-<b>space</b> sets the biggest handful down where you stand and <b>alt</b> blows the floor clear. Standing on a pile drops items into it.</p>
+<b>space</b> sets the biggest handful down where you stand and <b>alt</b> blows the floor clear. Standing on a pile drops items into it. With auto-pickup off, hold <b>shift</b> to gather things.</p>
   </aside>
 </div>
  </div>
@@ -5832,7 +5833,8 @@
     if(kind){ stepSpecial(dt,now); stepFade(dt); return; }
     // pick up
     const rr=body*.5;
-    const picking = A.pick;
+    // auto-pickup takes everything you walk over; with it off, only shift does
+    const picking = A.pick || shiftDown;
     for(let i=items.length-1;i>=0 && picking && carried.length<capacity();i--){
       const it=items[i];
       if(Math.hypot(it.x-ant.x,it.y-ant.y)<rr+catPx(it.cat)*.3){
@@ -6272,7 +6274,9 @@
   const pickBtn=document.getElementById('ant-pick');
   function paintPick(){
     pickBtn.setAttribute('aria-pressed',String(A.pick));
-    pickBtn.textContent = A.pick ? 'Picking things up' : 'Leaving things be';
+    pickBtn.classList.toggle('off', !A.pick);
+    pickBtn.textContent = A.pick ? 'Auto-pickup mode (click to hold shift instead)'
+                                 : 'Hold shift to pick up items';
   }
   pickBtn.addEventListener('click',()=>{ A.pick=!A.pick; paintPick(); saveA(); });
   document.getElementById('ant-restart').addEventListener('click',buildLevel);
@@ -7494,6 +7498,7 @@
 
   function say(name, body){
     if(!name || !body.trim()) return;
+    if(body.trim()[0]==='/') return;          // commands are never posted
     if(banned(name) && !isDev){ showNotice(HARSH, true); return; }
     if(devName(name) && !isDev){
       showNotice('<b>That name is taken.</b> Madryad is the person who made this — pick another.', true);
@@ -7515,6 +7520,15 @@
 
   form.addEventListener('submit',e=>{
     e.preventDefault();
+    // a command needs no name and never reaches the room
+    if(textEl.value.trim()[0]==='/'){
+      let out;
+      try{ out=runCheat(textEl.value.trim()); }catch(err){ out='that did not work'; }
+      statusEl.textContent=String(out);
+      try{ flash({name:'cheat', text:String(out)}); }catch(err){}
+      textEl.value='';
+      return;
+    }
     myName=nameEl.value.trim().slice(0,18);
     if(!myName){ nameEl.focus(); return; }
     try{ localStorage.setItem('sb-name',myName); }catch(err){}
