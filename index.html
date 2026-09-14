@@ -289,6 +289,15 @@
   }
   .pad button:active{background:var(--accent); color:#fff; border-color:var(--accent)}
   .pad .sp{visibility:hidden}
+  .peers{display:flex; flex-direction:column; gap:4px}
+  .peer{display:flex; align-items:center; gap:7px; font-size:.78rem; color:var(--ink-soft)}
+  .peer .dotc{width:11px; height:11px; border-radius:50%; flex:none; border:1px solid var(--edge)}
+  .peer .holds{margin-left:auto; font-size:.7rem; color:var(--ink-faint)}
+  .nestjoin input{flex:1 1 70px; text-transform:uppercase; letter-spacing:.14em}
+  #nest-copy{
+    font:inherit; font-size:.76rem; padding:6px 10px; border:1px dashed var(--accent);
+    background:transparent; color:var(--accent); border-radius:4px; cursor:pointer;
+  }
   .tally{
     margin:0; font-family:"IBM Plex Mono",monospace; font-size:.72rem;
     color:var(--ink-faint); font-variant-numeric:tabular-nums;
@@ -483,6 +492,22 @@
     <div class="acts">
       <button type="button" id="ant-hold-btn" aria-pressed="true">Holding</button>
       <button type="button" id="ant-restart">Restart level</button>
+    </div>
+
+    <hr>
+    <h2>Nest</h2>
+    <div class="ctl">
+      <div class="acts">
+        <button type="button" id="nest-host">Host a nest</button>
+        <button type="button" id="nest-leave" hidden>Leave</button>
+      </div>
+      <div class="say nestjoin">
+        <input id="nest-code" type="text" maxlength="5" placeholder="code" autocomplete="off">
+        <button type="button" id="nest-join">Join</button>
+      </div>
+      <span class="sub" id="nest-status">Sorting alone.</span>
+      <div class="peers" id="nest-peers"></div>
+      <button type="button" id="nest-copy" hidden>Copy invite link</button>
     </div>
 
     <hr>
@@ -2503,6 +2528,29 @@
   const R = (a,b)=>a+Math.random()*(b-a);
   const clamp = (v,a,b)=>Math.min(b,Math.max(a,v));
 
+  // ── who you are: 20 natural colours × 5 patterns × 4 trims = 400 ants
+  const ANT_HUES=[
+    [22,38,17],[30,7,12],[16,55,29],[32,46,37],[10,42,24],[38,58,44],[58,26,27],[210,8,25],
+    [18,48,33],[24,62,40],[36,30,52],[0,0,20],[350,28,25],[28,34,46],[20,30,22],[40,52,33],
+    [200,6,34],[14,36,28],[250,10,18],[26,58,31]
+  ];
+  const ANT_TRIMS=[-10,0,9,16];
+  function antStyle(name){
+    let h=2166136261;
+    const n=String(name||'antling');
+    for(let i=0;i<n.length;i++){ h^=n.charCodeAt(i); h=Math.imul(h,16777619); }
+    const v=Math.abs(h)%400;
+    const col=ANT_HUES[v%20], pat=((v/20)|0)%5, trim=ANT_TRIMS[((v/100)|0)%4];
+    return {
+      h:col[0], s:col[1], l:col[2], pat, trim,
+      body:'hsl('+col[0]+' '+col[1]+'% '+col[2]+'%)',
+      lite:'hsl('+col[0]+' '+Math.max(4,col[1]-8)+'% '+Math.min(72,col[2]+14)+'%)',
+      dark:'hsl('+col[0]+' '+col[1]+'% '+Math.max(6,col[2]-8)+'%)',
+      leg:'hsl('+col[0]+' '+col[1]+'% '+Math.max(5,Math.min(70,col[2]+trim))+'%)',
+      id:v
+    };
+  }
+
   /* ── things to sort ─────────────────────────────────────── */
   const P = {
     grass:['#7fa64a','#93b757','#6b9440','#a3c164'],
@@ -2740,6 +2788,19 @@
     return {cv:l, ctx:c};
   }
   const capacity = () => 10 + 4*Math.floor(level/3);
+  // the sortable field, in normalised coordinates everyone agrees on
+  const fpad = () => itemPx*.8;
+  const ox0 = () => fpad();
+  const oy0 = () => fpad();
+  const fieldW = () => Math.max(1, W-doorW()*1.7-fpad()*2);
+  const fieldH = () => Math.max(1, H-fpad()*2);
+  const toN = (x,y) => ({x:(x-ox0())/fieldW(), y:(y-oy0())/fieldH()});
+  const fromN = (nx,ny) => ({x:ox0()+nx*fieldW(), y:oy0()+ny*fieldH()});
+  function withSeed(seed,fn){
+    const orig=Math.random; let x=(seed>>>0)||1;
+    Math.random=()=>{ x^=x<<13; x>>>=0; x^=x>>>17; x^=x<<5; x>>>=0; return x/4294967296; };
+    try{ fn(); } finally{ Math.random=orig; }
+  }
   const doorW = () => Math.max(34, body*1.5);
   const doorH = () => Math.min(H*.34, body*4.5);
 
@@ -3037,16 +3098,21 @@
     baseBody = Math.min(W,H)/15*zoom;
     body=clamp(baseBody*A.size, 12, 90);
     itemPx=clamp(Math.min(W,H)/17 * zoom * clamp(1-total/1100,.42,1), 9, 44);
-    A.tint=(Math.random()*100)|0; tintEl.value=A.tint; tintOut.textContent=tintName();
     cache.clear();
     ground=makeLayer(); GROUNDS[L.ground](ground.ctx);
     itemsLayer=makeLayer(); pilesLayer=makeLayer();
     items=[]; piles=[]; carried=[]; flying=[];
-    const right=W-doorW()*1.7-itemPx, pad=itemPx*.8;
-    for(const [cat,n] of Object.entries(L.mix))
-      for(let i=0;i<n;i++)
-        items.push({cat, v:(Math.random()*4)|0, x:R(pad,Math.max(pad+1,right)),
-                    y:R(pad,H-pad), rot:R(0,TAU)});
+    const gen=()=>{
+      A.tint=(Math.random()*100)|0;
+      let id=0;
+      for(const [cat,n] of Object.entries(L.mix))
+        for(let i=0;i<n;i++){
+          const nx=Math.random(), ny=Math.random(), pos=fromN(nx,ny);
+          items.push({id:id++, cat, v:(Math.random()*4)|0, nx, ny, x:pos.x, y:pos.y, rot:R(0,TAU)});
+        }
+    };
+    if(coop && coop.seed!=null) withSeed((coop.seed+level*7919)>>>0, gen); else gen();
+    tintEl.value=A.tint; tintOut.textContent=tintName();
     ant.x=Math.min(W*.12, body*2); ant.y=H/2; ant.h=0; ant.th=0;
     complete=false; shimmer=0; doorOpen=0; ended=0; gift=null;
     antWx=pickAntWeather(); seedAntWeather();
@@ -3065,7 +3131,14 @@
     itemsLayer=makeLayer(); pilesLayer=makeLayer();
     items=[]; piles=[]; carried=[]; flying=[]; antWx=null; wxParts=[];
     complete = kind!=='shop'; shimmer=0; doorOpen = kind==='shop'?0:1; ended=0;
-    gift = kind==='shop' ? {kind:L.gift, have:0, need:L.count} : (gift||{kind:'flowers',have:0,need:0});
+    let giftKind=L.gift;
+    if(coop){
+      const ids=[...coop.peers.keys()].sort();
+      const slot=Math.max(0, ids.indexOf(coop.myId||''));
+      giftKind=Object.keys(GIFTS)[slot%5];
+    }
+    gift = kind==='shop' ? {kind:giftKind, have:0, need:L.count}
+                         : (gift||{kind:giftKind||'flowers',have:0,need:0});
     if(kind==='shop'){
       const pool=GIFTS[L.gift].pick, pad=itemPx;
       for(let i=0;i<L.count;i++)
@@ -3152,6 +3225,124 @@
     }
     c.restore();
   }
+
+  // ───────── nests: up to six antlings on one floor ─────────
+  let coop=null, syncTimer=0, presTimer=0;
+  const myName = () => {
+    try{ return (localStorage.getItem('sb-name')||'').slice(0,18) || 'antling'; }catch(e){ return 'antling'; }
+  };
+  const myStyle = () => antStyle(myName());
+
+  function maskOfItems(){
+    const bytes=new Uint8Array(Math.ceil(Math.max(1,total)/8));
+    for(const it of items) bytes[it.id>>3] |= 1<<(it.id&7);
+    let str=''; for(let i=0;i<bytes.length;i++) str+=String.fromCharCode(bytes[i]);
+    return btoa(str);
+  }
+  function applyMask(b64){
+    let raw; try{ raw=atob(b64); }catch(e){ return; }
+    const alive=i=> (raw.charCodeAt(i>>3)>>(i&7))&1;
+    for(let i=items.length-1;i>=0;i--) if(!alive(items[i].id)) items.splice(i,1);
+    itemsDirty=true; updateHud();
+  }
+  const pilesWire = () => piles.map(p=>{
+    const n=toN(p.x,p.y);
+    return {c:p.cat, x:+n.x.toFixed(4), y:+n.y.toFixed(4), n:p.items.length};
+  });
+  function applyPiles(wire){
+    piles = wire.map(w=>{
+      const pos=fromN(w.x,w.y);
+      const p={cat:w.c, x:pos.x, y:pos.y, items:[]};
+      for(let i=0;i<w.n;i++){
+        const a=R(0,TAU), rr=Math.sqrt(Math.random())*itemPx*(.55+Math.sqrt(i)*.42);
+        p.items.push({dx:Math.cos(a)*rr, dy:Math.sin(a)*rr*.7, rot:R(0,TAU), sc:R(.85,1.05),
+                      v:(Math.random()*4)|0});
+      }
+      return p;
+    });
+    pilesDirty=true; updateHud();
+  }
+  function topCarried(){
+    if(gift && gift.have) return 'gift:'+gift.kind;
+    let best=null, bn=0;
+    for(const [cat,n] of carryCounts()) if(n>bn){ bn=n; best=cat; }
+    return best;
+  }
+  function netSend(t,d){ if(coop && coop.net) coop.net.send(Object.assign({t}, d||{})); }
+  function pushCoopPresence(){
+    if(!coop || !coop.net) return;
+    const n=toN(ant.x,ant.y);
+    coop.net.presence({
+      name:myName(), x:+n.x.toFixed(4), y:+n.y.toFixed(4),
+      h:+ant.h.toFixed(2), top:topCarried()||null, lvl:level
+    });
+  }
+  function onNetEvent(d){
+    if(!coop || !d) return;
+    if(d.t==='take'){
+      const i=items.findIndex(it=>it.id===d.i);
+      if(i>=0){ items.splice(i,1); itemsDirty=true; updateHud(); }
+    }else if(d.t==='piles'){ applyPiles(d.p||[]); }
+    else if(d.t==='snap'){
+      if(d.lvl!==level || d.seed!==coop.seed){
+        coop.seed=d.seed; level=d.lvl; buildLevel();
+      }
+      applyMask(d.m); applyPiles(d.p||[]);
+    }else if(d.t==='who' && coop.isHost){ hostSnapshot(); }
+  }
+  function hostSnapshot(){
+    if(!coop || !coop.isHost) return;
+    netSend('snap', {lvl:level, seed:coop.seed, m:maskOfItems(), p:pilesWire()});
+  }
+  function setNestUI(){
+    const st=document.getElementById('nest-status');
+    const list=document.getElementById('nest-peers');
+    document.getElementById('nest-host').hidden=!!coop;
+    document.getElementById('nest-leave').hidden=!coop;
+    document.getElementById('nest-copy').hidden=!coop;
+    if(!coop){ st.textContent='Sorting alone.'; list.innerHTML=''; return; }
+    const n=coop.peers.size;
+    st.textContent='Nest '+coop.code+' · '+n+' of 6 antling'+(n===1?'':'s')+
+      (coop.isHost?' · you host':'');
+    list.innerHTML='';
+    for(const p of coop.peers.values()){
+      const row=document.createElement('div'); row.className='peer';
+      const dot=document.createElement('span'); dot.className='dotc';
+      const stl=p.style||antStyle(p.name); dot.style.background=stl.body;
+      const nm=document.createElement('span'); nm.textContent=(p.name||'antling')+(p.me?' (you)':'');
+      const hold=document.createElement('span'); hold.className='holds';
+      hold.textContent = p.top ? (p.top.indexOf('gift:')===0 ? GIFTS[p.top.slice(5)].label
+                                 : (ITEMS[p.top]? ITEMS[p.top].name.toLowerCase():'')) : '';
+      row.append(dot,nm,hold); list.append(row);
+    }
+  }
+  function onNetPeers(rows){
+    if(!coop) return;
+    coop.peers=new Map();
+    for(const r of rows.slice(0,6)){
+      coop.peers.set(r.id, Object.assign({}, r, {style:antStyle(r.name)}));
+    }
+    setNestUI();
+  }
+  async function joinNest(code, host){
+    const net=window.__net;
+    if(!net){ document.getElementById('nest-status').textContent='no way to connect from here'; return; }
+    const conn=await net.connect(code, {event:onNetEvent, peers:onNetPeers});
+    if(!conn){ document.getElementById('nest-status').textContent='could not reach the nest'; return; }
+    coop={code, isHost:!!host, net:conn, peers:new Map(), myId:conn.myId,
+          seed: host ? (Math.random()*1e9|0) : null};
+    setNestUI();
+    if(host){ buildLevel(); hostSnapshot(); }
+    else netSend('who');
+    pushCoopPresence();
+    try{ location.hash='nest='+code; }catch(e){}
+  }
+  function leaveNest(){
+    if(coop && coop.net) coop.net.leave();
+    coop=null; setNestUI();
+    try{ if(location.hash) location.hash=''; }catch(e){}
+  }
+  window.__antNest={ join:joinNest, leave:leaveNest, active:()=>!!coop };
 
   function updateHud(){
     const L=LEVELS[Math.min(level,LEVELS.length-1)];
@@ -3266,6 +3457,7 @@
     for(let i=0;i<take;i++){ carried.push(p.cat); p.items.pop(); }
     if(!p.items.length) piles.splice(piles.indexOf(p),1);
     pilesDirty=true; carryDirty=true; updateHud();
+    if(coop) netSend('piles',{p:pilesWire()});
   }
   function place(){
     if(kind) return;                         // a gift is not put down
@@ -3313,6 +3505,7 @@
       const it=items[i];
       if(Math.hypot(it.x-ant.x,it.y-ant.y)<rr+catPx(it.cat)*.3){
         items.splice(i,1); carried.push(it.cat);
+        if(coop) netSend('take',{i:it.id});
         itemsDirty=true; carryDirty=true; updateHud();
       }
     }
@@ -3327,6 +3520,7 @@
       if(f.t>=1){
         f.pile.items.push({dx:f.x1-f.pile.x, dy:f.y1-f.pile.y, rot:f.rot, sc:f.sc, v:f.v});
         flying.splice(i,1); pilesDirty=true; updateHud();
+        if(coop) netSend('piles',{p:pilesWire()});
       }
     }
     const kinds=Object.keys(LEVELS[level%LEVELS.length].mix).length;
@@ -3343,11 +3537,21 @@
       doorOpen=Math.min(1, doorOpen+dt/700);
       if(ant.x > W-doorW()*.55 && fadeDir===0){ fadeDir=1; }
     }
+    if(coop){
+      presTimer+=dt;
+      if(presTimer>110){ presTimer=0; pushCoopPresence(); }
+      if(coop.isHost){
+        syncTimer+=dt;
+        if(syncTimer>4000){ syncTimer=0; hostSnapshot(); }
+      }
+    }
     if(fadeDir===1){
       fade=Math.min(1,fade+dt/420);
       if(fade>=1){
         level=Math.min(level+1, LEVELS.length-1);
+        if(coop && coop.isHost) coop.seed=(Math.random()*1e9)|0;
         buildLevel(); fadeDir=-1; ant.x=body; ant.y=H/2;
+        if(coop && coop.isHost) hostSnapshot();
       }
     }else if(fadeDir===-1){
       fade=Math.max(0,fade-dt/420);
@@ -3386,36 +3590,61 @@
   }
 
   /* ── drawing ────────────────────────────────────────────── */
-  function drawAnt(c,t){
-    const s=body, legT=(ant.walk||0)/ (s*.5);
-    c.save(); c.translate(ant.x,ant.y); c.rotate(ant.h);
+  function drawAntBody(c,x,y,dir,phase,st,t){
+    const s=body;
+    c.save(); c.translate(x,y); c.rotate(dir);
     c.fillStyle='rgba(0,0,0,.28)';
     c.beginPath(); c.ellipse(0,s*.16,s*.42,s*.2,0,0,TAU); c.fill();
-    c.strokeStyle='#43291a'; c.lineWidth=Math.max(1.2,s*.05); c.lineCap='round';
+    c.strokeStyle=st.leg; c.lineWidth=Math.max(1.2,s*.05); c.lineCap='round';
     for(let i=0;i<3;i++){
-      const bx=(-.12+i*.16)*s, sw=Math.sin(legT*2+i*1.7)*s*.12;
+      const bx=(-.12+i*.16)*s, sw=Math.sin(phase*2+i*1.7)*s*.12;
       for(const side of [-1,1]){
         c.beginPath(); c.moveTo(bx, side*s*.1);
         c.quadraticCurveTo(bx+sw*.5, side*s*.3, bx+sw, side*s*.42); c.stroke();
       }
     }
-    const col='#5d3620';
-    c.fillStyle=col;
-    c.beginPath(); c.ellipse(-s*.26,0,s*.2,s*.16,0,0,TAU); c.fill();   // gaster
-    c.beginPath(); c.ellipse(0,0,s*.13,s*.11,0,0,TAU); c.fill();        // thorax
-    c.beginPath(); c.ellipse(s*.24,0,s*.14,s*.12,0,0,TAU); c.fill();    // head
-    c.fillStyle='rgba(255,220,180,.28)';
+    // gaster
+    if(st.pat===1){
+      const g=c.createLinearGradient(-s*.46,0,-s*.06,0);
+      g.addColorStop(0,st.lite); g.addColorStop(1,st.body);
+      c.fillStyle=g;
+    }else c.fillStyle=st.body;
+    c.beginPath(); c.ellipse(-s*.26,0,s*.2,s*.16,0,0,TAU); c.fill();
+    if(st.pat===2){
+      c.save();
+      c.beginPath(); c.ellipse(-s*.26,0,s*.2,s*.16,0,0,TAU); c.clip();
+      c.fillStyle=st.lite;
+      for(let i=0;i<3;i++) c.fillRect(-s*.42+i*s*.13, -s*.2, s*.05, s*.4);
+      c.restore();
+    }
+    if(st.pat===3){
+      c.save();
+      c.beginPath(); c.ellipse(-s*.26,0,s*.2,s*.16,0,0,TAU); c.clip();
+      c.fillStyle=st.lite;
+      for(let i=0;i<7;i++){
+        const a2=(st.id*37+i*61)%100/100, b2=(st.id*17+i*29)%100/100;
+        c.beginPath(); c.arc(-s*.44+a2*s*.36, -s*.14+b2*s*.28, s*.022,0,TAU); c.fill();
+      }
+      c.restore();
+    }
+    c.fillStyle = st.pat===4 ? st.lite : st.body;
+    c.beginPath(); c.ellipse(0,0,s*.13,s*.11,0,0,TAU); c.fill();
+    c.beginPath(); c.ellipse(s*.24,0,s*.14,s*.12,0,0,TAU); c.fill();
+    c.fillStyle='rgba(255,230,190,.22)';
     c.beginPath(); c.ellipse(-s*.3,-s*.05,s*.1,s*.05,-.3,0,TAU); c.fill();
-    c.strokeStyle=col; c.lineWidth=Math.max(1,s*.04);
+    c.strokeStyle=st.dark; c.lineWidth=Math.max(1,s*.04);
     for(const side of [-1,1]){
       c.beginPath(); c.moveTo(s*.3, side*s*.05);
-      c.quadraticCurveTo(s*.44, side*s*.16, s*.5+Math.sin(legT*2)*s*.03, side*s*.24); c.stroke();
+      c.quadraticCurveTo(s*.44, side*s*.16, s*.5+Math.sin(phase*2)*s*.03, side*s*.24); c.stroke();
     }
-    c.fillStyle='#1c1008';
+    c.fillStyle='#120a05';
     c.beginPath(); c.arc(s*.3,-s*.06,s*.032,0,TAU); c.arc(s*.3,s*.06,s*.032,0,TAU); c.fill();
     c.restore();
+  }
+
+  function drawAnt(c,t){
+    drawAntBody(c, ant.x, ant.y, ant.h, (ant.walk||0)/(body*.5), myStyle(), t);
     if(gift && gift.have){ drawGift(c,ant.x,ant.y,gift,t); }
-    // carried stack
     const m=carryCounts(); let k=0;
     for(const [cat,n] of [...m.entries()].sort((a,b)=>b[1]-a[1])){
       if(k>=4) break;
@@ -3427,6 +3656,30 @@
       c.fillStyle='rgba(255,255,255,.8)'; c.font='600 11px Karla, sans-serif';
       c.textAlign='center';
       c.fillText('+'+(carried.length), ant.x, ant.y-body*.55-itemPx*1.9);
+      c.textAlign='left';
+    }
+  }
+
+  // the other antlings: their colours, and whatever they are mostly carrying
+  function drawPeers(c,t){
+    if(!coop) return;
+    for(const p of coop.peers.values()){
+      if(p.me) continue;
+      const x=ox0()+p.x*fieldW(), y=oy0()+p.y*fieldH();
+      drawAntBody(c, x, y, p.h||0, t/150, p.style||antStyle(p.name), t);
+      if(p.top){
+        if(p.top.indexOf('gift:')===0){
+          drawGift(c,x,y,{kind:p.top.slice(5), have:6},t);
+        }else if(ITEMS[p.top]){
+          drawItem(c,p.top,0, x, y-body*.6, -.15, .9);
+        }
+      }
+      c.font='600 '+Math.max(9,Math.round(body*.32))+'px Karla, sans-serif';
+      c.textAlign='center';
+      c.fillStyle='rgba(0,0,0,.45)';
+      c.fillText(p.name||'antling', x+1, y+body*.92+1);
+      c.fillStyle='rgba(255,255,255,.92)';
+      c.fillText(p.name||'antling', x, y+body*.92);
       c.textAlign='left';
     }
   }
@@ -3524,6 +3777,7 @@
       drawItem(ctx,f.cat,f.v,x,y,f.rot+t*2,f.sc);
     }
     if(kind==='throne') drawQueen(ctx,now); else drawDoor(ctx,now);
+    drawPeers(ctx,now);
     drawAnt(ctx,now);
     drawAntWeather(ctx,dt);
     drawShimmer(ctx,now);
@@ -3630,6 +3884,37 @@
     count(){ return LEVELS.length; },
     names(){ return LEVELS.map(l=>l.name); }
   };
+
+  const codeEl=document.getElementById('nest-code');
+  const randomCode=()=>{
+    const A2='ABCDEFGHJKLMNPQRSTUVWXYZ'; let c='';
+    for(let i=0;i<4;i++) c+=A2[(Math.random()*A2.length)|0];
+    return c;
+  };
+  document.getElementById('nest-host').addEventListener('click',()=>{
+    const code=randomCode(); codeEl.value=code; joinNest(code,true);
+  });
+  document.getElementById('nest-join').addEventListener('click',()=>{
+    const code=(codeEl.value||'').toUpperCase().replace(/[^A-Z]/g,'').slice(0,5);
+    if(code.length<3){ codeEl.focus(); return; }
+    joinNest(code,false);
+  });
+  document.getElementById('nest-leave').addEventListener('click',leaveNest);
+  document.getElementById('nest-copy').addEventListener('click',()=>{
+    if(!coop) return;
+    const link=location.origin+location.pathname+'#nest='+coop.code;
+    const btn=document.getElementById('nest-copy');
+    const done=()=>{ btn.textContent='Link copied'; setTimeout(()=>btn.textContent='Copy invite link',1600); };
+    if(navigator.clipboard) navigator.clipboard.writeText(link).then(done,done); else done();
+  });
+  // someone opened an invite link
+  (function(){
+    const m=(location.hash||'').match(/nest=([A-Za-z]{3,5})/);
+    if(m){
+      codeEl.value=m[1].toUpperCase();
+      setTimeout(()=>{ if(window.__showGame) window.__showGame('ant'); joinNest(m[1].toUpperCase(),false); }, 900);
+    }
+  })();
 
   restoreA();
   buildLevel();
@@ -4254,6 +4539,93 @@
   // browsers only allow audio after the person does something
   const wake=()=>{ if(S.on){ build(); resume(); } };
   ['pointerdown','keydown'].forEach(ev=>window.addEventListener(ev,wake,{once:false, passive:true}));
+})();
+</script>
+
+<script>
+/* ──────────── the nest wire: Supabase realtime, or Claude's room ──────────── */
+(function(){
+  const CFG=(window.SLOWBROOM_CONFIG && window.SLOWBROOM_CONFIG.url) ? window.SLOWBROOM_CONFIG : null;
+  let me='';
+  try{
+    me=localStorage.getItem('sb-client')||'';
+    if(!me){ me='c'+Math.random().toString(36).slice(2,11); localStorage.setItem('sb-client',me); }
+  }catch(e){ me='c'+Math.random().toString(36).slice(2,11); }
+
+  function loadSupa(){
+    if(window.supabase) return Promise.resolve(window.supabase);
+    return new Promise((res,rej)=>{
+      const el=document.createElement('script');
+      el.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
+      el.onload=()=>res(window.supabase); el.onerror=rej;
+      document.head.appendChild(el);
+    });
+  }
+
+  async function viaSupabase(code, handlers){
+    const lib=await loadSupa().catch(()=>null);
+    if(!lib) return null;
+    const sb=lib.createClient(CFG.url, CFG.anonKey, {realtime:{params:{eventsPerSecond:15}}});
+    const ch=sb.channel('nest-'+code, {config:{broadcast:{self:false}, presence:{key:me}}});
+    let mine={};
+    ch.on('broadcast',{event:'ev'}, msg=>{ if(msg && msg.payload) handlers.event(msg.payload); });
+    const sync=()=>{
+      const st=ch.presenceState(), rows=[];
+      for(const key in st){
+        const p=(st[key]||[])[0]; if(!p) continue;
+        rows.push(Object.assign({}, p, {id:key, me:key===me}));
+      }
+      handlers.peers(rows);
+    };
+    ch.on('presence',{event:'sync'},sync);
+    ch.on('presence',{event:'join'},sync);
+    ch.on('presence',{event:'leave'},sync);
+    await new Promise(res=>{
+      ch.subscribe(status=>{ if(status==='SUBSCRIBED'){ ch.track(mine); res(); } });
+      setTimeout(res, 6000);
+    });
+    return {
+      kind:'supabase', myId:me,
+      send(d){ ch.send({type:'broadcast', event:'ev', payload:d}).catch(()=>{}); },
+      presence(p){ mine=Object.assign({}, p); ch.track(mine).catch(()=>{}); },
+      leave(){ try{ ch.unsubscribe(); sb.removeChannel(ch); }catch(e){} }
+    };
+  }
+
+  async function viaRoom(code, handlers){
+    let room=null;
+    try{ room = await window.claude?.use?.('room'); }catch(e){ room=null; }
+    if(!room) return null;
+    const off=[];
+    off.push(room.on('ant', msg=>{
+      if(!msg || !msg.data || msg.data.c!==code || msg.sameTab) return;
+      handlers.event(msg.data.d);
+    }, ()=>{}));
+    const sync=()=>{
+      const rows=[];
+      for(const p of room.peers()){
+        const pr=p.presence||{};
+        if(pr.nest!==code) continue;
+        rows.push(Object.assign({}, pr, {id:p.peer, me:p.isMe}));
+      }
+      handlers.peers(rows);
+    };
+    off.push(room.onPeers(sync, ()=>{}));
+    return {
+      kind:'room', myId:'self',
+      send(d){ room.emit('ant',{c:code, d}).catch(()=>{}); },
+      presence(p){ room.presence(Object.assign({nest:code}, p)).catch(()=>{}); },
+      leave(){ off.forEach(f=>{ try{ f(); }catch(e){} }); room.presence({nest:null}).catch(()=>{}); }
+    };
+  }
+
+  window.__net={
+    myId:me,
+    async connect(code, handlers){
+      const conn = CFG ? await viaSupabase(code,handlers) : await viaRoom(code,handlers);
+      return conn;
+    }
+  };
 })();
 </script>
 
