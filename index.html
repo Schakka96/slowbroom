@@ -336,6 +336,30 @@
     font:inherit; font-size:.76rem; padding:6px 10px; border:1px dashed var(--accent);
     background:transparent; color:var(--accent); border-radius:4px; cursor:pointer;
   }
+  #devpanel{
+    position:fixed; inset:auto 12px 12px auto; width:min(560px,92vw); max-height:60vh;
+    display:flex; flex-direction:column; z-index:50;
+    background:#12121a; color:#e8e6f0; border:1px solid #33323f; border-radius:6px;
+    font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:11px;
+    box-shadow:0 18px 50px rgba(0,0,0,.45);
+  }
+  #devpanel header{
+    display:flex; align-items:center; gap:8px; padding:7px 10px; border-bottom:1px solid #2a2936;
+    font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:#9b96ad;
+  }
+  #devpanel header button{
+    margin-left:auto; font:inherit; font-size:10px; padding:2px 8px; cursor:pointer;
+    background:transparent; color:#b9b4c8; border:1px solid #3a3948; border-radius:3px;
+  }
+  #devpanel header button + button{margin-left:4px}
+  #devpanel .dbg-body{overflow:auto; padding:8px 10px; line-height:1.55}
+  .dbg-facts{color:#8de0b0; margin-bottom:8px; word-break:break-word}
+  .dbg-facts i{color:#6f7b92; font-style:normal}
+  .dbg-row{white-space:pre-wrap; word-break:break-word}
+  .dbg-row span{color:#5d6478; margin-right:6px}
+  .dbg-row b{color:#7fb7ff; font-weight:500}
+  .dbg-row.warn{color:#ffd27f}
+  .dbg-row.err{color:#ff8b82}
   .tally{
     margin:0; font-family:"IBM Plex Mono",monospace; font-size:.72rem;
     color:var(--ink-faint); font-variant-numeric:tabular-nums;
@@ -385,6 +409,70 @@
 </head>
 <body>
 
+
+<script>
+/* ──────── dev console: /debug to show, /selftest to check the wiring ──────── */
+(function(){
+  const LOG=[], MAX=300; const facts={};
+  let panel=null, body=null, open=false;
+  const now=()=>new Date().toISOString().slice(11,23);
+  function push(tag,msg,kind){
+    LOG.push({t:now(), tag, msg:String(msg), kind:kind||'info'});
+    if(LOG.length>MAX) LOG.shift();
+    if(open) paint();
+  }
+  function paint(){
+    if(!panel) return;
+    const f=Object.keys(facts).sort().map(k=>'<i>'+k+'</i> '+facts[k]).join('  ·  ');
+    body.innerHTML='<div class="dbg-facts">'+(f||'nothing recorded yet')+'</div>'+
+      LOG.slice(-90).reverse().map(l=>
+        '<div class="dbg-row '+l.kind+'"><span>'+l.t+'</span><b>'+l.tag+'</b> '+
+        l.msg.replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))+'</div>').join('');
+  }
+  function build(){
+    panel=document.createElement('div'); panel.id='devpanel'; panel.hidden=true;
+    panel.innerHTML='<header>SlowBroom dev console'+
+      '<button type="button" data-a="copy">copy</button>'+
+      '<button type="button" data-a="clear">clear</button>'+
+      '<button type="button" data-a="close">close</button></header><div class="dbg-body"></div>';
+    document.body.appendChild(panel);
+    body=panel.querySelector('.dbg-body');
+    panel.addEventListener('click',e=>{
+      const a=e.target.dataset && e.target.dataset.a; if(!a) return;
+      if(a==='close'){ open=false; panel.hidden=true; }
+      if(a==='clear'){ LOG.length=0; paint(); }
+      if(a==='copy'){
+        const text=Object.keys(facts).map(k=>k+': '+facts[k]).join('\n')+'\n\n'+
+          LOG.map(l=>l.t+' ['+l.tag+'] '+l.msg).join('\n');
+        if(navigator.clipboard) navigator.clipboard.writeText(text);
+        e.target.textContent='copied'; setTimeout(()=>e.target.textContent='copy',1200);
+      }
+    });
+  }
+  window.__dbg={
+    log:(tag,msg)=>push(tag,msg,'info'),
+    warn:(tag,msg)=>push(tag,msg,'warn'),
+    err:(tag,msg)=>push(tag,msg,'err'),
+    set:(k,v)=>{ facts[k]=String(v); if(open) paint(); },
+    get:()=>({facts, log:LOG.slice()}),
+    toggle(on){
+      if(!panel) build();
+      open = (on===undefined)? !open : !!on;
+      panel.hidden=!open; if(open) paint();
+      return open;
+    }
+  };
+  window.addEventListener('error',e=>{
+    push('error',(e.message||'error')+'  @'+(e.filename||'').split('/').pop()+':'+e.lineno,'err');
+  });
+  window.addEventListener('unhandledrejection',e=>{
+    push('reject', (e.reason && (e.reason.message||e.reason)) || 'rejected','err');
+  });
+  __dbg.set('page', location.host || 'file');
+  __dbg.set('config', window.SLOWBROOM_CONFIG ? 'supabase' : 'none');
+  __dbg.set('claude', (window.claude && window.claude.use) ? 'yes' : 'no');
+})();
+</script>
 
 <div class="shell">
  <div class="screen">
@@ -579,7 +667,7 @@
  <section class="chat" id="chat">
    <div class="chat-head">
      <div class="chat-title">
-       <h2 id="chat-name">Mop talk</h2>
+       <h2 id="chat-roomtitle">Mop talk</h2>
        <span class="kind">Be kind to each other.</span>
      </div>
      <label class="roompick" id="roompick" hidden><span>Room</span>
@@ -4138,7 +4226,7 @@
   }
 
   // ── wiring ─────────────────────────────────────────────────────────
-  function setStatus(t){ statusEl.textContent=t; }
+  function setStatus(t){ statusEl.textContent=t; __dbg.set('chat', t); }
 
   // ── a shared store, when this copy of the page has one ─────────────
   const CFG = (window.SLOWBROOM_CONFIG && window.SLOWBROOM_CONFIG.url) ? window.SLOWBROOM_CONFIG : null;
@@ -4153,13 +4241,20 @@
 
   function rest(path, opts){
     opts=opts||{};
+    const t0=performance.now(), label=(opts.method||'GET')+' '+path.split('?')[0];
+    const done=r=>{
+      const ms=Math.round(performance.now()-t0);
+      if(r && r.ok) __dbg.log('rest', label+' → '+r.status+' ('+ms+'ms)');
+      else __dbg.err('rest', label+' → '+(r? r.status : 'network fail')+' ('+ms+'ms)');
+      return r;
+    };
     return fetch(CFG.url+'/rest/v1/'+path, Object.assign({}, opts, {
       headers: Object.assign({
         'apikey': CFG.anonKey,
         'Authorization': 'Bearer '+CFG.anonKey,
         'Content-Type': 'application/json'
       }, opts.headers||{})
-    }));
+    })).then(done, e=>{ done(null); throw e; });
   }
   const upsert = (table, row) =>
     rest(table, {method:'POST', headers:{'Prefer':'resolution=merge-duplicates'}, body:JSON.stringify(row)});
@@ -4170,7 +4265,7 @@
   let room$=1, rooms=[{id:1,name:'Mop talk'}], roomCounts={};
   const pickEl=document.getElementById('roompick');
   const roomEl=document.getElementById('chat-room');
-  const roomName=document.getElementById('chat-name');
+  const roomName=document.getElementById('chat-roomtitle');
   try{ const r=+localStorage.getItem('sb-room'); if(r>=1&&r<=200) room$=r; }catch(e){}
 
   function renderRooms(){
@@ -4202,7 +4297,8 @@
         }
         renderRooms();
       })
-      .catch(()=>{ roomsOK=false; pickEl.hidden=true; });
+      .catch(()=>{ roomsOK=false; pickEl.hidden=true;
+        __dbg.warn('rooms','no rooms table — single room mode (run supabase/update.sql)'); });
   }
   function joinRoom(id){
     room$=id; try{ localStorage.setItem('sb-room',String(id)); }catch(e){}
@@ -4231,7 +4327,7 @@
            '&order=created_at.desc&limit=60')
         .then(r=>r.ok?r.json():[])
         .then(rows=>{
-          if(!firstOk){ firstOk=true; setStatus('live'); }
+          if(!firstOk){ firstOk=true; setStatus('live'); __dbg.log('chat','first message pull ok'); }
           const list=rows.map(m=>({id:String(m.id), name:m.name, text:m.body, ts:Date.parse(m.created_at)}))
                          .sort((a,b)=>a.ts-b.ts);
           renderLog(list);
@@ -4261,7 +4357,9 @@
             if(c[r0.game]!==undefined) c[r0.game]++;
             const rm=r0.room||1; byRoom[rm]=(byRoom[rm]||0)+1;
           }
-          liveCounts=c; roomCounts=byRoom; renderPill(); renderRooms();
+          liveCounts=c; roomCounts=byRoom;
+          __dbg.set('here', 'mop '+c.mop+' · ant '+c.ant+' · mosaic '+c.mosaic);
+          renderPill(); renderRooms();
         }).catch(()=>{});
 
     const pullBoard = () =>
@@ -4302,7 +4400,12 @@
   }
   let liveCounts=null;
   async function boot(){
-    if(CFG){ setStatus('connecting…'); supaBoot(); return; }
+    __dbg.set('transport', CFG? 'supabase' : 'claude runtime');
+    if(CFG){
+      setStatus('connecting…');
+      try{ supaBoot(); }catch(e){ __dbg.err('chat','supaBoot threw: '+(e&&e.message)); setStatus('chat failed to start'); }
+      return;
+    }
     setStatus('waking the room…');
     const slow=setTimeout(()=>setStatus('still connecting — one moment'),2500);
     room = await useCap('room');
@@ -4552,7 +4655,8 @@
         }
         blockedMe=theirs; saveBlocks(); renderBlocked(); renderFromCache();
       })
-      .catch(()=>{ blocksOK=false; });
+      .catch(()=>{ blocksOK=false;
+        __dbg.warn('blocks','no blocks table — blocking stays local (run supabase/update.sql)'); });
   }
 
   const CHEATS=[
@@ -4565,8 +4669,49 @@
     ['/sky <x>',     'force the time of day'],
     ['/antweather <x>','force weather in Tidy Ant'],
     ['/levels',      'how many rounds and surfaces there are'],
+    ['/debug',       'open the dev console'],
+    ['/selftest',    'check chat, database and nest wiring'],
+    ['/nest',        'what the co-op connection is doing'],
     ['/help',        'this list']
   ];
+  // ── diagnostics ────────────────────────────────────────────────────
+  function selftest(){
+    __dbg.toggle(true);
+    __dbg.log('test','— self test —');
+    __dbg.log('test','page '+location.host+'  ·  config '+(CFG?'supabase':'none')+
+                     '  ·  claude runtime '+((window.claude&&window.claude.use)?'yes':'no'));
+    __dbg.log('test','name "'+(myName||'(none)')+'"  ·  client '+clientId+
+                     '  ·  room '+room$+'  ·  blocked '+myBlocks.size);
+    if(!CFG){
+      __dbg.log('test','no database configured — this copy uses the claude runtime');
+      Promise.resolve(useCap('db')).then(v=>__dbg.log('test','claude db: '+(v?'available':'null')));
+      Promise.resolve(useCap('room')).then(v=>__dbg.log('test','claude room: '+(v?'available':'null')));
+      return 'running — see the dev console';
+    }
+    const t=(label,p)=>p.then(r=>__dbg.log('test',label+': '+(r.ok?'ok':'HTTP '+r.status)),
+                              ()=>__dbg.err('test',label+': unreachable'));
+    t('messages read', rest('messages?select=id&limit=1'));
+    t('presence read', rest('presence?select=client_id&limit=1'));
+    t('moppers read',  rest('moppers?select=name&limit=1'));
+    t('rooms table',   rest('rooms?select=id&limit=1'));
+    t('blocks table',  rest('blocks?select=blocker&limit=1'));
+    t('presence write', upsert('presence',{client_id:clientId, name:myName||null, game:game(),
+                                           seen_at:new Date().toISOString()}));
+    if(window.__net) window.__net.connect('TEST',{event:()=>{},peers:()=>{}})
+      .then(c=>{
+        __dbg.log('test','nest channel: '+(c?'joined ('+c.kind+')':'failed'));
+        if(c) c.leave();
+      },()=>__dbg.err('test','nest channel: threw'));
+    return 'running — see the dev console';
+  }
+  function nestReport(){
+    __dbg.toggle(true);
+    const a=window.__antNest;
+    __dbg.log('nest', a && a.active() ? 'in a nest' : 'not in a nest');
+    __dbg.log('nest', 'transport '+(CFG?'supabase realtime':'claude room')+
+                      ' · library '+(window.supabase?'loaded':'not loaded yet'));
+    return 'see the dev console';
+  }
   function runCheat(line){
     const m=line.slice(1).trim().match(/^([a-z]+)\s*(.*)$/i);
     if(!m) return 'try /help';
@@ -4574,6 +4719,9 @@
     const ant=window.__antCheat, mop=window.__mopCheat;
     switch(cmd){
       case 'help': return CHEATS.map(c=>c[0]+' — '+c[1]).join('   ·   ');
+      case 'debug': return __dbg.toggle()? 'dev console open' : 'dev console closed';
+      case 'selftest': return selftest();
+      case 'nest': return nestReport();
       case 'levels':
         return 'Tidy Ant: '+(ant?ant.count():'?')+' rounds (15 sorting, then the ending) · '+
                'mopping: '+(mop?mop.count():'?')+' surfaces';
@@ -4879,8 +5027,10 @@
   }
 
   async function viaSupabase(code, handlers){
-    const lib=await loadSupa().catch(()=>null);
+    __dbg.log('nest','loading realtime client…');
+    const lib=await loadSupa().catch(e=>{ __dbg.err('nest','library failed to load'); return null; });
     if(!lib) return null;
+    __dbg.log('nest','client ready, subscribing to nest-'+code);
     const sb=lib.createClient(CFG.url, CFG.anonKey, {realtime:{params:{eventsPerSecond:15}}});
     const ch=sb.channel('nest-'+code, {config:{broadcast:{self:false}, presence:{key:me}}});
     let mine={};
@@ -4899,12 +5049,14 @@
     let joined=false;
     await new Promise(res=>{
       ch.subscribe(status=>{
+        __dbg.log('nest','channel '+status);
         if(status==='SUBSCRIBED'){ joined=true; ch.track(mine); res(); }
         else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT') res();
       });
       setTimeout(res, 5000);
     });
-    if(!joined){ try{ sb.removeChannel(ch); }catch(e){} return null; }
+    if(!joined){ __dbg.err('nest','never reached SUBSCRIBED'); try{ sb.removeChannel(ch); }catch(e){} return null; }
+    __dbg.set('nest','supabase · '+code);
     return {
       kind:'supabase', myId:me,
       send(d){ ch.send({type:'broadcast', event:'ev', payload:d}).catch(()=>{}); },
@@ -4915,8 +5067,10 @@
 
   async function viaRoom(code, handlers){
     let room=null;
+    __dbg.log('nest','asking the claude runtime for a room…');
     try{ room = await window.claude?.use?.('room'); }catch(e){ room=null; }
-    if(!room) return null;
+    if(!room){ __dbg.err('nest','room capability unavailable in this view'); return null; }
+    __dbg.set('nest','claude room · '+code);
     const off=[];
     off.push(room.on('ant', msg=>{
       if(!msg || !msg.data || msg.data.c!==code || msg.sameTab) return;
