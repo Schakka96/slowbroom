@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="78358f0 · 14 Sep 20:10";</script>
+<script>window.SLOWBROOM_BUILD="d2e1f59 · 14 Sep 20:11";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -531,6 +531,24 @@
   </div>
 
   <aside class="rail">
+    <div class="sec" id="mnest-sec" hidden>
+      <hr>
+      <h2>Mop together</h2>
+      <div class="ctl">
+        <div class="acts">
+          <button type="button" id="mnest-host">Open a room</button>
+          <button type="button" id="mnest-leave" hidden>Leave</button>
+        </div>
+        <div class="say nestjoin">
+          <input id="mnest-code" type="text" maxlength="5" placeholder="code" autocomplete="off">
+          <button type="button" id="mnest-join">Join</button>
+        </div>
+        <span class="sub" id="mnest-status">Mopping alone.</span>
+        <div class="peers" id="mnest-peers"></div>
+        <button type="button" id="mnest-copy" hidden>Copy invite link</button>
+      </div>
+    </div>
+
     <div class="sec" id="palette-sec">
     <hr id="palette-rule" hidden>
     <h2 id="palette-title">Palette</h2>
@@ -2059,9 +2077,9 @@
     for(let i=1;i<=n;i++) fn(x0+(x1-x0)*i/n, y0+(y1-y0)*i/n);
   }
 
-  function mopStroke(x0,y0,x1,y1){
+  function mopStroke(x0,y0,x1,y1,WD){
     if(!dust) return;
-    const w=mopPx(), d=dust.ctx, e=wet.ctx, k=clean.ctx;
+    const w=WD||mopPx(), d=dust.ctx, e=wet.ctx, k=clean.ctx;
     const len=Math.hypot(x1-x0,y1-y0);
     const ang = len>0.01 ? Math.atan2(y1-y0,x1-x0) : heading;
 
@@ -2130,9 +2148,11 @@
     e.restore();
   }
   const onGlass = () => !!SURFACES[level%SURFACES.length].glassy;
-  function drawSqueegee(){
-    const w=mopPx(), h=w*.16;
-    ctx.save(); ctx.translate(px,py); ctx.rotate(heading+Math.PI/2);
+  function drawSqueegee(X,Y,A,WD){
+    X=(X===undefined?px:X); Y=(Y===undefined?py:Y);
+    A=(A===undefined?heading:A);
+    const w=WD||mopPx(), h=w*.16;
+    ctx.save(); ctx.translate(X,Y); ctx.rotate(A+Math.PI/2);
     ctx.fillStyle='rgba(0,0,0,.25)';
     ctx.beginPath(); ctx.roundRect(-w/2+2,-h/2+3,w,h*2.1,h*.4); ctx.fill();
     ctx.fillStyle='#1d2126';                                  // rubber blade
@@ -2151,11 +2171,13 @@
     ctx.beginPath(); ctx.roundRect(-w*.05,-h*9,w*.1,h*5.8,w*.05); ctx.fill();
     ctx.restore();
   }
-  function drawMop(){
-    if(onGlass()){ drawSqueegee(); return; }
-    if(S.mopStyle==='classic'){ drawMopClassic(); return; }
-    const w=mopPx(), h=w*.3;
-    ctx.save(); ctx.translate(px,py); ctx.rotate(heading+Math.PI/2);
+  function drawMop(X,Y,A,WD){
+    X=(X===undefined?px:X); Y=(Y===undefined?py:Y);
+    A=(A===undefined?heading:A); WD=WD||mopPx();
+    if(onGlass()){ drawSqueegee(X,Y,A,WD); return; }
+    if(S.mopStyle==='classic'){ drawMopClassic(X,Y,A,WD); return; }
+    const w=WD, h=w*.3;
+    ctx.save(); ctx.translate(X,Y); ctx.rotate(A+Math.PI/2);
     // handle first, so the pad sits on top of it
     const pole=ctx.createLinearGradient(-h*.2,0,h*.2,0);
     pole.addColorStop(0,'#8d97a4'); pole.addColorStop(.45,'#e3e9ef'); pole.addColorStop(1,'#7e8894');
@@ -2186,9 +2208,11 @@
     ctx.restore();
   }
 
-  function drawMopClassic(){
-    const w=mopPx(), h=w*.42;
-    ctx.save(); ctx.translate(px,py); ctx.rotate(heading+Math.PI/2);
+  function drawMopClassic(X,Y,A,WD){
+    X=(X===undefined?px:X); Y=(Y===undefined?py:Y);
+    A=(A===undefined?heading:A);
+    const w=WD||mopPx(), h=w*.42;
+    ctx.save(); ctx.translate(X,Y); ctx.rotate(A+Math.PI/2);
     ctx.fillStyle='rgba(0,0,0,.3)';
     ctx.beginPath(); ctx.roundRect(-w/2+2,-h/2+4,w,h,h*.42); ctx.fill();
     const g=ctx.createLinearGradient(0,-h/2,0,h/2);
@@ -2318,6 +2342,143 @@
     for(let i=0;i<N;i++) if(state[i]===0) state[i]=1;
     painted=N; done=true; updateReadout();
   }
+  // ───────── co-op mopping: one floor, several mops ─────────
+  let mcoop=null, mPres=0, mSync=0;
+  const MOP_MAX=6;
+  const mopName = () => { try{ return (localStorage.getItem('sb-name')||'').slice(0,18)||'mopper'; }catch(e){ return 'mopper'; } };
+  const mToN = (x,y) => ({x:(x-ox)/Math.max(1,cell*cols), y:(y-oy)/Math.max(1,cell*rows)});
+  const mFromN = (nx,ny) => ({x:ox+nx*cell*cols, y:oy+ny*cell*rows});
+
+  function coverMask(){
+    const bytes=new Uint8Array(Math.ceil(Math.max(1,N)/8));
+    for(let i=0;i<N;i++) if(state[i]) bytes[i>>3] |= 1<<(i&7);
+    let str=''; for(let i=0;i<bytes.length;i++) str+=String.fromCharCode(bytes[i]);
+    return btoa(str);
+  }
+  // a late arrival gets the floor rubbed clean where the others have been
+  function applyCoverMask(b64){
+    let raw; try{ raw=atob(b64); }catch(e){ return; }
+    const d=dust&&dust.ctx, k=clean&&clean.ctx;
+    if(d) d.save(), d.globalCompositeOperation='destination-out';
+    for(let i=0;i<N;i++){
+      const on=(raw.charCodeAt(i>>3)>>(i&7))&1;
+      if(!on || state[i]) continue;
+      state[i]=1; painted++;
+      const x=ox+((i%cols)+.5)*cell, y=oy+(((i-(i%cols))/cols)+.5)*cell;
+      if(d) dab(d,x,y,cell*1.6,0,.95);
+      if(k){ k.save(); k.globalAlpha=.5; dab(k,x,y,cell*1.5,0,.9); k.restore(); }
+    }
+    if(d) d.restore();
+    updateReadout();
+  }
+  function mopSnapshot(){
+    if(!mcoop || !mcoop.isHost || !mcoop.net) return;
+    mcoop.net.send({t:'floor', lvl:level, seed:surfaceSeed, m:coverMask()});
+  }
+  function onMopEvent(d){
+    if(!mcoop || !d) return;
+    if(d.t==='floor'){
+      if(d.lvl!==level || d.seed!==surfaceSeed){
+        level=d.lvl; pendingSeed=d.seed; rooms.length=0; roomIdx=0; newGrid();
+        started=true; hintEl.style.opacity='0';
+      }
+      applyCoverMask(d.m);
+    }else if(d.t==='who' && mcoop.isHost) mopSnapshot();
+    else if(d.t==='kick' && d.who===mcoop.myId){
+      leaveMopNest();
+      document.getElementById('mnest-status').textContent='the host closed the room to you';
+    }
+  }
+  function onMopPeers(rows){
+    if(!mcoop) return;
+    const ordered=rows.slice().sort((a,b)=>(a.since||0)-(b.since||0));
+    const mine=ordered.findIndex(r=>r.me || r.id===mcoop.myId);
+    if(mine>=MOP_MAX){
+      leaveMopNest();
+      document.getElementById('mnest-status').textContent='that room is full — six moppers is the limit';
+      return;
+    }
+    const keep=new Map();
+    for(const r of ordered.slice(0,MOP_MAX)){
+      const old=mcoop.peers.get(r.id);
+      keep.set(r.id, Object.assign({}, old||{}, r));
+    }
+    mcoop.peers=keep;
+    setMopNestUI();
+  }
+  // lay down everyone else's strokes on this floor
+  function peerStrokes(){
+    if(!mcoop || S.mode!=='mop') return;
+    for(const p of mcoop.peers.values()){
+      if(p.me || typeof p.x!=='number') continue;
+      const pos=mFromN(p.x,p.y);
+      if(p.lx!==undefined && (Math.abs(pos.x-p.lx)>0.2 || Math.abs(pos.y-p.ly)>0.2)){
+        const wd=Math.max(6,(p.w||14)*IN);
+        mopStroke(p.lx,p.ly,pos.x,pos.y,wd);
+        cover(pos.x,pos.y,wd*.46);
+      }
+      p.lx=pos.x; p.ly=pos.y;
+    }
+  }
+  function drawMopPeers(){
+    if(!mcoop) return;
+    for(const p of mcoop.peers.values()){
+      if(p.me || typeof p.x!=='number') continue;
+      const pos=mFromN(p.x,p.y), wd=Math.max(6,(p.w||14)*IN);
+      drawMop(pos.x,pos.y,p.h||0,wd);
+      ctx.font='600 '+Math.max(9,Math.round(cell*1.1))+'px Karla, sans-serif';
+      ctx.textAlign='center';
+      ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillText(p.name||'mopper', pos.x+1, pos.y+wd*.75+1);
+      ctx.fillStyle='rgba(255,255,255,.92)'; ctx.fillText(p.name||'mopper', pos.x, pos.y+wd*.75);
+      ctx.textAlign='left';
+    }
+  }
+  function setMopNestUI(){
+    const st=document.getElementById('mnest-status'), list=document.getElementById('mnest-peers');
+    document.getElementById('mnest-host').hidden=!!mcoop;
+    document.getElementById('mnest-leave').hidden=!mcoop;
+    document.getElementById('mnest-copy').hidden=!mcoop;
+    if(!mcoop){ st.textContent='Mopping alone.'; list.innerHTML=''; return; }
+    const n=mcoop.peers.size;
+    st.textContent='Room '+mcoop.code+' · '+n+' of '+MOP_MAX+' mopper'+(n===1?'':'s')+
+                   (mcoop.isHost?' · you host':'');
+    list.innerHTML='';
+    for(const p of mcoop.peers.values()){
+      const row=document.createElement('div'); row.className='peer';
+      const nm=document.createElement('span'); nm.textContent=(p.name||'mopper')+(p.me?' (you)':'');
+      row.append(nm);
+      if(mcoop.isHost && !p.me){
+        const k=document.createElement('button');
+        k.type='button'; k.className='unblock'; k.textContent='kick';
+        k.addEventListener('click',()=>{ mcoop.net.send({t:'kick',who:p.id}); mcoop.peers.delete(p.id); setMopNestUI(); });
+        row.append(k);
+      }
+      list.append(row);
+    }
+  }
+  async function joinMopNest(code, host){
+    const st=document.getElementById('mnest-status');
+    const net=window.__net;
+    if(!net){ st.textContent='no way to connect from here'; return; }
+    st.textContent = host? 'opening room '+code+'…' : 'knocking at room '+code+'…';
+    const conn=await net.connect('mop-'+code, {event:onMopEvent, peers:onMopPeers});
+    if(!conn){ st.textContent='could not reach that room — try again'; return; }
+    mcoop={code, isHost:!!host, net:conn, peers:new Map(), myId:conn.myId, since:Date.now()};
+    setMopNestUI();
+    if(host){ mopSnapshot(); } else conn.send({t:'who'});
+    pushMopPresence();
+  }
+  function leaveMopNest(){
+    if(mcoop && mcoop.net) mcoop.net.leave();
+    mcoop=null; setMopNestUI();
+  }
+  function pushMopPresence(){
+    if(!mcoop || !mcoop.net) return;
+    const n=mToN(px,py);
+    mcoop.net.presence({name:mopName(), x:+n.x.toFixed(4), y:+n.y.toFixed(4),
+                        h:+heading.toFixed(2), w:S.mopw, since:mcoop.since});
+  }
+
   function checkLevel(){
     if(S.mode!=='mop'||done||!N) return;
     if(painted/N < .999) return;
@@ -2372,7 +2533,13 @@
       if(go) advance(dt);
       else if(window.__sfx) window.__sfx.tool(0,false);
       {
+        peerStrokes();
         dryWet(dt); drawMopScene(); drawShimmerMop(dt); checkLevel();
+        if(mcoop){
+          mPres+=dt;
+          if(mPres>110){ mPres=0; pushMopPresence(); }
+          if(mcoop.isHost){ mSync+=dt; if(mSync>4000){ mSync=0; mopSnapshot(); } }
+        }
         if(travel){
           travel.t+=dt/460;
           if(travel.t>=.5 && !travel.mid){ travel.mid=true; stepThrough(travel.d); }
@@ -2432,6 +2599,7 @@
     }
     drawDoorway(ctx,'right');
     if(roomIdx>0) drawDoorway(ctx,'left');
+    drawMopPeers();
     if(started) drawMop();
     if(travel){
       const a = travel.t<.5 ? travel.t*2 : (1-travel.t)*2;
@@ -2492,6 +2660,8 @@
     document.getElementById('ground-ctl').hidden = mop;
     document.getElementById('hue-l').textContent = mop ? 'Water tint' : 'Hue';
     mopwCtl.hidden = !mop;
+    document.getElementById('mnest-sec').hidden = !mop;
+    if(!mop && mcoop) leaveMopNest();
   }
   document.querySelectorAll('.seg button[data-cols]').forEach(b=>{
     b.addEventListener('click',()=>{
@@ -2568,6 +2738,33 @@
       if(pendingResize){ pendingResize=false; newGrid(); }
     }
   };
+
+  const mCodeEl=document.getElementById('mnest-code');
+  const mRandom=()=>{ const A2='ABCDEFGHJKLMNPQRSTUVWXYZ'; let c='';
+    for(let i=0;i<4;i++) c+=A2[(Math.random()*A2.length)|0]; return c; };
+  document.getElementById('mnest-host').addEventListener('click',()=>{
+    const code=mRandom(); mCodeEl.value=code; joinMopNest(code,true);
+  });
+  document.getElementById('mnest-join').addEventListener('click',()=>{
+    const code=(mCodeEl.value||'').toUpperCase().replace(/[^A-Z]/g,'').slice(0,5);
+    if(code.length<3){ mCodeEl.focus(); return; }
+    joinMopNest(code,false);
+  });
+  document.getElementById('mnest-leave').addEventListener('click',leaveMopNest);
+  document.getElementById('mnest-copy').addEventListener('click',()=>{
+    if(!mcoop) return;
+    const link=location.origin+location.pathname+'#mop='+mcoop.code;
+    const btn=document.getElementById('mnest-copy');
+    const done=()=>{ btn.textContent='Link copied'; setTimeout(()=>btn.textContent='Copy invite link',1600); };
+    if(navigator.clipboard) navigator.clipboard.writeText(link).then(done,done); else done();
+  });
+  (function(){
+    const m=(location.hash||'').match(/mop=([A-Za-z]{3,5})/);
+    if(m){
+      mCodeEl.value=m[1].toUpperCase();
+      setTimeout(()=>{ if(window.__showGame) window.__showGame('mop'); joinMopNest(m[1].toUpperCase(),false); },900);
+    }
+  })();
 
   window.__mopCheat={
     surface(n){
@@ -3423,7 +3620,7 @@
     const n=toN(ant.x,ant.y);
     coop.net.presence({
       name:myName(), x:+n.x.toFixed(4), y:+n.y.toFixed(4),
-      h:+ant.h.toFixed(2), top:topCarried()||null, lvl:level
+      h:+ant.h.toFixed(2), top:topCarried()||null, lvl:level, since:coop.since
     });
   }
   function onNetEvent(d){
@@ -3455,7 +3652,7 @@
     document.getElementById('nest-copy').hidden=!coop;
     if(!coop){ st.textContent='Sorting alone.'; list.innerHTML=''; return; }
     const n=coop.peers.size;
-    st.textContent='Nest '+coop.code+' · '+n+' of 6 antling'+(n===1?'':'s')+
+    st.textContent='Nest '+coop.code+' · '+n+' of '+NEST_MAX+' antling'+(n===1?'':'s')+
       (coop.isHost?' · you host':'');
     list.innerHTML='';
     for(const p of coop.peers.values()){
@@ -3477,12 +3674,20 @@
       list.append(row);
     }
   }
+  const NEST_MAX=6;                                   // the host and five guests
   function onNetPeers(rows){
     if(!coop) return;
-    coop.peers=new Map();
-    for(const r of rows.slice(0,6)){
-      coop.peers.set(r.id, Object.assign({}, r, {style:antStyle(r.name)}));
+    const ordered=rows.slice().sort((a,b)=>(a.since||0)-(b.since||0));
+    // if you are the seventh to arrive, step back out again
+    const mine=ordered.findIndex(r=>r.me || r.id===coop.myId);
+    if(mine>=NEST_MAX){
+      leaveNest();
+      document.getElementById('nest-status').textContent='that nest is full — six antlings is the limit';
+      return;
     }
+    coop.peers=new Map();
+    for(const r of ordered.slice(0,NEST_MAX))
+      coop.peers.set(r.id, Object.assign({}, r, {style:antStyle(r.name)}));
     setNestUI();
   }
   // TEST is a rehearsal nest: three antlings wander about so the co-op view
@@ -3539,7 +3744,7 @@
     const conn=await net.connect(code, {event:onNetEvent, peers:onNetPeers});
     if(!conn){ st.textContent='could not reach the nest — try again'; return; }
     coop={code, isHost:!!host, net:conn, peers:new Map(), myId:conn.myId,
-          seed: host ? (Math.random()*1e9|0) : null};
+          since:Date.now(), seed: host ? (Math.random()*1e9|0) : null};
     setNestUI();
     if(host){ buildLevel(); hostSnapshot(); }
     else netSend('who');
