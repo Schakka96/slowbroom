@@ -2,7 +2,9 @@
 """Show or replace the chat filter's word lists.
 
   python3 tools/wordlist.py show              # print both lists
-  python3 tools/wordlist.py set hard a,b,c    # replace the slur list
+  python3 tools/wordlist.py set sub a,b,c     # slurs matched anywhere in a message
+  python3 tools/wordlist.py set word a,b,c    # slurs matched as whole words only
+  python3 tools/wordlist.py set curse a,b,c   # swearing, matched as whole words
   python3 tools/wordlist.py set threat a,b    # replace the threat list
 
 The lists live base64-encoded inside index.html so the published page and the
@@ -14,7 +16,7 @@ everything but letters stripped, and runs of a character collapsed — so
 import base64, pathlib, re, sys
 
 HTML = pathlib.Path(__file__).resolve().parent.parent / "index.html"
-KEYS = {"hard": "BAD_HARD", "threat": "BAD_THREAT"}
+KEYS = {"sub": "BAD_SUB", "word": "BAD_WORD", "threat": "BAD_THREAT", "curse": "BAD_CURSE"}
 
 def read(kind):
     m = re.search(r"const %s=atob\('([^']+)'\)" % KEYS[kind], HTML.read_text())

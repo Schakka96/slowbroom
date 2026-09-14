@@ -4351,52 +4351,77 @@
   }
   // ── a floor for how people talk to each other ───────────────────────
   // (encoded so the repo is not a list of slurs; decoded at load)
-  const BAD_HARD=atob('bmlnZ2VyfG5pZ2dhfGZhZ2dvdHxmYWd8a2lrZXxjaGlua3xzcGljfHRyYW5ueXxyZXRhcmR8cGFraXx3ZXRiYWNrfGNvb258Z29va3xkeWtlfHNoZW1hbGV8cmFnaGVhZA==').split('|');
-  const BAD_THREAT=atob('a2lsbHlvdXJzZWxmfGt5c3xpd2lsbGtpbGx5b3V8aXdpbGxmaW5keW91fGl3aWxscmFwZXxyYXBleW91fGhhbmd5b3Vyc2VsZnxnYXN0aGV8aGVpbGhpdGxlcnxnYXNjaGFtYmVyfGx5bmNofGtpbGxhbGx0aGV8eW91c2hvdWxkZGllfGRpZWluYWZpcmV8c2xpdHdyaXN0cw==').split('|');
+  const BAD_SUB=atob('bmlnZ2VyfG5pZ2dhfGZhZ2dvdHx3ZXRiYWNrfHNoZW1hbGV8cmFnaGVhZHx0cmFubnl8bmlnZ2Fz').split('|');
+  const BAD_WORD=atob('ZmFnfGZhZ3N8a2lrZXxjaGlua3xzcGljfHJldGFyZHxyZXRhcmRlZHxwYWtpfGNvb258Z29va3xkeWtl').split('|');
+  const BAD_THREAT=atob('a2lsbHlvdXJzZWxmfGt5c3xpd2lsbGtpbGx5b3V8aXdpbGxmaW5keW91fGl3aWxscmFwZXxyYXBleW91fGhhbmd5b3Vyc2VsZnxnYXN0aGV8aGVpbGhpdGxlcnxnYXNjaGFtYmVyfGtpbGxhbGx0aGV8eW91c2hvdWxkZGllfGRpZWluYWZpcmV8c2xpdHdyaXN0c3xpd2lsbGh1cnR5b3V8aWtub3d3aGVyZXlvdWxpdmU=').split('|');
+  const BAD_CURSE=atob('ZnVja3xmdWNraW5nfGZ1Y2tlZHxmdWNrZXJ8ZnVja2Vyc3xtb3RoZXJmdWNrZXJ8ZnVja29mZnxmdWNreW91fGZ1Y2t3aXR8c2hpdHxzaGl0dHl8YnVsbHNoaXR8c2hpdGhlYWR8c2hpdGJhZ3xzaGl0c2hvd3xkaXBzaGl0fGhvcnNlc2hpdHxjbHVzdGVyZnVja3xiaXRjaHxiaXRjaGVzfGFzc2hvbGV8YXJzZWhvbGV8YXNzaGF0fGR1bWJhc3N8amFja2Fzc3xiYXN0YXJkfGRhbW58Z29kZGFtbnxkaWNrfGRpY2toZWFkfGNvY2t8Y29ja3VwfHByaWNrfHB1c3N5fGN1bnR8dHdhdHx3YW5rZXJ8Ym9sbG9ja3N8YnVnZ2VyfGNyYXB8Y3JhcHB5fHBpc3N8cGlzc2VkfHBpc3NoZWFkfHNsdXR8d2hvcmV8ZG91Y2hlfGRvdWNoZWJhZ3xqZXJrb2ZmfHNjdW1iYWd8d3RmfHN0ZnV8bG1mYW98bnVtYm51dHN8dG9zc2VyfGtub2JoZWFkfGJsb29keWhlbGx8ZHVtYmZ1Y2t8c3R1cGlkZnVjaw==').split('|');
   const LEET={'1':'i','!':'i','3':'e','0':'o','4':'a','@':'a','$':'s','5':'s','7':'t','8':'b'};
+  // one normal form for both sides: lowercase, leet folded, letters only,
+  // and any run of a repeated letter squeezed to one
   function flatten(t){
     let out='';
     for(const ch of String(t).toLowerCase()) out += (LEET[ch]||ch);
-    return out.replace(/[^a-z]/g,'').replace(/(.)\1{2,}/g,'$1$1');
+    return out.replace(/[^a-z]/g,'').replace(/(.)\1+/g,'$1');
   }
+  const F_SUB=BAD_SUB.map(flatten).filter(Boolean);
+  const F_WORD=new Set(BAD_WORD.map(flatten).filter(Boolean));
+  const F_THREAT=BAD_THREAT.map(flatten).filter(Boolean);
+  const F_CURSE=new Set(BAD_CURSE.map(flatten).filter(Boolean));
+  const wordsOf = t => String(t).toLowerCase().split(/[^a-z0-9@$!*]+/).filter(Boolean).map(flatten);
+
   function offends(text){
     const flat=flatten(text);
-    for(const w of BAD_HARD) if(w && flat.indexOf(w)>=0) return 'slur';
-    for(const w of BAD_THREAT) if(w && flat.indexOf(w)>=0) return 'threat';
+    for(const w of F_SUB) if(flat.indexOf(w)>=0) return 'slur';       // survives spacing tricks
+    for(const w of wordsOf(text)) if(F_WORD.has(w)) return 'slur';    // short words, exact only
+    for(const w of F_THREAT) if(flat.indexOf(w)>=0) return 'threat';
     return null;
   }
+  // swearing, counted per word so ordinary words are never caught
+  function curseCount(text){
+    let n=0;
+    for(const w of wordsOf(text)) if(w && F_CURSE.has(w)) n++;
+    return n;
+  }
   const mod = (()=>{
-    let o={strikes:0, until:0};
+    let o={strikes:0, curseStrikes:0, spamLevel:0, until:0, showTimer:false};
     try{ o=Object.assign(o, JSON.parse(localStorage.getItem('sb-mod')||'{}')); }catch(e){}
     return o;
   })();
   const saveMod=()=>{ try{ localStorage.setItem('sb-mod',JSON.stringify(mod)); }catch(e){} };
-  let recent=[];
+  let sentTimes=[], curseTimes=[];
+  const KIND='<b>Be nice to one another.</b> The world is tough enough as it is.';
+
   function showNotice(html){
     const el=document.getElementById('chat-rules');
     el.className='warnmsg'; el.innerHTML=html;
     clearTimeout(showNotice.t);
     showNotice.t=setTimeout(()=>{
       el.className='rules';
-      el.textContent='Threats, slurs and abuse get one warning, then a five-minute pause. Everything else — chat away.';
+      el.textContent='Threats, slurs and abuse get one warning, then a pause. Everything else — chat away.';
     }, 9000);
   }
+  function pause(ms, visible, message){
+    mod.until=Date.now()+ms; mod.showTimer=!!visible; saveMod();
+    showNotice(message);
+  }
+
   // returns true when the message may go out
   function allowed(body){
     const now=Date.now();
     if(mod.until>now){
-      const left=Math.ceil((mod.until-now)/60000);
-      showNotice('<b>Be nice to one another.</b> The world is tough enough as it is. '+
-                 'You can write again in '+left+' minute'+(left===1?'':'s')+'.');
+      if(mod.showTimer){
+        const secs=Math.ceil((mod.until-now)/1000);
+        showNotice('<b>Slow down a moment.</b> '+secs+' second'+(secs===1?'':'s')+' and you are back.');
+      }else showNotice(KIND);
       return false;
     }
-    const kind=offends(body);
-    if(kind){
+
+    // slurs and threats: one warning, then ten quiet minutes
+    if(offends(body)){
       mod.strikes++;
       if(mod.strikes>=2){
-        mod.until=now+5*60000; mod.strikes=0; saveMod();
-        showNotice('<b>Be nice to one another.</b> The world is tough enough as it is. '+
-                   'Five minutes off the chat, then you are welcome back.');
+        mod.strikes=0;
+        pause(10*60000,false,KIND);
       }else{
         saveMod();
         showNotice('<b>That one does not go through.</b> No slurs and no threats here — '+
@@ -4404,12 +4429,37 @@
       }
       return false;
     }
-    recent=recent.filter(t=>now-t<10000);
-    if(recent.length>=5){
-      showNotice('<b>Slow down a little.</b> Five messages every ten seconds is plenty.');
+
+    // swearing: a nudge, and the third nudge in ten minutes is a quiet pause
+    const c=curseCount(body);
+    curseTimes=curseTimes.filter(t=>now-t<60000);
+    if(c>=2 || curseTimes.length+c>3){
+      for(let i=0;i<c;i++) curseTimes.push(now);
+      mod.curseStrikes=(mod.curseStrikes||0)+1;
+      mod.lastCurse=now;
+      if(mod.curseStrikes>=3){
+        mod.curseStrikes=0;
+        pause(10*60000,false,KIND);
+        return false;
+      }
+      saveMod();
+      showNotice('<b>Easy on the language.</b> Plenty of room for everything else.');
+      return true;                       // a first sweary message still goes out
+    }
+    if(c) curseTimes.push(now);
+    if(mod.lastCurse && now-mod.lastCurse>10*60000){ mod.curseStrikes=0; mod.lastCurse=0; saveMod(); }
+
+    // spamming: ten seconds, then a minute and a half, then ten minutes
+    sentTimes=sentTimes.filter(t=>now-t<20000);
+    if(sentTimes.length>=10){
+      mod.spamLevel=Math.min(3,(mod.spamLevel||0)+1); saveMod();
+      sentTimes=[];
+      if(mod.spamLevel===1) pause(10000,true,'<b>Slow down a moment.</b> Ten seconds and you are back.');
+      else if(mod.spamLevel===2) pause(90000,false,KIND);
+      else pause(10*60000,false,KIND);
       return false;
     }
-    recent.push(now);
+    sentTimes.push(now);
     return true;
   }
 

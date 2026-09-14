@@ -1,45 +1,55 @@
 # How the chat keeps its floor
 
-No moderators, no accounts, no supervision — so everything here is a simple,
-static rule that runs in each player's own browser.
+No moderators, no accounts, no supervision — every rule below runs in each
+player's own browser.
 
-## The rules, as implemented
+## The lists
 
-1. **Two lists.** One of slurs, one of threat phrases ("kys", "i will find you",
-   and so on). Both live base64-encoded in `index.html` — the page should not
-   ship a readable catalogue of slurs, and neither should this repo.
-   To read or change them: `python3 tools/wordlist.py show`
-2. **Matching is evasion-aware.** Before checking, a message is lowercased,
-   leetspeak is folded (`1→i`, `3→e`, `0→o`, `4→a`, `$→s`, `5→s`, `7→t`, `8→b`),
-   every non-letter is stripped, and runs of a repeated character are collapsed.
-   So `n1 g. g3r` and `niiiggger` both land on the same entry.
-3. **One warning, then five minutes.** The first offending message is not sent,
-   and the writer sees: *"That one does not go through. No slurs and no threats
-   here — this is the only warning."* The next one costs a five-minute pause,
-   with: *"Be nice to one another. The world is tough enough as it is."*
-4. **Rate limit.** Five messages per ten seconds, then a nudge to slow down.
-5. **Room names** are checked against the same lists.
-6. **Length limits.** 18 characters for a name, 240 for a message, 24 for a room
-   name — enforced in the page and again by the database's CHECK constraints.
+Four, all base64-encoded inside `index.html` so neither the page nor this repo
+reads as a catalogue of slurs. Inspect or change them with
+`python3 tools/wordlist.py show` / `... set <list> a,b,c`.
+
+| list | how it matches | why |
+|---|---|---|
+| `sub` | anywhere in the message | long, unambiguous slurs — survives `n i g g e r` |
+| `word` | whole words only | short slurs (`fag`, `coon`, `spic`) that would otherwise flag *raccoon*, *half a gift* |
+| `threat` | anywhere in the message | phrases: `kys`, `i will find you`, … |
+| `curse` | whole words only | ordinary swearing |
+
+**Normalisation.** Both the message and the list are folded the same way:
+lowercased, leetspeak mapped (`1→i 3→e 0→o 4→a $→s 5→s 7→t 8→b`), every
+non-letter dropped, and any run of a repeated letter squeezed to one. So
+`n1gg3r`, `niiiggger` and `n i g g e r` all land on the same entry, while
+*classic*, *assignment* and *Scunthorpe* stay clean. Nineteen cases are checked
+by hand; the one deliberate miss is a spaced-out three-letter slur, because
+catching it would also flag "half a gift".
+
+## The ladder
+
+| what happened | what the writer gets |
+|---|---|
+| slur or threat, first time | message not sent · *"That one does not go through. No slurs and no threats here — this is the only warning."* |
+| slur or threat, again | **10 minutes**, silent · *"Be nice to one another. The world is tough enough as it is."* |
+| 2 swear words in one message, or more than 3 in a minute | message still goes out · *"Easy on the language. Plenty of room for everything else."* |
+| third such nudge within ten minutes | **10 minutes**, silent |
+| 10 messages inside 20 seconds | **10 seconds**, counted down on screen |
+| spamming again | **90 seconds**, silent |
+| and again | **10 minutes**, silent |
+
+Only the ten-second cooldown shows a timer. The longer pauses just repeat the
+kind message, so there is no clock to play against.
 
 ## What this does and does not do
 
-It stops casual abuse: the slur someone types in a bad moment never reaches
-anyone else's screen, and the writer is told why. It will **not** stop someone
-determined — the strike count lives in that browser's local storage, so clearing
-it resets the counter. Server-side enforcement would need a login, which would
-change what this little game is.
+It stops casual abuse: the slur typed in a bad moment never reaches anyone
+else's screen. It will **not** stop someone determined — the counters live in
+that browser's storage, so clearing it resets them. Real enforcement needs
+logins, which would change what this is.
 
-## Things we could add without needing a moderator
+## Available without a moderator, if wanted
 
-- **Hide someone locally** — a click on a name to stop seeing that person, kept
-  in your own browser.
-- **A report button** that writes a row to a `reports` table for the owner to
-  read later.
-- **Slow mode** in busy rooms — one message every few seconds when a room is full.
-- **New-name cooldown** — a freshly typed name can post once a minute for its
-  first few minutes, which is what most spam runs trip over.
-- **Link blocking** — no URLs in chat at all; nothing here needs them.
-
-None of these need supervision; all of them are a few lines each. Ask when you
-want any of them turned on.
+- **Hide someone locally** — click a name to stop seeing them, kept in your browser.
+- **A report button** writing to a `reports` table to read later.
+- **Slow mode** in busy rooms: one message every few seconds.
+- **New-name cooldown**: a freshly typed name posts once a minute at first.
+- **Link blocking**: no URLs at all; nothing here needs them.
