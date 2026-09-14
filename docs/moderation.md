@@ -29,11 +29,12 @@ catching it would also flag "half a gift".
 | what happened | what the writer gets |
 |---|---|
 | slur or threat, first time | message not sent · *"That one does not go through. No slurs and no threats here — this is the only warning."* |
-| slur or threat, again | **10 minutes**, silent · *"Be nice to one another. The world is tough enough as it is."* |
-| 2 swear words in one message, or more than 3 in a minute | message still goes out · *"Easy on the language. Plenty of room for everything else."* |
-| third such nudge within ten minutes | **10 minutes**, silent |
+| slur or threat, again | **10 minutes**, silent · *"Extreme swearing or aggressive language is not welcome in this chat"* |
+| 1–2 swear words | nothing at all |
+| 3 in a message, or 3 within a minute | message still goes out · red flag: *"Don't insult other humans online please."* |
+| 4 in a message, or 4 within a minute | **10 minutes**, silent · *"Extreme swearing or aggressive language is not welcome in this chat"* |
 | 10 messages inside 20 seconds | **10 seconds**, counted down on screen |
-| spamming again | **90 seconds**, silent |
+| spamming again | **90 seconds**, silent · *"Be nice to one another. The world is tough enough as it is."* |
 | and again | **10 minutes**, silent |
 
 Only the ten-second cooldown shows a timer. The longer pauses just repeat the
