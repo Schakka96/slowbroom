@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 53 — Ivory Bristle";</script>
+<script>window.SLOWBROOM_BUILD="build 54 — Rust Bristle";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -544,6 +544,53 @@
   window.addEventListener('unhandledrejection',e=>{
     push('reject', (e.reason && (e.reason.message||e.reason)) || 'rejected','err');
   });
+  window.addEventListener('keydown',e=>{
+    if(e.ctrlKey && e.altKey && (e.key==='d'||e.key==='D')){ e.preventDefault(); __dbg.toggle(); }
+  });
+  window.SLOWBROOM_BUILD = window.SLOWBROOM_BUILD || 'artifact 42 — Amber Broom';
+  __dbg.set('build', window.SLOWBROOM_BUILD);
+
+  // GitHub keeps this page cached for ten minutes, so the page checks for a
+  // newer build itself and says what it found — in the console either way.
+  if(window.SLOWBROOM_BUILD.indexOf('artifact')!==0){
+    const showPill=name=>{
+      if(document.getElementById('newbuild')) return;
+      const bar=document.createElement('button');
+      bar.id='newbuild'; bar.type='button';
+      bar.textContent='New version — '+name+' · click to load it';
+      bar.addEventListener('click',()=>{
+        location.replace(location.pathname+'?v='+Date.now()+location.hash);
+      });
+      (document.body||document.documentElement).appendChild(bar);
+    };
+    const check=()=>{
+      const bust='cb='+Date.now();
+      fetch('version.json?'+bust,{cache:'no-store'})
+        .then(r=>r.ok?r.json():null)
+        .then(j=>{
+          if(j && j.build){
+            push('version','server has "'+j.build+'", we are "'+window.SLOWBROOM_BUILD+'"',
+                 j.build===window.SLOWBROOM_BUILD?'info':'warn');
+            if(j.build!==window.SLOWBROOM_BUILD) showPill(j.build);
+            return null;
+          }
+          return fetch(location.pathname+'?'+bust,{cache:'no-store'}).then(r=>r.ok?r.text():null);
+        })
+        .then(txt=>{
+          if(!txt) return;
+          const m=txt.match(/SLOWBROOM_BUILD="([^"]+)"/);
+          if(!m) return push('version','could not read the build from the server','warn');
+          push('version','page says "'+m[1]+'", we are "'+window.SLOWBROOM_BUILD+'"',
+               m[1]===window.SLOWBROOM_BUILD?'info':'warn');
+          if(m[1]!==window.SLOWBROOM_BUILD) showPill(m[1]);
+        })
+        .catch(e=>push('version','check failed: '+(e&&e.message),'warn'));
+    };
+    setTimeout(check, 1500);
+    setInterval(check, 60000);
+    window.__checkVersion=check;
+  }
+
   window.addEventListener('keydown',e=>{
     if(e.ctrlKey && e.altKey && (e.key==='d'||e.key==='D')){ e.preventDefault(); __dbg.toggle(); }
   });
@@ -2614,7 +2661,8 @@
     if(!mcoop){ st.textContent='Mopping alone.'; list.innerHTML=''; return; }
     const n=mcoop.peers.size;
     if(mcoop.test) return;                       // the practice room writes its own line
-    const via = (mcoop.net && mcoop.net.kind==='supabase') ? 'public' : 'claude.ai';
+    const K={supabase:'public', direct:'public · direct wire', room:'claude.ai'};
+    const via = K[(mcoop.net&&mcoop.net.kind)||''] || 'not connected';
     const here=[...mcoop.peers.values()].filter(sameFloor).length;
     const away=n-here;
     st.textContent='Room '+mcoop.code+' · '+n+' of '+MOP_MAX+' mopper'+(n===1?'':'s')+
@@ -3472,29 +3520,268 @@
       c.beginPath(); c.moveTo(-s*.2,-s*.34); c.lineTo(-s*.2,s*.3); c.stroke(); c.restore(); }}
   };
 
+  // ── the rest of each family ────────────────────────────────────────
+  Object.assign(ITEMS, {
+    oakleaf:{ name:'Oak leaves', size:1.2, draw(c,s,v){
+      c.save(); c.rotate(-.35); c.fillStyle=v4('bleaf',(v+2)%4);
+      c.beginPath();
+      c.moveTo(0,-s*.42);
+      for(let i=1;i<=6;i++){
+        const t=i/6, y=-s*.42+s*.84*t, w=s*(.1+.22*Math.sin(t*Math.PI));
+        c.quadraticCurveTo(w*1.5, y-s*.05, w, y);
+      }
+      for(let i=6;i>=1;i--){
+        const t=i/6, y=-s*.42+s*.84*t, w=s*(.1+.22*Math.sin(t*Math.PI));
+        c.quadraticCurveTo(-w*1.5, y+s*.05, -w, y-s*.14);
+      }
+      c.closePath(); c.fill();
+      c.strokeStyle='rgba(90,50,14,.4)'; c.lineWidth=s*.035;
+      c.beginPath(); c.moveTo(0,s*.42); c.lineTo(0,-s*.4); c.stroke(); c.restore(); }},
+    rosehip:{ name:'Rosehips', size:.8, draw(c,s,v){
+      c.fillStyle='#c0392b';
+      c.beginPath(); c.ellipse(0,0,s*.22,s*.28,0,0,TAU); c.fill();
+      c.fillStyle='#7a3a1e';
+      c.beginPath(); c.moveTo(0,s*.26); c.lineTo(-s*.07,s*.36); c.lineTo(s*.07,s*.36); c.fill();
+      c.strokeStyle='#5c7a3a'; c.lineWidth=s*.05; c.lineCap='round';
+      c.beginPath(); c.moveTo(0,-s*.26); c.lineTo(s*.06,-s*.4); c.stroke();
+      c.fillStyle='rgba(255,255,255,.45)';
+      c.beginPath(); c.ellipse(-s*.07,-s*.08,s*.05,s*.08,-.4,0,TAU); c.fill(); }},
+    sloe:{ name:'Sloes', size:.75, draw(c,s,v){
+      c.fillStyle='#3a3f6b';
+      c.beginPath(); c.arc(-s*.1,s*.04,s*.17,0,TAU); c.fill();
+      c.beginPath(); c.arc(s*.13,-s*.03,s*.19,0,TAU); c.fill();
+      c.fillStyle='rgba(180,190,220,.35)';
+      c.beginPath(); c.arc(s*.08,-s*.1,s*.06,0,TAU); c.fill(); }},
+    clover:{ name:'Clover', size:.85, draw(c,s,v){
+      c.fillStyle='hsl('+R(95,125)+' 42% 46%)';
+      for(let i=0;i<3;i++){
+        const a=i*TAU/3-Math.PI/2;
+        c.beginPath();
+        c.ellipse(Math.cos(a)*s*.16, Math.sin(a)*s*.16, s*.16, s*.13, a, 0, TAU); c.fill();
+      }
+      c.strokeStyle='#5c8a3a'; c.lineWidth=s*.05;
+      c.beginPath(); c.moveTo(0,s*.14); c.lineTo(0,s*.42); c.stroke(); }},
+    buttonsq:{ name:'Square buttons', size:.7, draw(c,s,v){
+      c.fillStyle=v4('button',(v+1)%4);
+      c.beginPath(); c.roundRect(-s*.26,-s*.26,s*.52,s*.52,s*.08); c.fill();
+      c.strokeStyle='rgba(255,255,255,.4)'; c.lineWidth=s*.04;
+      c.strokeRect(-s*.17,-s*.17,s*.34,s*.34);
+      c.fillStyle='rgba(20,20,30,.5)';
+      [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([a,b])=>{
+        c.beginPath(); c.arc(a*s*.09,b*s*.09,s*.035,0,TAU); c.fill(); }); }},
+    toggle:{ name:'Toggles', size:.8, draw(c,s,v){
+      c.save(); c.rotate(.5);
+      c.fillStyle=v4('stalk',v);
+      c.beginPath(); c.roundRect(-s*.3,-s*.09,s*.6,s*.18,s*.09); c.fill();
+      c.strokeStyle='rgba(255,255,255,.35)'; c.lineWidth=s*.04;
+      c.beginPath(); c.moveTo(-s*.1,-s*.05); c.lineTo(-s*.1,s*.05);
+      c.moveTo(s*.1,-s*.05); c.lineTo(s*.1,s*.05); c.stroke(); c.restore(); }},
+    pencil:{ name:'Pencils', size:1.2, draw(c,s,v){
+      c.save(); c.rotate(.6);
+      c.fillStyle='#e0b23a'; c.fillRect(-s*.38,-s*.06,s*.62,s*.12);
+      c.fillStyle='#d8a86a';
+      c.beginPath(); c.moveTo(s*.24,-s*.06); c.lineTo(s*.44,0); c.lineTo(s*.24,s*.06); c.fill();
+      c.fillStyle='#3a3a42';
+      c.beginPath(); c.moveTo(s*.38,-s*.02); c.lineTo(s*.44,0); c.lineTo(s*.38,s*.02); c.fill();
+      c.fillStyle='#e2707a'; c.fillRect(-s*.44,-s*.06,s*.07,s*.12);
+      c.restore(); }},
+    eraser:{ name:'Erasers', size:.8, draw(c,s,v){
+      c.save(); c.rotate(-.3);
+      c.fillStyle='#e8dcc8'; c.beginPath(); c.roundRect(-s*.26,-s*.14,s*.52,s*.28,s*.05); c.fill();
+      c.fillStyle='#5a7fc0'; c.fillRect(-s*.26,-s*.14,s*.2,s*.28);
+      c.fillStyle='rgba(0,0,0,.12)'; c.fillRect(-s*.26,s*.08,s*.52,s*.06);
+      c.restore(); }},
+    coinc:{ name:'Copper coins', size:.72, draw(c,s,v){ coinLike(c,s,'#b5703a','#8a4f27'); }},
+    coins2:{ name:'Silver coins', size:.75, draw(c,s,v){ coinLike(c,s,'#c8ccd2','#8f959c'); }},
+    coing:{ name:'Gold coins', size:.78, draw(c,s,v){ coinLike(c,s,'#e0b64a','#a8801f'); }},
+    lego4:{ name:'Long bricks', size:1.15, draw(c,s,v){
+      const col=v4('lego',(v+1)%4); c.save(); c.rotate(-.2);
+      c.fillStyle=col; c.beginPath(); c.roundRect(-s*.44,-s*.16,s*.88,s*.32,s*.05); c.fill();
+      c.fillStyle='rgba(255,255,255,.3)';
+      for(let i=0;i<4;i++){
+        c.beginPath(); c.ellipse(-s*.3+i*s*.2,-s*.04,s*.08,s*.06,0,0,TAU); c.fill();
+      }
+      c.fillStyle='rgba(0,0,0,.18)'; c.fillRect(-s*.44,s*.1,s*.88,s*.06); c.restore(); }},
+    legor:{ name:'Round plates', size:.85, draw(c,s,v){
+      const col=v4('lego',(v+2)%4);
+      c.fillStyle=col; c.beginPath(); c.arc(0,0,s*.28,0,TAU); c.fill();
+      c.fillStyle='rgba(255,255,255,.3)';
+      c.beginPath(); c.ellipse(0,-s*.03,s*.1,s*.08,0,0,TAU); c.fill();
+      c.fillStyle='rgba(0,0,0,.16)';
+      c.beginPath(); c.ellipse(0,s*.16,s*.26,s*.08,0,0,TAU); c.fill(); }},
+    stfrog:{ name:'Frog stickers', size:.95, draw(c,s,v){ sticker(c,s,'#8fd06a',(g,t)=>{
+      g.fillStyle='#4f9a3a';
+      g.beginPath(); g.ellipse(0,t*.06,t*.2,t*.15,0,0,TAU); g.fill();
+      g.beginPath(); g.arc(-t*.13,-t*.1,t*.08,0,TAU); g.arc(t*.13,-t*.1,t*.08,0,TAU); g.fill();
+      g.fillStyle='#fff';
+      g.beginPath(); g.arc(-t*.13,-t*.11,t*.05,0,TAU); g.arc(t*.13,-t*.11,t*.05,0,TAU); g.fill();
+      g.fillStyle='#1c2a14';
+      g.beginPath(); g.arc(-t*.13,-t*.11,t*.025,0,TAU); g.arc(t*.13,-t*.11,t*.025,0,TAU); g.fill();
+    }); }},
+    stbear:{ name:'Bear stickers', size:.95, draw(c,s,v){ sticker(c,s,'#d9b184',(g,t)=>{
+      g.fillStyle='#8a5a34';
+      g.beginPath(); g.arc(-t*.16,-t*.14,t*.08,0,TAU); g.arc(t*.16,-t*.14,t*.08,0,TAU); g.fill();
+      g.beginPath(); g.arc(0,t*.02,t*.19,0,TAU); g.fill();
+      g.fillStyle='#e8cfa8'; g.beginPath(); g.ellipse(0,t*.09,t*.1,t*.07,0,0,TAU); g.fill();
+      g.fillStyle='#2b1c10';
+      g.beginPath(); g.arc(-t*.07,-t*.03,t*.025,0,TAU); g.arc(t*.07,-t*.03,t*.025,0,TAU);
+      g.arc(0,t*.06,t*.03,0,TAU); g.fill();
+    }); }},
+    stbird:{ name:'Bird stickers', size:.95, draw(c,s,v){ sticker(c,s,'#a9d7ee',(g,t)=>{
+      g.fillStyle='#4a7fb5';
+      g.beginPath(); g.ellipse(-t*.03,t*.04,t*.19,t*.14,-.2,0,TAU); g.fill();
+      g.beginPath(); g.arc(t*.14,-t*.08,t*.09,0,TAU); g.fill();
+      g.fillStyle='#e8a13a';
+      g.beginPath(); g.moveTo(t*.22,-t*.08); g.lineTo(t*.32,-t*.05); g.lineTo(t*.22,-t*.02); g.fill();
+      g.fillStyle='#2b3a4a'; g.beginPath(); g.arc(t*.16,-t*.1,t*.025,0,TAU); g.fill();
+      g.strokeStyle='#36638f'; g.lineWidth=t*.03;
+      g.beginPath(); g.moveTo(-t*.16,t*.02); g.quadraticCurveTo(-t*.02,-t*.06,t*.04,t*.06); g.stroke();
+    }); }},
+    stfish:{ name:'Fish stickers', size:.95, draw(c,s,v){ sticker(c,s,'#ffd9a8',(g,t)=>{
+      g.fillStyle='#e8813a';
+      g.beginPath(); g.ellipse(t*.02,t*.02,t*.2,t*.13,0,0,TAU); g.fill();
+      g.beginPath(); g.moveTo(-t*.16,t*.02); g.lineTo(-t*.3,-t*.1); g.lineTo(-t*.3,t*.14); g.fill();
+      g.fillStyle='#fff'; g.beginPath(); g.arc(t*.12,-t*.02,t*.045,0,TAU); g.fill();
+      g.fillStyle='#2b1c10'; g.beginPath(); g.arc(t*.13,-t*.02,t*.022,0,TAU); g.fill();
+      g.strokeStyle='rgba(180,90,20,.5)'; g.lineWidth=t*.025;
+      g.beginPath(); g.moveTo(t*.0,-t*.1); g.quadraticCurveTo(t*.06,0,t*.0,t*.1); g.stroke();
+    }); }},
+    pillowrd:{ name:'Round cushions', size:1.05, draw(c,s,v){
+      c.fillStyle='rgba(0,0,0,.2)'; c.beginPath(); c.arc(s*.03,s*.05,s*.29,0,TAU); c.fill();
+      c.fillStyle=v4('pillow',(v+1)%4); c.beginPath(); c.arc(0,0,s*.28,0,TAU); c.fill();
+      c.strokeStyle='rgba(255,255,255,.45)'; c.lineWidth=s*.035;
+      c.beginPath(); c.arc(0,0,s*.19,0,TAU); c.stroke();
+      c.fillStyle='rgba(255,255,255,.55)'; c.beginPath(); c.arc(0,0,s*.05,0,TAU); c.fill(); }},
+    bolster:{ name:'Bolsters', size:1.2, draw(c,s,v){
+      c.save(); c.rotate(.4);
+      c.fillStyle='rgba(0,0,0,.2)';
+      c.beginPath(); c.roundRect(-s*.4,-s*.1,s*.82,s*.24,s*.12); c.fill();
+      c.fillStyle=v4('pillow',(v+2)%4);
+      c.beginPath(); c.roundRect(-s*.42,-s*.12,s*.82,s*.24,s*.12); c.fill();
+      c.strokeStyle='rgba(255,255,255,.4)'; c.lineWidth=s*.035;
+      c.beginPath(); c.moveTo(-s*.3,-s*.1); c.lineTo(-s*.3,s*.1);
+      c.moveTo(s*.28,-s*.1); c.lineTo(s*.28,s*.1); c.stroke(); c.restore(); }},
+    cup:{ name:'Cups', size:.95, draw(c,s,v){
+      c.fillStyle='rgba(0,0,0,.18)'; c.beginPath(); c.ellipse(0,s*.2,s*.2,s*.06,0,0,TAU); c.fill();
+      c.fillStyle=v4('dish',v);
+      c.beginPath(); c.moveTo(-s*.17,-s*.16); c.lineTo(s*.17,-s*.16);
+      c.lineTo(s*.13,s*.2); c.lineTo(-s*.13,s*.2); c.closePath(); c.fill();
+      c.strokeStyle=v4('dish',v); c.lineWidth=s*.05;
+      c.beginPath(); c.arc(s*.2,0,s*.1,-1.2,1.2); c.stroke();
+      c.fillStyle='rgba(120,80,40,.5)'; c.beginPath(); c.ellipse(0,-s*.16,s*.17,s*.05,0,0,TAU); c.fill(); }},
+    bowl:{ name:'Bowls', size:1, draw(c,s,v){
+      c.fillStyle='rgba(0,0,0,.18)'; c.beginPath(); c.ellipse(0,s*.16,s*.26,s*.07,0,0,TAU); c.fill();
+      c.fillStyle=v4('dish',(v+1)%4);
+      c.beginPath(); c.arc(0,-s*.02,s*.27,0,Math.PI); c.fill();
+      c.beginPath(); c.ellipse(0,-s*.02,s*.27,s*.08,0,0,TAU); c.fill();
+      c.strokeStyle='rgba(140,150,160,.5)'; c.lineWidth=s*.03;
+      c.beginPath(); c.ellipse(0,-s*.02,s*.27,s*.08,0,0,TAU); c.stroke(); }},
+    fork:{ name:'Forks', size:1.05, draw(c,s,v){
+      c.save(); c.rotate(-.6); c.fillStyle=v4('spoon',v);
+      c.beginPath(); c.roundRect(-s*.05,-s*.05,s*.1,s*.44,s*.05); c.fill();
+      for(let i=-1;i<=1;i++) c.fillRect(i*s*.07-s*.015,-s*.3,s*.03,s*.2);
+      c.fillRect(-s*.09,-s*.12,s*.18,s*.06); c.restore(); }},
+    knife:{ name:'Knives', size:1.1, draw(c,s,v){
+      c.save(); c.rotate(-.8); c.fillStyle='#6a5a48';
+      c.beginPath(); c.roundRect(-s*.05,s*.04,s*.1,s*.38,s*.04); c.fill();
+      c.fillStyle=v4('spoon',(v+1)%4);
+      c.beginPath(); c.moveTo(-s*.05,s*.04); c.lineTo(-s*.03,-s*.34);
+      c.lineTo(s*.06,-s*.3); c.lineTo(s*.05,s*.04); c.closePath(); c.fill();
+      c.restore(); }},
+    manga:{ name:'Manga', size:1.05, draw(c,s,v){ bookLike(c,s,'#e8e2d8','#d05a6a',.42,.62); }},
+    tome:{ name:'Heavy tomes', size:1.35, draw(c,s,v){ bookLike(c,s,'#5a3a2a','#c9a24a',.6,.78); }},
+    nonfic:{ name:'Non-fiction', size:1.15, draw(c,s,v){ bookLike(c,s,'#3a5a7a','#e8e2d0',.5,.7); }}
+  });
+  function coinLike(c,s,face,edge){
+    c.fillStyle='rgba(60,45,10,.3)'; c.beginPath(); c.arc(s*.03,s*.04,s*.3,0,TAU); c.fill();
+    c.fillStyle=edge; c.beginPath(); c.arc(0,0,s*.29,0,TAU); c.fill();
+    c.fillStyle=face; c.beginPath(); c.arc(0,0,s*.25,0,TAU); c.fill();
+    c.strokeStyle='rgba(255,255,255,.45)'; c.lineWidth=s*.04;
+    c.beginPath(); c.arc(0,0,s*.16,0,TAU); c.stroke();
+    c.fillStyle='rgba(255,255,255,.4)';
+    c.beginPath(); c.ellipse(-s*.09,-s*.11,s*.09,s*.045,-.6,0,TAU); c.fill();
+  }
+  function sticker(c,s,bg,inner){
+    c.save(); c.rotate(-.18);
+    c.fillStyle='#fff'; c.beginPath(); c.roundRect(-s*.3,-s*.3,s*.6,s*.6,s*.16); c.fill();
+    c.fillStyle=bg; c.beginPath(); c.roundRect(-s*.25,-s*.25,s*.5,s*.5,s*.13); c.fill();
+    inner(c,s); c.restore();
+  }
+  function bookLike(c,s,cover,accent,w,h){
+    c.save(); c.rotate(.12);
+    c.fillStyle='rgba(0,0,0,.22)';
+    c.beginPath(); c.roundRect(-s*w/2+s*.02,-s*h/2+s*.02,s*w,s*h,s*.03); c.fill();
+    c.fillStyle=cover;
+    c.beginPath(); c.roundRect(-s*w/2,-s*h/2,s*w,s*h,s*.03); c.fill();
+    c.fillStyle='#f2ead6'; c.fillRect(s*w/2-s*.06,-s*h/2+s*.02,s*.05,s*h-s*.04);
+    c.fillStyle=accent; c.fillRect(-s*w/2+s*.04,-s*h/2+s*.06,s*w*.6,s*.04);
+    c.fillRect(-s*w/2+s*.04,-s*h/2+s*.14,s*w*.4,s*.03);
+    c.restore();
+  }
+
   /* ── levels ─────────────────────────────────────────────── */
-  const LEVELS = [
-    {name:'First blades',      ground:'meadow', mix:{grass:5,straw:4,stalk:3}},
-    {name:'Wind-brought',      ground:'meadow', mix:{grass:6,straw:5,stalk:4,sleaf:6}},
-    {name:'Leaf fall',         ground:'forest', mix:{grass:4,straw:3,sleaf:10,bleaf:9}},
-    {name:'Under the oak',     ground:'forest', mix:{grass:2,sleaf:7,bleaf:12,acorn:9,beech:7}},
-    {name:'Seed season',       ground:'forest', mix:{sleaf:5,bleaf:9,acorn:11,beech:9,birch:12,hazel:7}},
-    {name:'Nut harvest',       ground:'forest', mix:{bleaf:6,acorn:9,beech:7,birch:8,hazel:14,berry:16}},
-    {name:'Berry and bloom',   ground:'meadow', mix:{sleaf:8,acorn:5,hazel:8,berry:18,flower:20,petal:16}},
-    {name:'Flower field',      ground:'meadow', mix:{grass:12,berry:10,flower:24,petal:26,button:14,hazel:8}},
-    {name:"Someone's desk",    ground:'desk',   mix:{flower:12,petal:14,button:30,pen:16,marker:14,coin:20}},
-    {name:'Coins and bricks',  ground:'desk',   mix:{button:20,pen:12,marker:12,coin:34,lego:38,sticker:16}},
-    {name:'Toy box',           ground:'carpet', mix:{coin:18,lego:46,sticker:34,button:22,pillow:18,pen:14}},
-    {name:'Ant household',     ground:'wood',   mix:{lego:24,sticker:26,pillow:30,dish:34,spoon:32,book:22,coin:18}},
-    {name:'Library corner',    ground:'wood',   mix:{sticker:18,pillow:28,dish:30,spoon:28,book:46,button:24,coin:20,lego:26}},
-    {name:'Everything drawer', ground:'desk',   mix:{bleaf:20,acorn:18,flower:22,button:40,pen:26,marker:24,coin:44,lego:50,sticker:46,book:40}},
-    {name:'The great sort',    ground:'forest', mix:{grass:50,sleaf:55,bleaf:50,acorn:45,hazel:45,flower:60,button:70,coin:70,lego:75,book:80}},
-    {name:'The flower shop',   ground:'shop',   kind:'shop', gift:'flowers', count:15},
-    {name:'The long hall',     ground:'hall',   kind:'hall'},
-    {name:'The gallery',       ground:'hall2',  kind:'hall'},
-    {name:'The throne room',   ground:'throne', kind:'throne'}
+  // Each round brings in a whole family of things and lets the oldest one go,
+  // so what you are sorting changes as you go rather than simply growing.
+  const FAMILIES=[
+    {name:'First blades',        ground:'meadow', kinds:['grass','straw','stalk']},
+    {name:'Leaf fall',           ground:'forest', kinds:['sleaf','bleaf','oakleaf']},
+    {name:'Seed season',         ground:'forest', kinds:['acorn','beech','birch','hazel']},
+    {name:'Hedgerow fruit',      ground:'forest', kinds:['berry','rosehip','sloe']},
+    {name:'The flower meadow',   ground:'meadow', kinds:['flower','petal','clover']},
+    {name:'The button tin',      ground:'desk',   kinds:['button','buttonsq','toggle']},
+    {name:'The pencil case',     ground:'desk',   kinds:['pen','pencil','marker','eraser']},
+    {name:'The coin jar',        ground:'desk',   kinds:['coinc','coins2','coing']},
+    {name:'The brick box',       ground:'carpet', kinds:['lego','lego4','legor']},
+    {name:'The sticker book',    ground:'carpet', kinds:['stfrog','stbear','stbird','stfish']},
+    {name:'The cushion pile',    ground:'carpet', kinds:['pillow','pillowrd','bolster']},
+    {name:'The dresser',         ground:'wood',   kinds:['dish','cup','bowl']},
+    {name:'The cutlery drawer',  ground:'wood',   kinds:['spoon','fork','knife']},
+    {name:'The bookshelf',       ground:'wood',   kinds:['manga','tome','nonfic']}
   ];
-  const LAST_SORT = 14;                       // index of 'The great sort'
+  const MAX_KINDS=14;
+  const LEVELS=(()=>{
+    const out=[];
+    // how many things are on the floor, round by round
+    const totals=[12,21,30,42,58,78,100,128,160,200,250,320,410,500,600];
+    for(let i=0;i<FAMILIES.length;i++){
+      const newest=i;
+      // later rounds hold one family longer, so the floor gets busier as well as newer
+      const span = i>=7 ? 4 : 3;
+      const window_=[]; for(let k=newest-span+1;k<=newest;k++) if(k>=0) window_.push(k);
+      const fade=[0.14,0.22,0.5,1].slice(4-span);
+      const weights={};
+      window_.forEach((k,idx)=>{ weights[k]=fade[idx+(span-window_.length)]; });
+      let kinds=[], weightOf={};
+      for(const k of window_)
+        for(const kind of FAMILIES[k].kinds){ kinds.push(kind); weightOf[kind]=weights[k]; }
+      while(kinds.length>MAX_KINDS) kinds.shift();          // the oldest go first
+      const total=totals[Math.min(i,totals.length-1)];
+      let sum=0; kinds.forEach(k=>sum+=weightOf[k]);
+      const mix={};
+      let used=0;
+      kinds.forEach((k,idx)=>{
+        const n = idx===kinds.length-1 ? total-used
+                : Math.max(2, Math.round(total*weightOf[k]/sum));
+        mix[k]=n; used+=n;
+      });
+      out.push({name:FAMILIES[newest].name, ground:FAMILIES[newest].ground, mix});
+    }
+    // the last round holds the widest spread the game allows
+    const finale={};
+    const pick=[];
+    FAMILIES.forEach(f=>f.kinds.forEach(k=>pick.push(k)));
+    const chosen=[];
+    for(let i=0;i<MAX_KINDS;i++) chosen.push(pick[Math.floor(i*pick.length/MAX_KINDS)]);
+    chosen.forEach((k,i)=>finale[k]=(finale[k]||0)+Math.round(600/MAX_KINDS));
+    out.push({name:'The everything drawer', ground:'desk', mix:finale});
+    return out.concat([
+      {name:'The flower shop',   ground:'shop',   kind:'shop', gift:'flowers', count:15},
+      {name:'The long hall',     ground:'hall',   kind:'hall'},
+      {name:'The gallery',       ground:'hall2',  kind:'hall'},
+      {name:'The throne room',   ground:'throne', kind:'throne'}
+    ]);
+  })();
+  const LAST_SORT = LEVELS.findIndex(l=>l.kind==='shop')-1;
   // what each ant may bring the queen; single player always carries flowers
   const GIFTS={
     flowers:{ label:'bouquet',        pick:['flower','petal'] },
@@ -4085,7 +4372,8 @@
     if(!coop){ st.textContent='Sorting alone.'; list.innerHTML=''; return; }
     if(coop.test) return;
     const n=coop.peers.size;
-    const via = (coop.net && coop.net.kind==='supabase') ? 'public' : 'claude.ai';
+    const K={supabase:'public', direct:'public · direct wire', room:'claude.ai'};
+    const via = K[(coop.net&&coop.net.kind)||''] || 'not connected';
     const here=[...coop.peers.values()].filter(p=>p.lvl===undefined||p.lvl===level).length;
     const away=n-here;
     st.textContent='Nest '+coop.code+' · '+n+' of '+NEST_MAX+' antling'+(n===1?'':'s')+
@@ -5668,7 +5956,11 @@
     switch(cmd){
       case 'help': return CHEATS.map(c=>c[0]+' — '+c[1]).join('   ·   ');
       case 'debug': return __dbg.toggle()? 'dev console open' : 'dev console closed';
-      case 'version': return 'build '+(window.SLOWBROOM_BUILD||'artifact');
+      case 'version': {
+        __dbg.toggle(true);
+        if(window.__checkVersion) window.__checkVersion();
+        return 'build '+(window.SLOWBROOM_BUILD||'artifact')+' — checking the server, see the console';
+      }
       case 'dev': {
         isDev=!isDev;
         try{ localStorage.setItem('sb-dev', isDev?'1':'0'); }catch(e){}

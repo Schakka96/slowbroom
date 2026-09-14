@@ -40,4 +40,5 @@ head = f"""<!doctype html>
 """
 i = body.index('</style>') + len('</style>')
 pathlib.Path('index.html').write_text(head + body[:i] + "\n</head>\n<body>\n" + body[i:] + "\n</body>\n</html>\n")
-print("index.html built")
+pathlib.Path("version.json").write_text('{"build": "%s"}\n' % BUILD)
+print("index.html built ·", BUILD)
