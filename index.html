@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 93 — Mahagony Mop";</script>
+<script>window.SLOWBROOM_BUILD="build 94 — Mahagony Mop";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -5125,6 +5125,10 @@
     for(let i=items.length-1;i>=0;i--) if(!alive(items[i].id)) items.splice(i,1);
     itemsDirty=true; updateHud();
   }
+  // Unique across the nest without anyone agreeing on anything: a random
+  // opening, then one up per pile.
+  let pileSeq=(Math.random()*1e6)|0;
+  const newPileId = () => ++pileSeq;
   const pilesWire = () => piles.map(p=>{
     const n=toN(p.x,p.y);
     return {i:p.id, c:p.cat, x:+n.x.toFixed(4), y:+n.y.toFixed(4), n:p.items.length};
@@ -5388,8 +5392,15 @@
     }
     else if(d.t==='who'){ pushCoopPos(true); if(coop.isHost){ coop.lastSig=null; hostSnapshot(); } }
     else if(d.t==='kick' && coop.myId && d.who===coop.myId){
-      leaveNest();
-      document.getElementById('nest-status').textContent='the host closed the nest to you';
+      spillAll();                       // leave what you are holding behind
+      bannerEl.textContent='Everything you were carrying stays here.';
+      bannerEl.style.opacity='1';
+      setTimeout(()=>bannerEl.style.opacity='0',2200);
+      // give the drop a moment to reach the host before the line goes down
+      setTimeout(()=>{
+        leaveNest();
+        document.getElementById('nest-status').textContent='the host closed the nest to you';
+      }, 500);
     }
   }
   function hostSnapshot(){
@@ -5786,6 +5797,23 @@
     }
   }
 
+  // Kicked out with your arms full: everything goes on the floor where you
+  // stand, so the nest keeps what you were carrying.
+  function spillAll(){
+    if(!carried.length) return;
+    const cats=[...carryCounts().keys()];
+    cats.forEach((cat,i)=>{
+      const a=(i/Math.max(1,cats.length))*TAU;
+      const x=clamp(ant.x+Math.cos(a)*body*1.2, body, Math.max(body,W-body));
+      const y=clamp(ant.y+Math.sin(a)*body*1.2, body, Math.max(body,H-body));
+      const near=nearestPile(x,y,body*.6);
+      let pile = (near && near.cat===cat) ? near : null;
+      if(!pile){ pile={id:newPileId(), x, y, cat, items:[]}; piles.push(pile); }
+      sendToPile(pile, cat, carryCounts().get(cat)||0);
+    });
+    pilesDirty=true; carryDirty=true; updateHud();
+    if(coop && coop.isHost) sharePiles();
+  }
   function place(){
     if(kind) return;                         // a gift is not put down
     if(nearNest(ant.x,ant.y)){
@@ -5803,7 +5831,7 @@
     }
     if(!carried.length) return;
     const cat=dominantCat();
-    const pile={x:ant.x,y:ant.y,cat,items:[]};
+    const pile={id:newPileId(), x:ant.x, y:ant.y, cat, items:[]};
     piles.push(pile);
     sendToPile(pile,cat,carryCounts().get(cat)||0);
   }
