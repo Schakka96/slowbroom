@@ -46,9 +46,19 @@ else's screen. It will **not** stop someone determined — the counters live in
 that browser's storage, so clearing it resets them. Real enforcement needs
 logins, which would change what this is.
 
-## Available without a moderator, if wanted
+## Blocking
 
-- **Hide someone locally** — click a name to stop seeing them, kept in your browser.
+Hover any message and a **block** button appears. Blocking is **mutual**: their
+messages vanish from your log, yours vanish from theirs, and neither of you can
+mention the other. Blocks live in `public.blocks` so both browsers can enforce
+both directions; they also persist locally, so a block still works when the
+database is unreachable. **Blocked (n)** under the chat lists them, with unblock.
+
+Two honest limits: blocking is by typed name, so someone who renames themselves
+appears as a new person; and since there are no accounts, the `blocks` table is
+open, so a determined person could remove a row. Neither matters for ordinary use.
+
+## Available without a moderator, if wanted
 - **A report button** writing to a `reports` table to read later.
 - **Slow mode** in busy rooms: one message every few seconds.
 - **New-name cooldown**: a freshly typed name posts once a minute at first.

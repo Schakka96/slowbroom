@@ -151,6 +151,14 @@
     border-radius:4px; background:transparent; color:var(--ink-soft); cursor:pointer;
   }
   .roompick button:hover{border-color:var(--accent); color:var(--accent)}
+  .blockbtn, .unblock{
+    font:inherit; font-size:.66rem; margin-left:.5em; padding:1px 6px; cursor:pointer;
+    border:1px solid var(--edge); border-radius:99px; background:transparent; color:var(--ink-faint);
+    opacity:0; transition:opacity .15s ease;
+  }
+  .log li:hover .blockbtn, .blockbtn:focus-visible{opacity:1}
+  .unblock{opacity:1; margin-left:auto}
+  .blockbtn:hover, .unblock:hover{border-color:var(--accent); color:var(--accent)}
   .rules{margin:0; font-size:.7rem; color:var(--ink-faint); line-height:1.5}
   .warnmsg{
     margin:0; font-size:.78rem; line-height:1.5; padding:7px 10px; border-radius:4px;
@@ -582,6 +590,10 @@
      <input id="chat-text" type="text" maxlength="240" placeholder="say something — click a name to reply to them">
      <button type="submit" id="chat-send">Send</button>
    </form>
+   <details class="tester" id="blocked-wrap" hidden>
+     <summary>Blocked (<span id="blocked-count">0</span>)</summary>
+     <div class="peers" id="blocked-list"></div>
+   </details>
    <details class="tester" id="tester">
      <summary>Test player</summary>
      <p class="note">A second player, played by you, for trying the chat and mentions out. Anything it says goes to the real chat.</p>
@@ -4061,10 +4073,14 @@
     if(!myName) return false;
     return new RegExp('@'+myName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b','i').test(t||'');
   }
+  let lastRows=[];
+  function renderFromCache(){ renderLog(lastRows); }
   function renderLog(rows){
-    if(!rows.length){ logEl.innerHTML='<li class="empty">No messages yet — say hello.</li>'; return; }
+    lastRows=rows;
+    const shown=rows.filter(m=>!hidden(m.name));
+    if(!shown.length){ logEl.innerHTML='<li class="empty">No messages yet — say hello.</li>'; return; }
     logEl.innerHTML='';
-    for(const m of rows){
+    for(const m of shown){
       const li=document.createElement('li');
       if(m.name===myName) li.className='me';
       const who=document.createElement('button');
@@ -4084,6 +4100,15 @@
       });
       const t=document.createElement('time'); t.textContent=fmt(m.ts||Date.now());
       li.append(t);
+      if(keyOf(m.name)!==keyOf(myName)){
+        const bl=document.createElement('button');
+        bl.type='button'; bl.className='blockbtn'; bl.textContent='block';
+        bl.title='Block '+m.name+' — you stop seeing each other';
+        bl.addEventListener('click',()=>{
+          if(confirm('Block '+m.name+'? You will not see each other in the chat.')) block(m.name);
+        });
+        li.append(bl);
+      }
       logEl.append(li);
     }
     logEl.scrollTop=logEl.scrollHeight;
@@ -4204,7 +4229,7 @@
           for(const m of list){
             if(seen.has(m.id)) continue;
             seen.add(m.id);
-            if(m.ts < joinedAt-1000 || m.name===myName) continue;
+            if(m.ts < joinedAt-1000 || m.name===myName || hidden(m.name)) continue;
             if(mentionsMe(m.text)) flash(m);
           }
         })
@@ -4238,8 +4263,9 @@
 
     supaBoot.pullMessages=pullMessages; supaBoot.pushPresence=pushPresence;
     pullRooms().then(()=>{
-      pullMessages(); pushPresence(); pullPresence(); pullBoard();
+      pullMessages(); pushPresence(); pullPresence(); pullBoard(); pullBlocks();
       if(roomsOK) supaTimers.push(setInterval(pullRooms,15000));
+      supaTimers.push(setInterval(pullBlocks,20000));
     });
     supaTimers.push(setInterval(pullMessages,3000), setInterval(pushPresence,15000),
                     setInterval(pullPresence,6000), setInterval(pullBoard,20000));
@@ -4297,7 +4323,7 @@
         if(seen.has(ch.doc.id)) continue;
         seen.add(ch.doc.id);
         if((m.ts||0) < joinedAt-1000) continue;      // history, not news
-        if(m.name===myName) continue;
+        if(m.name===myName || hidden(m.name)) continue;
         if(mentionsMe(m.text)) flash(m);
       }
     }, e=>setStatus('chat offline ('+e.code+')'));
@@ -4463,6 +4489,64 @@
     return true;
   }
 
+  // ── blocking: two people stop existing for each other ───────────────
+  const keyOf = n => String(n||'').trim().toLowerCase().slice(0,18);
+  let myBlocks=new Set(), blockedMe=new Set(), blocksOK=true;
+  try{
+    const raw=JSON.parse(localStorage.getItem('sb-blocks')||'[]');
+    if(Array.isArray(raw)) myBlocks=new Set(raw.map(keyOf));
+  }catch(e){}
+  const saveBlocks=()=>{ try{ localStorage.setItem('sb-blocks',JSON.stringify([...myBlocks])); }catch(e){} };
+  const hidden = n => { const k=keyOf(n); return !!k && (myBlocks.has(k)||blockedMe.has(k)); };
+
+  function renderBlocked(){
+    const box=document.getElementById('blocked-list');
+    const wrap=document.getElementById('blocked-wrap');
+    if(!box||!wrap) return;
+    wrap.hidden = myBlocks.size===0;
+    document.getElementById('blocked-count').textContent=myBlocks.size;
+    box.innerHTML='';
+    for(const k of myBlocks){
+      const row=document.createElement('div'); row.className='peer';
+      const nm=document.createElement('span'); nm.textContent=k;
+      const btn=document.createElement('button'); btn.type='button'; btn.className='unblock';
+      btn.textContent='unblock';
+      btn.addEventListener('click',()=>unblock(k));
+      row.append(nm,btn); box.append(row);
+    }
+  }
+  function block(name){
+    const k=keyOf(name);
+    if(!k || k===keyOf(myName)) return;
+    myBlocks.add(k); saveBlocks(); renderBlocked(); renderFromCache();
+    if(CFG && blocksOK && myName)
+      rest('blocks',{method:'POST', headers:{'Prefer':'resolution=merge-duplicates'},
+        body:JSON.stringify({blocker:keyOf(myName), blocked:k})}).catch(()=>{});
+    showNotice('<b>'+k+' is blocked.</b> You will not see each other any more. '+
+               'Unblock them under the chat whenever you like.');
+  }
+  function unblock(k){
+    myBlocks.delete(k); saveBlocks(); renderBlocked(); renderFromCache();
+    if(CFG && blocksOK && myName)
+      rest('blocks?blocker=eq.'+encodeURIComponent(keyOf(myName))+'&blocked=eq.'+encodeURIComponent(k),
+           {method:'DELETE'}).catch(()=>{});
+  }
+  function pullBlocks(){
+    if(!CFG || !blocksOK) return Promise.resolve();
+    return rest('blocks?select=blocker,blocked')
+      .then(r=>{ if(!r.ok) throw 0; return r.json(); })
+      .then(rows=>{
+        const me=keyOf(myName);
+        const theirs=new Set();
+        for(const b of rows){
+          if(me && keyOf(b.blocked)===me) theirs.add(keyOf(b.blocker));
+          if(me && keyOf(b.blocker)===me) myBlocks.add(keyOf(b.blocked));
+        }
+        blockedMe=theirs; saveBlocks(); renderBlocked(); renderFromCache();
+      })
+      .catch(()=>{ blocksOK=false; });
+  }
+
   const CHEATS=[
     ['/ant <n>',     'jump to that round of Tidy Ant'],
     ['/mop <n>',     'jump to that mop surface'],
@@ -4586,6 +4670,7 @@
     if(v>=80&&v<=220){ sizeEl.value=v; }
   }catch(e){}
   applySize(+sizeEl.value);
+  renderBlocked();
   sizeEl.addEventListener('input',()=>applySize(+sizeEl.value));
 
   // ── the game keeps the keyboard: hand focus back after every control ─
