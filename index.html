@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 51 — Linen Bristle";</script>
+<script>window.SLOWBROOM_BUILD="build 52 — Cedar Bristle";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -258,6 +258,12 @@
   .kofi{
     margin:10px 2px 0; text-align:right; font-size:.78rem; color:var(--ink-faint);
   }
+  .devlink{
+    font:inherit; font-size:.68rem; font-family:"IBM Plex Mono",monospace;
+    background:transparent; border:1px solid var(--edge); color:var(--ink-faint);
+    border-radius:99px; padding:1px 8px; margin-right:1em; cursor:pointer; opacity:.7;
+  }
+  .devlink:hover{border-color:var(--accent); color:var(--accent); opacity:1}
   .buildtag{
     font-family:"IBM Plex Mono",monospace; font-size:.68rem; color:var(--ink-faint);
     opacity:.65; margin-right:1.2em;
@@ -570,6 +576,8 @@
     setInterval(check, 120000);
   }
   document.addEventListener('DOMContentLoaded',()=>{
+    const d=document.getElementById('devlink');
+    if(d) d.addEventListener('click',()=>__dbg.toggle());
     const t=document.getElementById('buildtag');
     if(t) t.textContent='SlowBroom · '+window.SLOWBROOM_BUILD;
   });
@@ -837,7 +845,7 @@
    </details>
  </section>
 
- <p class="kofi"><span class="buildtag" id="buildtag"></span>Get me and Claude a
+ <p class="kofi"><button type="button" class="devlink" id="devlink" title="Open the dev console">dev</button><span class="buildtag" id="buildtag"></span>Get me and Claude a
       <a class="ext" href="https://ko-fi.com/madryad" target="_blank" rel="noopener"><svg class="ico cup" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M3.4 5h13.3a4.3 4.3 0 0 1 .3 8.6h-.9a5.8 5.8 0 0 1-5.7 5H8.2A5.8 5.8 0 0 1 2.4 13V6a1 1 0 0 1 1-1Zm13.3 2h-.6v4.6h.6a2.3 2.3 0 0 0 0-4.6ZM6.1 8.4c-.9 0-1.5.7-1.5 1.5 0 1.8 2.6 3.3 3 3.5.4-.2 3-1.7 3-3.5 0-.8-.6-1.5-1.5-1.5-.7 0-1.2.4-1.5.9-.3-.5-.8-.9-1.5-.9ZM3 20h14a1 1 0 0 1 0 2H3a1 1 0 0 1 0-2Z"/></svg>coffee</a></p>
 </div>
 
@@ -2529,7 +2537,8 @@
   function onMopEvent(d){
     if(!mcoop || !d) return;
     if(d.t==='floor'){
-      if(d.lvl!==level || d.seed!==surfaceSeed){
+      if(d.lvl!==level || (d.seed!==surfaceSeed && d.seed!==mcoop.lastSeed)){
+        mcoop.lastSeed=d.seed;
         level=d.lvl; pendingSeed=d.seed; rooms.length=0; roomIdx=0; newGrid();
         started=true; hintEl.style.opacity='0';
       }
@@ -2685,7 +2694,7 @@
   }
 
   let joiningMop=false;
-  async function joinMopNest(code, host){
+  async function joinMopNest(code, host, resuming){
     const st=document.getElementById('mnest-status');
     const C=String(code).toUpperCase();
     if(joiningMop){ __dbg.warn('nest','already joining a room — ignoring'); return; }
@@ -2711,7 +2720,8 @@
     st.textContent = host? 'opening room '+code+'…' : 'knocking at room '+code+'…';
     // hold the room open first: presence can arrive before connect() resolves
     if(mcoop) leaveMopNest();                 // never leave an old channel talking
-    const room={code, isHost:!!host, net:null, peers:new Map(), myId:net.myId, since:Date.now()};
+    const room={code, isHost:!!host, net:null, peers:new Map(), myId:net.myId,
+                resumed:!!resuming, since:Date.now()};
     mcoop=room;
     const conn=await net.connect('mop-'+code, {event:onMopEvent, peers:onMopPeers,
       status:t=>{
@@ -2726,7 +2736,7 @@
             setTimeout(()=>{
               if(mcoop!==room || room.leaving) return;
               room.net=null; mcoop=null;              // let the guard through
-              joinMopNest(code, host);
+              joinMopNest(code, host, true);
             }, wait);
           }else __dbg.err('nest','gave up reopening — run /wire or the test page');
         }
@@ -2762,9 +2772,9 @@
   function pushMopPos(){
     if(!mcoop || !mcoop.net) return;
     const n=mToN(px,py);
-    mcoop.net.send({t:'pos', id:mcoop.myId, name:mopName(),
+    mcoop.net.fast({id:mcoop.myId, name:mopName(),
                     x:+n.x.toFixed(4), y:+n.y.toFixed(4), h:+heading.toFixed(2),
-                    w:S.mopw, lvl:level, ridx:roomIdx});
+                    w:S.mopw, lvl:level, ridx:roomIdx, since:mcoop.since});
   }
   function noteMopPeer(d){
     if(!mcoop || !d || !d.id || d.id===mcoop.myId) return;
@@ -3945,7 +3955,7 @@
   }
 
   // ───────── nests: up to six antlings on one floor ─────────
-  let coop=null, syncTimer=0, presTimer=0, idTimer=0;
+  let coop=null, syncTimer=0, presTimer=0, idTimer=0, lastSeed=null;
   const myName = () => {
     try{ return (localStorage.getItem('sb-name')||'').slice(0,18) || 'antling'; }catch(e){ return 'antling'; }
   };
@@ -3993,8 +4003,8 @@
   function pushCoopPos(){
     if(!coop || !coop.net) return;
     const n=toN(ant.x,ant.y);
-    netSend('pos',{id:coop.myId, name:myName(), x:+n.x.toFixed(4), y:+n.y.toFixed(4),
-                   h:+ant.h.toFixed(2), top:topCarried()||null, lvl:level});
+    coop.net.fast({id:coop.myId, name:myName(), x:+n.x.toFixed(4), y:+n.y.toFixed(4),
+                   h:+ant.h.toFixed(2), top:topCarried()||null, lvl:level, since:coop.since});
   }
   function notePeer(d){
     if(!coop || !d || !d.id || d.id===coop.myId) return;
@@ -4139,7 +4149,7 @@
   }
 
   let joiningNest=false;
-  async function joinNest(code, host){
+  async function joinNest(code, host, resuming){
     const st=document.getElementById('nest-status');
     if(joiningNest){ return; }
     if(coop && coop.code===String(code).toUpperCase() && coop.net){ return; }
@@ -4159,7 +4169,9 @@
     st.textContent = host ? 'opening nest '+code+'…' : 'knocking at nest '+code+'…';
     if(coop) leaveNest();
     const nest={code, isHost:!!host, net:null, peers:new Map(), myId:net.myId,
-                since:Date.now(), seed: host ? (Math.random()*1e9|0) : null};
+                resumed:!!resuming, since:Date.now(),
+                seed: host ? (resuming && lastSeed!=null ? lastSeed : (Math.random()*1e9|0)) : null};
+    if(host) lastSeed=nest.seed;
     coop=nest;
     const conn=await net.connect('ant-'+code, {event:onNetEvent, peers:onNetPeers,
       status:t=>{
@@ -4171,7 +4183,7 @@
           if(nest.tries<=4) setTimeout(()=>{
             if(coop!==nest || nest.leaving) return;
             nest.net=null; coop=null;
-            joinNest(code, host);
+            joinNest(code, host, true);
           }, 700*nest.tries);
         }
         setNestUI();
@@ -6155,6 +6167,7 @@
     __dbg.set('nest','supabase · '+code);
     return {
       kind:'supabase', myId:me,
+      fast(d){ this.send(Object.assign({t:'pos'}, d)); },   // broadcasts are the cheap ones here
       send(d){
         ch.send({type:'broadcast', event:'ev', payload:d})
           .catch(e=>__dbg.err('nest','send failed'));
@@ -6199,6 +6212,9 @@
     off.push(room.onPeers(sync, ()=>{}));
     return {
       kind:'room', myId:'self',
+      // on this wire presence is the high-rate channel and events are the
+      // rationed one — exactly the other way round from the public site
+      fast(d){ room.presence(Object.assign({nest:code}, d)).catch(()=>{}); },
       send(d){ room.emit('ant',{c:code, d}).catch(()=>{}); },
       presence(p){ room.presence(Object.assign({nest:code}, p)).catch(()=>{}); },
       leave(){ off.forEach(f=>{ try{ f(); }catch(e){} }); room.presence({nest:null}).catch(()=>{}); }
@@ -6279,6 +6295,7 @@
       }
       const api={
         kind:'direct', myId:me,
+        fast(d){ api.send(Object.assign({t:'pos'}, d)); },
         send(dta){ if(alive) send('broadcast',{type:'broadcast', event:'ev', payload:dta}); },
         presence(pl){ if(alive) send('presence',{type:'presence', event:'track', payload:pl}); },
         leave(){
