@@ -84,26 +84,27 @@
     box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
   }
   .mentions{
-    position:absolute; top:10px; right:10px; width:min(260px,62%);
+    position:absolute; top:10px; right:10px; width:min(calc(260px * var(--msg-size,1)),62%);
     display:flex; flex-direction:column; gap:6px; pointer-events:none;
   }
   .mentions{pointer-events:none}
   .mention{
-    background:color-mix(in srgb, var(--panel) 42%, transparent);
-    border:1px solid color-mix(in srgb, var(--edge) 55%, transparent);
-    border-left:2px solid color-mix(in srgb, var(--accent) 60%, transparent);
-    border-radius:4px; padding:5px 8px; font-size:.72rem; color:var(--ink-soft);
+    background:color-mix(in srgb, var(--panel) 64%, transparent);
+    border:1px solid color-mix(in srgb, var(--edge) 75%, transparent);
+    border-left:2px solid color-mix(in srgb, var(--accent) 80%, transparent);
+    border-radius:4px; padding:5px 8px; color:var(--ink-soft);
+    font-size:calc(.74rem * var(--msg-size,1));
     opacity:0; animation:mentionIn .4s ease forwards;
     backdrop-filter:blur(2px); cursor:pointer; pointer-events:auto;
   }
   .mention b{color:var(--ink); font-weight:600}
   .mention.go{animation:mentionOut .6s ease forwards}
-  @keyframes mentionIn{from{opacity:0; transform:translateY(-6px)} to{opacity:.58; transform:none}}
+  @keyframes mentionIn{from{opacity:0; transform:translateY(-6px)} to{opacity:.75; transform:none}}
   @keyframes mentionOut{to{opacity:0; transform:translateY(-6px)}}
 
   .compose{
     position:absolute; top:12px; left:14px; right:38%;
-    font-size:.95rem; color:#111; letter-spacing:.01em; line-height:1.4;
+    font-size:calc(.95rem * var(--msg-size,1)); color:#111; letter-spacing:.01em; line-height:1.4;
     text-shadow:0 1px 2px rgba(255,255,255,.55); pointer-events:none;
     word-break:break-word;
   }
@@ -111,7 +112,7 @@
     display:inline-block; width:.55em; margin-left:1px; border-bottom:2px solid #111;
     animation:blink 1s steps(2,start) infinite;
   }
-  .compose .cue{display:block; font-size:.68rem; opacity:.5; margin-top:2px}
+  .compose .cue{display:block; font-size:calc(.68rem * var(--msg-size,1)); opacity:.5; margin-top:2px}
   @keyframes blink{50%{opacity:0}}
 
   .chat{
@@ -119,7 +120,12 @@
     border-radius:6px; padding:14px 16px; display:flex; flex-direction:column; gap:10px;
     box-shadow:var(--shadow);
   }
-  .chat-head{display:flex; align-items:baseline; gap:10px}
+  .chat-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  .textsize{
+    margin-left:auto; display:flex; align-items:center; gap:8px;
+    font-size:.72rem; color:var(--ink-faint);
+  }
+  .textsize input{width:110px}
   .chat-head h2{
     margin:0; font-family:"Fraunces",Georgia,serif; font-weight:300; font-size:1.15rem;
   }
@@ -492,6 +498,10 @@
    <div class="chat-head">
      <h2>Mop talk</h2>
      <span class="sub" id="chat-status">connecting…</span>
+     <label class="textsize"><span>Text size</span>
+       <input type="range" id="msg-size" min="80" max="220" step="10" value="100"
+              aria-label="Size of in-game messages">
+     </label>
    </div>
    <ol class="log" id="chat-log"><li class="empty">No messages yet.</li></ol>
    <form class="say" id="chat-form">
@@ -959,7 +969,7 @@
   }
 
   // ── systematic sweep: four serpentine patterns, one picked at random ──
-  const auto = {pts:[], i:0, name:''};
+  const auto = {pts:[], i:0, name:'', mode:'sweep', target:-1, skip:new Set(), stuck:0, lastX:0, lastY:0};
   function buildSweep(){
     const b=bounds();
     const lane = S.mode==='mop' ? mopPx()*.82 : cell*(S.mode==='mosaic'?1:.9);
@@ -982,20 +992,54 @@
         pts.push({y, x: flip? b.x1 : b.x0});
       }
     }
-    auto.pts=pts; auto.i=0; auto.name=pattern;
+    auto.pts=pts; auto.i=0; auto.name=pattern; auto.mode='sweep';
+    auto.target=-1; auto.skip=new Set(); auto.stuck=0; auto.lastX=px; auto.lastY=py;
   }
-  function autoSteer(){
+  // once the serpentine is done, walk to whatever specks are still dirty
+  function nearestDirty(x,y){
+    let best=-1, bd=Infinity;
+    for(let i=0;i<N;i++){
+      if(state[i]!==0 || auto.skip.has(i)) continue;
+      const gx=i%cols, gy=(i-gx)/cols;
+      const d=Math.abs(ox+(gx+.5)*cell-x)+Math.abs(oy+(gy+.5)*cell-y);
+      if(d<bd){ bd=d; best=i; }
+    }
+    return best;
+  }
+  function autoSteer(dt){
     if(!S.wander) return;
     if(!auto.pts.length) buildSweep();
     const mosaic = S.mode==='mosaic';
     const x = mosaic ? ox+(cx+.5)*cell : px;
     const y = mosaic ? oy+(cy+.5)*cell : py;
     const tol = mosaic ? cell*.55 : Math.max(2.5, cell*.3);
-    let p=auto.pts[auto.i];
-    while(p && Math.abs(p.x-x)<=tol && Math.abs(p.y-y)<=tol){ p=auto.pts[++auto.i]; }
-    if(!p){ buildSweep(); p=auto.pts[0]; }
-    if(Math.abs(p.x-x)>tol) setDir(p.x>x?'right':'left',false);
-    else if(Math.abs(p.y-y)>tol) setDir(p.y>y?'down':'up',false);
+
+    if(auto.mode==='sweep'){
+      let p=auto.pts[auto.i];
+      while(p && Math.abs(p.x-x)<=tol && Math.abs(p.y-y)<=tol){ p=auto.pts[++auto.i]; }
+      if(p){
+        if(Math.abs(p.x-x)>tol) setDir(p.x>x?'right':'left',false);
+        else if(Math.abs(p.y-y)>tol) setDir(p.y>y?'down':'up',false);
+        return;
+      }
+      auto.mode='hunt'; auto.target=-1;                  // pattern finished
+    }
+
+    // hunt: head for the nearest cell still dirty, one axis at a time
+    if(auto.target<0 || state[auto.target]!==0) auto.target=nearestDirty(x,y);
+    if(auto.target<0){
+      if(auto.skip.size){ auto.skip.clear(); auto.target=nearestDirty(x,y); }
+      if(auto.target<0){ buildSweep(); return; }         // nothing left: start a fresh pattern
+    }
+    const gx=auto.target%cols, gy=(auto.target-gx)/cols;
+    const tx=ox+(gx+.5)*cell, ty=oy+(gy+.5)*cell;
+    if(Math.abs(tx-x)>tol) setDir(tx>x?'right':'left',false);
+    else if(Math.abs(ty-y)>tol) setDir(ty>y?'down':'up',false);
+    // if it cannot get any closer, give that speck up and take the next
+    const moved=Math.abs(x-auto.lastX)+Math.abs(y-auto.lastY);
+    auto.lastX=x; auto.lastY=y;
+    auto.stuck = moved<0.4 ? auto.stuck+dt : 0;
+    if(auto.stuck>900){ auto.skip.add(auto.target); auto.target=-1; auto.stuck=0; }
   }
 
   function advance(dt){
@@ -1234,7 +1278,7 @@
   }
   function checkLevel(){
     if(S.mode!=='mop'||done||!N) return;
-    if(painted/N < .995) return;
+    if(painted/N < .999) return;
     wipeClean();
     shimmer=1; sparks=[];
     for(let i=0;i<26;i++) sparks.push({x:R(0,W), y:R(0,H), t:R(0,.6), r:R(IN*1.2,IN*4)});
@@ -1275,7 +1319,7 @@
     if(!visible()){ last=0; requestAnimationFrame(frame); return; }
     const dt=last?Math.min(60,now-last):16; last=now;
     const go = started && !S.paused && moving();
-    if(go && S.wander) autoSteer();
+    if(go && S.wander) autoSteer(dt);
     if(S.mode==='mosaic'){
       if(go && now>=nextStep){ stepGrid(); nextStep=now+pace(); }
       drawMosaic(now);
@@ -2553,6 +2597,44 @@
     if(room) room.presence({game:game()});
     renderPill();
   });
+
+  // ── message size ───────────────────────────────────────────────────
+  const sizeEl=document.getElementById('msg-size');
+  function applySize(v){
+    document.documentElement.style.setProperty('--msg-size',(v/100).toFixed(2));
+    try{ localStorage.setItem('sb-msg-size',v); }catch(e){}
+  }
+  try{
+    const v=+localStorage.getItem('sb-msg-size');
+    if(v>=80&&v<=220){ sizeEl.value=v; }
+  }catch(e){}
+  applySize(+sizeEl.value);
+  sizeEl.addEventListener('input',()=>applySize(+sizeEl.value));
+
+  // ── the game keeps the keyboard: hand focus back after every control ─
+  function stage(){ return document.getElementById(game()==='ant'?'ant-stage':'stage'); }
+  function backToGame(){
+    const st=stage(); if(st) st.focus({preventScroll:true});
+  }
+  document.addEventListener('pointerup',e=>{
+    const t=e.target.closest && e.target.closest('input,select,button,summary,label,a');
+    if(!t) return;
+    if(t.closest('.chat') || t.tagName==='A') return;     // chat keeps focus; links do their thing
+    setTimeout(backToGame,0);
+  });
+  document.addEventListener('change',e=>{
+    const t=e.target;
+    if(t.closest && t.closest('.chat')) return;
+    if(t.tagName==='INPUT'||t.tagName==='SELECT') setTimeout(backToGame,0);
+  });
+  // escape out of the chat box and the game is listening again
+  [nameEl,textEl,testName,testText].forEach(el=>{
+    el.addEventListener('keydown',ev=>{
+      if(ev.key==='Escape'){ ev.stopPropagation(); el.blur(); backToGame(); }
+    });
+  });
+  document.addEventListener('gamechange',()=>setTimeout(backToGame,0));
+  window.addEventListener('load',()=>setTimeout(backToGame,0));
 
   boot();
 })();
