@@ -2713,39 +2713,56 @@
     c.fillStyle=g; c.beginPath(); c.arc(x,y,r,0,TAU); c.fill();
     wipeStats.blobs++;
   }
-  function boxes(c, cells){
-    const pad=0.6;                       // overlap a hair, so no seam shows
-    c.beginPath();
-    for(const i of cells){
-      const gx=i%cols, gy=(i-gx)/cols;
-      c.rect(ox+gx*cell-pad, oy+gy*cell-pad, cell+pad*2, cell+pad*2);
+  // The trick. A coverage map is one bit per square, so drawn honestly it is
+  // a staircase — and no amount of feathering the outline hides that the
+  // corners are square. So do not draw it at full size at all: paint the
+  // region into a canvas ONE PIXEL PER SQUARE, then let drawImage scale that
+  // up. The upscale is bilinear, so every edge becomes a ramp exactly one
+  // square wide and every corner comes out rounded — which is what a mop head
+  // of about that width would really have left. Cheap, too: a 48×30 canvas.
+  //
+  // Drawn once the ramp is too soft and the middle too thin, so it goes down
+  // twice; alpha compounds (1-(1-a)²), which pushes the inside to solid and
+  // leaves the outer half-square as the soft edge.
+  let maskL=null;
+  function regionMask(cells){
+    if(!maskL || maskL.cv.width!==cols || maskL.cv.height!==rows){
+      const cv=document.createElement('canvas');
+      cv.width=cols; cv.height=rows;
+      maskL={cv, ctx:cv.getContext('2d')};
     }
-    c.fill();
+    const m=maskL.ctx;
+    m.clearRect(0,0,cols,rows);
+    m.fillStyle='#fff';
+    for(const i of cells){ const gx=i%cols; m.fillRect(gx,(i-gx)/cols,1,1); }
+    return maskL.cv;
+  }
+  function blitRegion(c, cells, alpha, passes){
+    const m=regionMask(cells);
+    wipeStats.maskW=m.width; wipeStats.maskH=m.height;
+    wipeStats.dest=[cell*cols, cell*rows];
+    c.save();
+    c.imageSmoothingEnabled=true;
+    try{ c.imageSmoothingQuality='high'; }catch(e){}
+    c.globalAlpha=alpha;
+    for(let i=0;i<(passes||2);i++) c.drawImage(m, 0,0,cols,rows, ox,oy, cell*cols, cell*rows);
+    c.restore();
+    wipeStats.blits=(wipeStats.blits||0)+(passes||2);
   }
   function wipeRegion(cells, edge){
     if(!cells.length) return;
-    wipeStats.cells=cells.length; wipeStats.edge=edge.length; wipeStats.blobs=0;
+    wipeStats.cells=cells.length; wipeStats.edge=edge.length;
+    wipeStats.blobs=0; wipeStats.blits=0;
     const d=dust&&dust.ctx, k=clean&&clean.ctx;
     if(d){
       d.save();
       d.globalCompositeOperation='destination-out';
-      d.fillStyle='#fff';
-      boxes(d, cells);
-      for(const i of edge){
-        const gx=i%cols, gy=(i-gx)/cols;
-        softBlob(d, ox+(gx+.5)*cell, oy+(gy+.5)*cell, cell*1.15, .95);
-      }
+      blitRegion(d, cells, 1, 3);           // dust must really go
       d.restore();
     }
     if(k){
-      // the shine layer is a mask, so a crisp border here shows up as a crisp
-      // edge on the gloss: feather it the same way
-      k.save(); k.globalAlpha=.5; k.fillStyle='#fff';
-      boxes(k, cells);
-      for(const i of edge){
-        const gx=i%cols, gy=(i-gx)/cols;
-        softBlob(k, ox+(gx+.5)*cell, oy+(gy+.5)*cell, cell*1.1, .9);
-      }
+      k.save();
+      blitRegion(k, cells, .5, 2);          // the gloss follows the same shape
       k.restore();
     }
   }
@@ -4006,20 +4023,86 @@
     setMopNestUI();
   }
   // lay down everyone else's strokes on this floor
+  // ── replaying somebody else's mop ────────────────────────────────────
+  // A position arrives about six times a second, so most of a peer's path is
+  // not sent at all and has to be invented. It used to be invented by easing
+  // towards the newest position: the drawn point never reached a sample, cut
+  // every corner, and hurried then dawdled between one sample and the next —
+  // a scalloped, kinked line where a mop should leave a smooth band.
+  //
+  // The trick is to stop chasing "now". Samples go in a queue and are played
+  // back a fixed moment LATE, which means the next point has always already
+  // arrived — so instead of guessing where they are going, we interpolate
+  // between two known points and can put a proper curve through them. A
+  // Catmull-Rom spline passes exactly through every sample and leaves no kink
+  // at the joins, and because it is driven by the clock the speed stays even.
+  // The cost is 260 ms of lag on somebody else's mop, which nobody can see.
+  const PEER_LAG=260;
+  const catmull=(a,b,c,d,u)=>{
+    const u2=u*u, u3=u2*u;
+    // p(u) = ½( 2P₁ + (P₂−P₀)u + (2P₀−5P₁+4P₂−P₃)u² + (−P₀+3P₁−3P₂+P₃)u³ )
+    // The cubic term is −3P₂, not −4P₂. With −4 the curve lands short of the
+    // point it is supposed to pass through, so every sample yanked the mop
+    // backwards — which the smoothness check found as a 180° turn on a path
+    // that was a dead straight line.
+    return .5*((2*b) + (c-a)*u + (2*a-5*b+4*c-d)*u2 + (3*b-3*c+d-a)*u3);
+  };
+  function notePeerPoint(p){
+    const t=mFromN(p.x,p.y), now=Date.now();
+    (p.path || (p.path=[]));
+    const last=p.path[p.path.length-1];
+    // the clock on the other machine is not ours, so a sample is stamped when
+    // it lands here; two in the same millisecond would divide by zero
+    if(last && now-last.t < 8){ last.x=t.x; last.y=t.y; last.h=p.h||0; return; }
+    p.path.push({x:t.x, y:t.y, h:p.h||0, t:now});
+    if(p.path.length>40) p.path.shift();
+  }
+  // where this peer was PEER_LAG ago, along a curve through the samples
+  function peerAt(p, when){
+    const q=p.path;
+    if(!q || !q.length) return null;
+    const at=(when!=null? when : Date.now()-PEER_LAG);
+    if(at<=q[0].t) return {x:q[0].x, y:q[0].y, h:q[0].h, live:false};
+    const end=q[q.length-1];
+    if(at>=end.t){
+      // run dry: hold still rather than guess, and say so, so the mop stops
+      // instead of sliding on somewhere nobody went
+      return {x:end.x, y:end.y, h:end.h, live:false};
+    }
+    let i=0;
+    while(i<q.length-2 && q[i+1].t<=at) i++;
+    const b=q[i], c=q[i+1];
+    const span=Math.max(1, c.t-b.t);
+    const u=Math.min(1, Math.max(0, (at-b.t)/span));
+    // The curve needs a point either side of the pair it is drawing between.
+    // At the two ends there is none, and DUPLICATING the end point skews the
+    // tangent there — a dead straight line came out with its speed varying by
+    // a tenth. Reflecting the neighbour instead ("carry straight on") keeps
+    // the ends moving at the same rate as the middle.
+    const a=q[i-1] || {x:2*b.x-c.x, y:2*b.y-c.y};
+    const d=q[i+2] || {x:2*c.x-b.x, y:2*c.y-b.y};
+    return {x:catmull(a.x,b.x,c.x,d.x,u), y:catmull(a.y,b.y,c.y,d.y,u),
+            h:angleLerp(b.h, c.h, u), live:true};
+  }
   function peerStrokes(dt){
     if(!mcoop || S.mode!=='mop') return;
-    const k=1-Math.exp(-dt/85);
     for(const p of mcoop.peers.values()){
       if(p.me || typeof p.x!=='number') continue;
-      if(!sameFloor(p)){ p.lx=undefined; p.rx=undefined; continue; }
-      const t=mFromN(p.x,p.y);
-      if(p.rx===undefined){ p.rx=t.x; p.ry=t.y; p.rh=p.h||0; }
-      p.rx+=(t.x-p.rx)*k; p.ry+=(t.y-p.ry)*k;          // glide, do not jump
-      p.rh=angleLerp(p.rh, p.h||0, k);
-      if(p.lx!==undefined && (Math.abs(p.rx-p.lx)>0.2 || Math.abs(p.ry-p.ly)>0.2)){
+      if(!sameFloor(p)){ p.lx=undefined; p.rx=undefined; p.path=null; continue; }
+      const at=peerAt(p);
+      if(!at) continue;
+      p.rx=at.x; p.ry=at.y; p.rh=at.h;
+      if(p.lx!==undefined){
+        const gap=Math.hypot(p.rx-p.lx, p.ry-p.ly);
         const wd=Math.max(6,(p.mw||14)*IN);
-        mopStroke(p.lx,p.ly,p.rx,p.ry,wd);
-        cover(p.rx,p.ry,wd*.46);
+        // a jump of half the room is somebody arriving, not somebody walking
+        if(gap>Math.min(W,H)*.5){ p.lx=p.rx; p.ly=p.ry; continue; }
+        if(gap>0.35){
+          mopStroke(p.lx,p.ly,p.rx,p.ry,wd);
+          // cover the whole segment, not just the far end of it: at six
+          // samples a second the far end alone left the shared map dotted
+          sweep(p.lx,p.ly,p.rx,p.ry,(x,y)=>cover(x,y,wd*.46));
+        }
       }
       p.lx=p.rx; p.ly=p.ry;
     }
@@ -4345,8 +4428,10 @@
     if(d.id===mcoop.myId){ mPosSelf++; return; }
     const cur=mcoop.peers.get(d.id)||{id:d.id};
     const isNew=!mcoop.peers.has(d.id);
+    const moved = cur.x!==d.x || cur.y!==d.y;
     Object.assign(cur, d, {seen:Date.now()});
     mcoop.peers.set(d.id, cur);
+    if(typeof d.x==='number' && (isNew || moved)) notePeerPoint(cur);
     if(isNew){
       __dbg.log('nest','first sight of '+(d.name||d.id)+' on surface '+d.lvl+
                 ' room '+d.ridx+' (you: '+level+'/'+roomIdx+')');
@@ -4887,7 +4972,10 @@
     const ok=(name,pass,note)=>{ out.push((pass?'  ok    ':'  FAIL  ')+name+(note?'  — '+note:'')); if(!pass) bad++; };
     const keep={worldSeed, cols, rows, N, state, painted, dust, clean, cw:surfCacheWorld};
     try{
-      dust=null; clean=null;                      // no drawing during a test
+      // Layers of their own, not the ones on screen: the drawing code must
+      // really run, or the checks below pass by never reaching it — which is
+      // exactly what happened the first time these were written.
+      dust=makeLayer(); clean=makeLayer();
 
       // 1 — the same code deals the same corridor, twice running
       worldSeed=hash32('slowbroom-mop-TEST'); surfCacheWorld=0; surfCache.length=0;
@@ -4930,7 +5018,7 @@
       const before=painted; applyBits(coarse);
       ok('laying the same map down twice changes nothing', painted===before);
 
-      // 3 — merging is a union, so who speaks first cannot matter
+      // 3 — merging is a union, so who speaks first cannot matter (unchanged)
       const left=mopRegion(48,30);
       cols=48; rows=30; N=cols*rows; state=new Uint8Array(N); painted=0;
       for(let y=0;y<rows;y++) for(let x=0;x<cols;x++)
@@ -4941,16 +5029,96 @@
       ok('a union is at least as clean as its parts',
          shPop(shOr(left,right))>=Math.max(shPop(left),shPop(right)));
 
-      // 4 — a restored floor is a region, not a row of blobs. `dab` is shaped
+      // 4 — how smooth the replay of somebody else's mop actually is.
+      // A corner at six samples a second is the hard case: it is most of what
+      // mopping is, and it is where easing-towards-the-latest-point used to
+      // fall apart. Both numbers below are of the RENDERED path, not the
+      // samples — what a player would actually see drawn.
+      const replay=(hz, path)=>{
+        const step=1000/hz, peer={path:[]};
+        path.forEach((pt,i)=>peer.path.push({x:pt[0], y:pt[1], h:0, t:i*step}));
+        const out=[];
+        for(let t=0; t<=(path.length-1)*step; t+=1000/60){
+          const at=peerAt(peer, t);
+          if(at) out.push([at.x, at.y]);
+        }
+        return out;
+      };
+      const measure=(pts)=>{
+        const seg=[], turn=[];
+        for(let i=1;i<pts.length;i++){
+          const dx=pts[i][0]-pts[i-1][0], dy=pts[i][1]-pts[i-1][1];
+          seg.push(Math.hypot(dx,dy));
+          if(i>1){
+            const px2=pts[i-1][0]-pts[i-2][0], py2=pts[i-1][1]-pts[i-2][1];
+            if(Math.hypot(dx,dy)>1e-6 && Math.hypot(px2,py2)>1e-6){
+              let a=Math.atan2(dy,dx)-Math.atan2(py2,px2);
+              a=Math.abs(((a+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI);
+              turn.push(a);
+            }
+          }
+        }
+        const mean=seg.reduce((a,b)=>a+b,0)/Math.max(1,seg.length);
+        const sd=Math.sqrt(seg.reduce((a,b)=>a+(b-mean)*(b-mean),0)/Math.max(1,seg.length));
+        return {jitter: mean? sd/mean : 0, worstTurn: Math.max(0,...turn)*180/Math.PI,
+                len: seg.reduce((a,b)=>a+b,0)};
+      };
+      // an L: straight along, then a right-angle turn, at six samples a second
+      const L=[]; for(let i=0;i<7;i++) L.push([i*60, 100]);
+      for(let i=1;i<7;i++) L.push([360, 100+i*60]);
+      const m=measure(replay(6, L));
+      ok('a replayed path keeps an even speed', m.jitter<.25,
+         'speed varies by '+Math.round(m.jitter*100)+'% between frames');
+      ok('and turns without a kink at every sample', m.worstTurn<50,
+         'sharpest turn between frames '+m.worstTurn.toFixed(1)+'°');
+      // Corner-cutting is not just ugly: the floor inside the corner never
+      // gets mopped, and the player who walked it sees a bite taken out of
+      // their own work. Easing towards the newest point drew 641 of these 720
+      // pixels; going through the samples cannot lose any.
+      let walked=0;
+      for(let i=1;i<L.length;i++) walked+=Math.hypot(L[i][0]-L[i-1][0], L[i][1]-L[i-1][1]);
+      ok('and covers the path they actually walked', m.len > walked*.97,
+         Math.round(m.len)+' of '+Math.round(walked)+' pixels');
+      const straight=measure(replay(6, [[0,0],[60,0],[120,0],[180,0],[240,0],[300,0]]));
+      ok('a straight run is dead straight', straight.worstTurn<1 && straight.jitter<.05,
+         straight.worstTurn.toFixed(2)+'° and '+Math.round(straight.jitter*100)+'%');
+
+      // 5 — a restored floor is a region, not a row of blobs. `dab` is shaped
       // for a stroke and left a gap either side of every square when it was
       // used once per square, so a friend's mopping arrived as bubbles.
       cols=48; rows=30; N=cols*rows; state=new Uint8Array(N); painted=0;
       applyBits(left);
       const st=window.__mopWipeStats;
       ok('a restored floor is filled as a region, not one blob per square',
-         st.cells>50 && st.edge < st.cells*.5, st.edge+' soft edges for '+st.cells+' squares');
+         st.cells>50 && st.blobs===0 && st.blits>0,
+         st.cells+' squares in '+st.blits+' passes, '+st.blobs+' per-square blobs');
+      // the smoothing depends entirely on the mask being ONE PIXEL PER SQUARE
+      // and landing on exactly the grid: at any other size the upscale either
+      // does nothing or smears the path sideways
+      ok('the region mask is one pixel per square',
+         st.maskW===cols && st.maskH===rows, st.maskW+'×'+st.maskH+' for a '+cols+'×'+rows+' grid');
+      ok('and it is laid over exactly the grid',
+         Math.abs(st.dest[0]-cell*cols)<.01 && Math.abs(st.dest[1]-cell*rows)<.01);
+      // what the upscale is relied on to do: a hard edge becomes a ramp one
+      // square wide, and anything wider than the mop keeps a solid middle
+      const ramp=(band)=>{
+        const src=[]; for(let i=0;i<20;i++) src.push(i>=8 && i<8+band ? 1 : 0);
+        const out=[];
+        for(let i=0;i<20*8;i++){
+          const u=(i+.5)/8-.5, a=Math.floor(u), t=u-a;
+          const lo=src[Math.max(0,Math.min(19,a))], hi=src[Math.max(0,Math.min(19,a+1))];
+          out.push(lo+(hi-lo)*t);
+        }
+        return out;
+      };
+      const wide=ramp(5), soft=wide.filter(v=>v>.02 && v<.98).length/8;
+      ok('a hard edge becomes a ramp about one square wide', soft>1.4 && soft<2.6,
+         soft.toFixed(2)+' squares of soft edge across both sides');
+      ok('a band the width of a mop keeps a solid middle',
+         wide.filter(v=>v>.98).length/8 > 2.5,
+         (wide.filter(v=>v>.98).length/8).toFixed(2)+' squares solid');
 
-      // 5 — a map survives the trip through text
+      // 6 — a map survives the trip through text
       ok('a map survives base64', shSame(shFrom64(shB64(left)), left));
       ok('nonsense is refused rather than half-read',
          shFrom64('not base64 at all!!')===null && shFrom64('QUJD')===null &&
