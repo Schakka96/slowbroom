@@ -111,6 +111,23 @@ ok(shape(draw('classic')).roundRect!==shape(draw('squeegee')).roundRect ||
    draw('classic').join()!==draw('squeegee').join(),
    'the three are still different shapes from each other');
 
+// ── the handle has to come out of the MIDDLE of the head ──
+// Drawn underneath, the handle vanished behind the head and read as a
+// separate stick butted against its edge. Two things fix it and both have to
+// hold: the handle is drawn AFTER the head, and it reaches the head's centre.
+for(const n of ['classic','flat','squeegee']){
+  const boxes=draw(n).map((c,i)=>({i,m:/^roundRect\((-?[\d.]+),(-?[\d.]+),([\d.]+),([\d.]+)/.exec(c)}))
+                     .filter(o=>o.m)
+                     .map(o=>({i:o.i, x:+o.m[1], y:+o.m[2], w:+o.m[3], h:+o.m[4]}));
+  // the head is the widest thing; the handle is the longest thin one
+  const head=boxes.reduce((a,b)=>b.w>a.w?b:a);
+  const handle=boxes.filter(b=>b!==head && b.h>b.w*2).reduce((a,b)=>b.h>a.h?b:a);
+  ok(handle.i>head.i, n+': the handle is drawn over the head, not under it');
+  ok(handle.y+handle.h >= head.y+head.h/2 - 0.5,
+     n+': and reaches the middle of it', 'handle ends '+(handle.y+handle.h).toFixed(1)+
+     ', head centre '+(head.y+head.h/2).toFixed(1));
+}
+
 // ── the doors ──
 console.log('');
 ok(/Math\.min\(H\*\.24, cell\*6\.5\)/.test(src), 'the mopping doorway is smaller than it was');

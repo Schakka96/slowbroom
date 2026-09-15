@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 140 — Mahagony Mop";</script>
+<script>window.SLOWBROOM_BUILD="build 142 — Mahagony Mop";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -3688,55 +3688,49 @@
     wood=wood||myBroom();
     const w=WD||mopPx(), h=w*.16, lw=toolInk(w), off=lw*1.6;
     ctx.save(); ctx.translate(X,Y); ctx.rotate(A+Math.PI/2);
-    // the pole, behind everything
-    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w*.055,-h*9,w*.11,h*7.4,w*.05); },
-         wood.stick, lw, off);
-    // the yoke that joins pole to channel
-    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w*.085,-h*3.5,w*.17,h*2,h*.35); },
-         wood.band, lw, off);
-    // steel channel
-    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w/2,-h*1.9,w,h*1.5,h*.35); },
+    // channel and blade first…
+    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w/2,-h*1.5,w,h*1.4,h*.35); },
          '#cfd8de', lw, off);
-    // rubber blade
-    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w/2,-h*.55,w,h*1.1,h*.4); },
+    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w/2,-h*.35,w,h*1.1,h*.4); },
          '#3b4148', lw, off);
+    // …then the pole over them, running down into the middle of the channel
+    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w*.055,-h*9,w*.11,h*8.2,w*.05); },
+         wood.stick, lw, off);
+    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w*.085,-h*2.4,w*.17,h*1.7,h*.35); },
+         wood.band, lw, off);
     ctx.restore();
   }
 
   function drawMopFlat(X,Y,A,WD,wood){
     const w=WD, h=w*.3, lw=toolInk(w), off=lw*1.6;
     ctx.save(); ctx.translate(X,Y); ctx.rotate(A+Math.PI/2);
-    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-h*.19,-w*1.5,h*.38,w*1.5,h*.19); },
-         wood.stick, lw, off);
-    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-h*.33,-h*1.3,h*.66,h*.95,h*.2); },
-         wood.band, lw, off);
-    // the microfibre pad
+    // the pad, and the nap on it
     slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w/2,-h/2,w,h,h*.3); },
          '#f4f7f9', lw, off);
-    // fringe, inside the outline so it reads as nap rather than as bristles
+    ctx.save();
+    ctx.beginPath(); ctx.roundRect(-w/2,-h/2,w,h,h*.3); ctx.clip();
     ctx.strokeStyle='rgba(43,33,25,.4)'; ctx.lineWidth=Math.max(1,h*.08); ctx.lineCap='round';
     for(let i=0;i<14;i++){
       const x=-w/2+h*.35+(w-h*.7)*i/13;
-      ctx.beginPath(); ctx.moveTo(x,-h*.3); ctx.lineTo(x+h*.05,h*.3); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x,-h*.5); ctx.lineTo(x+h*.05,h*.5); ctx.stroke();
     }
-    // the mounting plate
-    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w*.17,-h*.19,w*.34,h*.38,h*.14); },
-         wood.band, lw*.85, off*.6);
+    ctx.restore();
+    // The handle goes ON TOP and runs to the pad's CENTRE, not to its edge.
+    // Drawn underneath it vanished behind the pad and read as a separate
+    // stick lying against it, which is exactly what it looked like.
+    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-h*.19,-w*1.5,h*.38,w*1.5,h*.19); },
+         wood.stick, lw, off);
+    // a collar over the joint, so the two are plainly one object
+    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-h*.3,-h*.95,h*.6,h*1.35,h*.2); },
+         wood.band, lw, off*.7);
     ctx.restore();
   }
 
   function drawMopClassic(X,Y,A,WD,wood){
     const w=WD, h=w*.42, lw=toolInk(w), off=lw*1.6;
     ctx.save(); ctx.translate(X,Y); ctx.rotate(A+Math.PI/2);
-    // the stick, drawn first so the head covers where it enters
-    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-h*.13,-h*4.3,h*.26,h*4.3,h*.13); },
-         wood.stick, lw, off);
-    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-h*.2,-h*1.35,h*.4,h*.8,h*.14); },
-         wood.band, lw, off);
-    // the head
     slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w/2,-h/2,w,h,h*.42); },
          '#eef3f7', lw, off);
-    // the strands, kept inside the head's outline
     ctx.save();
     ctx.beginPath(); ctx.roundRect(-w/2,-h/2,w,h,h*.42); ctx.clip();
     ctx.strokeStyle='rgba(43,33,25,.38)'; ctx.lineWidth=Math.max(1.1,h*.075);
@@ -3746,6 +3740,11 @@
       ctx.beginPath(); ctx.moveTo(x,-h*.5); ctx.lineTo(x+h*.07,h*.5); ctx.stroke();
     }
     ctx.restore();
+    // same again: the stick sits over the head and reaches its middle
+    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-h*.13,-h*4.3,h*.26,h*4.3,h*.13); },
+         wood.stick, lw, off);
+    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-h*.22,-h*1.55,h*.44,h*1.75,h*.15); },
+         wood.band, lw, off*.7);
     ctx.restore();
   }
 
