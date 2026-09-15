@@ -122,6 +122,25 @@ ok(draw('classic').join()!==draw('flat').join() &&
 ok(draw('classic').some(c=>c==='moveTo(0,0)'),
    'the string mop\'s stick starts at the middle of the head');
 
+// ── the ant nest ──
+// It was an ellipse with a 2px ink line round it and forty flecks inside,
+// redrawn every frame. Every one of those is now wrong on purpose.
+ok(/function buildNest\(\)/.test(src) && /nestKey===key/.test(src),
+   'the nest is built once into a layer, not redrawn every frame');
+const nestFn=(src.match(/function buildNest\(\)[\s\S]*?\n  \}/)||[''])[0];
+ok(/withSeed\(/.test(nestFn), 'and seeded, so the grains do not boil');
+ok(!/INK_A/.test((src.match(/function drawDoor\(c,t\)[\s\S]*?\n  \}/)||[''])[0]),
+   'the ink outline is gone from it');
+ok(/nestRag/.test(nestFn), 'the outline is ragged, not an ellipse');
+ok(/cx=W\+w\*\.45/.test(nestFn),
+   'its middle is off the screen, so the canvas does the cutting');
+const grains=(nestFn.match(/i<(\d{3,4});i\+\+/g)||[]).map(m=>+m.match(/\d+/)[0]);
+ok(Math.max(...grains)>=2000, 'and there are thousands of grains in it',
+   grains.sort((a,b)=>b-a).slice(0,3).join(', '));
+ok(/const nestCx =/.test(src) && /Math\.hypot\(x-nestCx\(\), y-nestCy\(\)\)/.test(src),
+   'the hole you see is the hole the rules use');
+ok(/ant\.x > nestCx\(\)/.test(src), 'and the one the ant walks into');
+
 // ── the doors ──
 console.log('');
 ok(/Math\.min\(H\*\.24, cell\*6\.5\)/.test(src), 'the mopping doorway is smaller than it was');
@@ -129,9 +148,7 @@ ok(/Math\.max\(26, body\*1\.15\)/.test(src), 'and so is the ant nest');
 const doorway=(src.match(/function drawDoorway[\s\S]*?\n  \}/)||[''])[0];
 ok(/strokeStyle=INK/.test(doorway) && /roundRect/.test(doorway),
    'the doorway is drawn in ink, flat, like the rest of the page');
-ok(!/createRadialGradient/.test((src.match(/function drawDoor\(c,t\)[\s\S]*?\n  \}/)||[''])[0]),
-   'the nest mound lost its soft radial haze');
-ok(/strokeStyle=INK_A/.test(src), 'and the ant side has its own copy of the ink colour');
+ok(/strokeStyle=INK_A/.test(src), 'the grand arch keeps the ink line');
 
 // ── the masthead ──
 ok(src.indexOf('class="blurb"') > src.indexOf('</header>'),

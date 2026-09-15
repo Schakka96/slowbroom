@@ -7015,6 +7015,12 @@
   }
   const INK_A='#2b2119';                     // the page's ink, this side of the wall
   const doorW = () => Math.max(26, body*1.15);
+  // Where the nest's mouth is. The drawing and the rules used to work this
+  // out separately and had drifted apart; now the hole you can see is the
+  // hole you walk into and the hole a pile may not be dropped on.
+  const nestCx = () => W - doorW()*.63;
+  const nestCy = () => H*.5;
+  const nestHR = () => doorW()*.52;
   const doorH = () => Math.min(H*.34, body*4.5);
 
   /* ── sprites ────────────────────────────────────────────── */
@@ -8275,8 +8281,7 @@
   }
   // the nest swallows anything left on it, so keep piles away from the hole
   function nearNest(x,y){
-    const w=doorW()*1.5, cxx=W-w*.18, cyy=H*.5, hr=w*.42;
-    return Math.hypot(x-cxx, y-cyy) < hr*1.55 + body*.4;
+    return Math.hypot(x-nestCx(), y-nestCy()) < nestHR()*2.2 + body*.4;
   }
   let puffs=[];
   function blowAt(x,y,broadcast){
@@ -8464,7 +8469,7 @@
     if(complete){
       shimmer=Math.min(1.6, shimmer+dt/1200);
       doorOpen=Math.min(1, doorOpen+dt/700);
-      if(ant.x > W-doorW()*.55 && fadeDir===0){ fadeDir=1; }
+      if(ant.x > nestCx() && fadeDir===0){ fadeDir=1; }
     }
     if(coop && coop.test) stepBots(dt);
     easePeers(dt);
@@ -8529,7 +8534,7 @@
         : 'walk up to the queen — space sets the bouquet down wherever you are';
       return;
     }
-    if(complete && ant.x > W-doorW()*.55 && fadeDir===0) fadeDir=1;
+    if(complete && ant.x > nestCx() && fadeDir===0) fadeDir=1;
   }
 
   /* ── drawing ────────────────────────────────────────────── */
@@ -8631,36 +8636,203 @@
     }
   }
 
+  /* ── the nest ──────────────────────────────────────────────────────
+     An anthill banked against the right-hand edge, with most of it off the
+     screen: what you see is the near side of a much bigger mound, a ragged
+     crescent of excavated soil with the mouth in it. So the mound's centre
+     sits PAST the screen edge and the canvas does the cutting — that is what
+     makes the right side dead flat and the left side ragged, rather than a
+     lozenge floating near the wall.
+
+     The edge is ragged the way spoil is ragged: four harmonics of a sine,
+     which close on themselves over a turn, so the outline is lumpy without a
+     seam. Everything inside is grains — a couple of thousand of them — which
+     is why this is built ONCE into its own layer and blitted. Drawn live it
+     would boil, every speck jumping to a new place sixty times a second,
+     which is exactly what the old forty flecks did.                       */
+  let nest=null, nestKey='';
+  const nestRag = (a,p) =>
+    1 + Math.sin(a*2+p[0])*.10 + Math.sin(a*5+p[1])*.062
+      + Math.sin(a*11+p[2])*.034 + Math.sin(a*19+p[3])*.019
+      + Math.sin(a*33+p[4])*.011;
+  function ragPath(c, cx, cy, rx, ry, p, grow){
+    c.beginPath();
+    for(let i=0;i<=200;i++){
+      const a=i/200*TAU, k=nestRag(a,p);
+      const x=cx+Math.cos(a)*(rx*k+(grow||0)), y=cy+Math.sin(a)*(ry*k+(grow||0));
+      if(i) c.lineTo(x,y); else c.moveTo(x,y);
+    }
+    c.closePath();
+  }
+  function buildNest(){
+    const key=[Math.round(W),Math.round(H),Math.round(body),groundSeed].join('|');
+    if(nest && nestKey===key) return;
+    nestKey=key; nest=makeLayer();
+    const c=nest.ctx;
+    const w=doorW()*1.5, h=doorH()*1.15;
+    const cx=W+w*.45, cy=H*.5;                  // the middle of it is off-screen
+    const rx=w*1.95, ry=h*.95;
+    const hx=nestCx(), hy=nestCy(), hr=nestHR();
+    withSeed((groundSeed ^ 0x5eed1e)>>>0, ()=>{
+      const p=[R(0,TAU),R(0,TAU),R(0,TAU),R(0,TAU),R(0,TAU)];
+      const ph=[R(0,TAU),R(0,TAU),R(0,TAU),R(0,TAU),R(0,TAU)];
+      // loose spoil thrown clear of the mound, so the edge is not a clean cut
+      for(let i=0;i<260;i++){
+        const a=R(0,TAU), d=1+Math.pow(Math.random(),2)*.34;
+        const x=cx+Math.cos(a)*rx*nestRag(a,p)*d, y=cy+Math.sin(a)*ry*nestRag(a,p)*d;
+        c.fillStyle='rgba('+(Math.random()<.5?'150,120,80':'96,74,48')+','+R(.1,.4)+')';
+        c.fillRect(x,y,R(1,2.4),R(1,2.4));
+      }
+      // the mound's own shadow. Three stacked copies rather than one offset
+      // copy, which read as a hard halo round the left edge.
+      c.save(); c.translate(-h*.012, h*.03);
+      for(const [grow,al] of [[h*.075,.07],[h*.045,.08],[h*.018,.10]]){
+        c.fillStyle='rgba(34,26,14,'+al+')';
+        ragPath(c,cx,cy,rx,ry,p,grow); c.fill();
+      }
+      c.restore();
+      // the body of it: dark at the rim, warm where the crest catches light
+      ragPath(c,cx,cy,rx,ry,p,0);
+      const g=c.createRadialGradient(cx-rx*.25, cy-ry*.3, rx*.05, cx, cy, rx);
+      g.addColorStop(0,'#b08652'); g.addColorStop(.45,'#96703f'); g.addColorStop(1,'#66492a');
+      c.fillStyle=g; c.fill();
+      c.save(); c.clip();
+      // One light, from the upper left, and a dark rim all round: a cone of
+      // loose soil reads by its shading. Concentric rings of tone were tried
+      // first and just made it look flat and stacked.
+      const lit=c.createRadialGradient(cx-rx*.42, cy-ry*.40, rx*.03, cx-rx*.1, cy, rx*1.05);
+      lit.addColorStop(0,'rgba(236,202,146,.34)');
+      lit.addColorStop(.35,'rgba(176,136,84,.06)');
+      lit.addColorStop(.72,'rgba(60,44,24,.22)');
+      lit.addColorStop(1,'rgba(30,21,10,.52)');
+      c.fillStyle=lit; c.fillRect(0,0,W,H);
+      // Large, soft patches of slightly different soil before any grain goes
+      // down. Without them the speckle is evenly spread and reads as confetti
+      // on a flat shape rather than as earth.
+      for(let i=0;i<150;i++){
+        const a=R(0,TAU), rr=Math.pow(Math.random(),.6);
+        const x=cx+Math.cos(a)*rx*rr, y=cy+Math.sin(a)*ry*rr, br=R(rx*.06,rx*.26);
+        const bg=c.createRadialGradient(x,y,0,x,y,br);
+        const dark=Math.random()<.5;
+        bg.addColorStop(0,'rgba('+(dark?'74,54,30':'214,178,124')+','+R(.08,.22)+')');
+        bg.addColorStop(1,'rgba('+(dark?'74,54,30':'214,178,124')+',0)');
+        c.fillStyle=bg; c.beginPath(); c.arc(x,y,br,0,TAU); c.fill();
+      }
+      // spoil thrown out from the mouth leaves faint rays down the slope
+      for(let i=0;i<46;i++){
+        const a=R(0,TAU), len=R(rx*.25,rx*.8);
+        c.strokeStyle='rgba('+(Math.random()<.5?'206,170,112':'78,58,34')+','+R(.05,.16)+')';
+        c.lineWidth=R(2,7); c.lineCap='round';
+        c.beginPath();
+        c.moveTo(hx+Math.cos(a)*hr*1.3, hy+Math.sin(a)*hr*1.3);
+        c.lineTo(hx+Math.cos(a)*(hr*1.3+len), hy+Math.sin(a)*(hr*1.3+len)*.8);
+        c.stroke();
+      }
+      // grit: thousands of specks, denser towards the rim where it was thrown
+      for(let i=0;i<3400;i++){
+        const a=R(0,TAU), rr=.15+Math.pow(Math.random(),.65)*.9;
+        const k=nestRag(a,p);
+        const x=cx+Math.cos(a)*rx*k*rr, y=cy+Math.sin(a)*ry*k*rr;
+        const t=Math.random();
+        c.fillStyle = t<.42 ? 'rgba(52,36,20,'+R(.16,.44)+')'
+                    : t<.78 ? 'rgba(196,158,104,'+R(.16,.40)+')'
+                            : 'rgba(242,216,170,'+R(.10,.30)+')';
+        const sz=R(.8,2.4);
+        c.fillRect(x,y,sz,sz);
+      }
+      // small stones, each with a lit top and a shadow under it
+      for(let i=0;i<190;i++){
+        const a=R(0,TAU), rr=.2+Math.pow(Math.random(),.7)*.82;
+        const k=nestRag(a,p);
+        const x=cx+Math.cos(a)*rx*k*rr, y=cy+Math.sin(a)*ry*k*rr, s=R(1.6,4.2);
+        c.fillStyle='rgba(44,32,18,.32)';
+        c.beginPath(); c.ellipse(x+s*.22,y+s*.26,s,s*.78,R(0,TAU),0,TAU); c.fill();
+        c.fillStyle='hsl('+R(26,38)+' '+R(18,34)+'% '+R(38,62)+'%)';
+        c.beginPath(); c.ellipse(x,y,s,s*.76,R(0,TAU),0,TAU); c.fill();
+        c.fillStyle='rgba(255,240,208,.22)';
+        c.beginPath(); c.ellipse(x-s*.22,y-s*.26,s*.42,s*.3,R(0,TAU),0,TAU); c.fill();
+      }
+      // a few dry stems and needles dragged in with the soil
+      for(let i=0;i<26;i++){
+        const a=R(0,TAU), rr=.25+Math.random()*.7, k=nestRag(a,p);
+        const x=cx+Math.cos(a)*rx*k*rr, y=cy+Math.sin(a)*ry*k*rr;
+        const ang=R(0,TAU), len=R(4,13);
+        c.strokeStyle='rgba('+(Math.random()<.5?'146,122,78':'92,76,48')+','+R(.3,.6)+')';
+        c.lineWidth=R(.7,1.5); c.lineCap='round';
+        c.beginPath(); c.moveTo(x,y);
+        c.quadraticCurveTo(x+Math.cos(ang)*len*.6-2, y+Math.sin(ang)*len*.6+1,
+                           x+Math.cos(ang)*len, y+Math.sin(ang)*len);
+        c.stroke();
+      }
+      // ── the mouth ──
+      // a raised lip first, so the hole is sunk INTO something
+      c.save();
+      ragPath(c,hx,hy,hr*1.62,hr*1.74,ph,0); c.clip();
+      // the far side of the collar stands up into the light…
+      c.save(); c.translate(-hr*.16,-hr*.2);
+      ragPath(c,hx,hy,hr*1.5,hr*1.62,ph,0);
+      c.fillStyle='rgba(232,196,138,.55)'; c.fill(); c.restore();
+      // …and the near side of it falls away into shade
+      c.save(); c.translate(hr*.14,hr*.18);
+      ragPath(c,hx,hy,hr*1.42,hr*1.54,ph,0);
+      c.fillStyle='rgba(84,60,32,.45)'; c.fill(); c.restore();
+      c.restore();
+      // the soil immediately round the mouth is loose and pale
+      ragPath(c,hx,hy,hr*1.34,hr*1.46,ph,0);
+      c.fillStyle='rgba(198,160,104,.45)'; c.fill();
+      // the hole: ragged, and black by the time you are a finger's depth in
+      ragPath(c,hx,hy,hr,hr*1.12,ph,0);
+      const hg=c.createRadialGradient(hx-hr*.2, hy-hr*.25, hr*.06, hx, hy, hr*1.1);
+      hg.addColorStop(0,'#000'); hg.addColorStop(.62,'#150d05'); hg.addColorStop(1,'#42301a');
+      c.fillStyle=hg; c.fill();
+      // the near lip catches light, the far one is in shadow
+      c.save(); ragPath(c,hx,hy,hr,hr*1.12,ph,0); c.clip();
+      c.strokeStyle='rgba(216,178,120,.5)'; c.lineWidth=Math.max(1.4,hr*.16);
+      ragPath(c,hx,hy,hr,hr*1.12,ph,0);
+      c.save(); c.translate(-hr*.1,-hr*.14); c.stroke(); c.restore();
+      c.restore();
+      // grains sitting on the very lip
+      for(let i=0;i<150;i++){
+        const a=R(0,TAU), d=R(1.0,1.5), k=nestRag(a,ph);
+        const x=hx+Math.cos(a)*hr*k*d, y=hy+Math.sin(a)*hr*1.12*k*d;
+        c.fillStyle='rgba('+(Math.random()<.5?'206,170,112':'70,52,30')+','+R(.2,.5)+')';
+        c.fillRect(x,y,R(.9,2.2),R(.9,2.2));
+      }
+      // Seat it in the ground. Without this the rim stays as bright as the
+      // crest and the whole mound looks stuck on top of the grass rather
+      // than heaped on it. Three soft passes, not one hard outline — an ink
+      // line here is what made the last version look like an icon.
+      for(const [gw,al] of [[6,.10],[3.5,.13],[1.6,.16]]){
+        c.strokeStyle='rgba(44,32,16,'+al+')';
+        c.lineWidth=Math.max(1.5, rx*.012*gw);
+        ragPath(c,cx,cy,rx,ry,p,0); c.stroke();
+      }
+      c.restore();                              // release the mound clip
+    });
+  }
+  // a seam for the screenshot harness: draw the nest into any context
+  window.__nestArt=(c,w,h,b)=>{
+    const oW=W,oH=H,oB=body,oN=nest,oK=nestKey;
+    W=w; H=h; body=b; nest=null; nestKey='';
+    try{ buildNest(); if(nest) c.drawImage(nest.cv,0,0,W,H); }
+    finally{ W=oW; H=oH; body=oB; nest=oN; nestKey=oK; }
+  };
   function drawDoor(c,t){
     if(kind==='hall'||kind==='shop') return drawArch(c,t);
-    const w=doorW()*1.5, h=doorH()*1.15, x=W-w, y=H/2-h/2, cxx=W-w*.18, cyy=H/2;
-    const lw=Math.max(1.8, w*.1);
-    c.save();
-    c.lineJoin='round';
-    // the mound, flat and outlined rather than a soft radial haze
-    c.fillStyle='#a97f4c';
-    c.beginPath(); c.ellipse(cxx,cyy,w*.95,h*.55,0,0,TAU); c.fill();
-    c.lineWidth=lw; c.strokeStyle=INK_A; c.stroke();
-    // a scatter of spoil, kept inside the mound
-    c.save(); c.clip();
-    for(let i=0;i<40;i++){
-      const a=R(0,TAU), rr=Math.sqrt(Math.random());
-      c.fillStyle='rgba(43,33,25,'+R(.14,.34)+')';
-      c.fillRect(cxx+Math.cos(a)*w*.9*rr, cyy+Math.sin(a)*h*.5*rr, R(1.5,3), R(1.5,3));
-    }
-    c.restore();
-    // the hole
-    const hr=w*.4;
-    c.fillStyle='#231708';
-    c.beginPath(); c.ellipse(cxx,cyy,hr,hr*1.2,0,0,TAU); c.fill();
-    c.lineWidth=lw; c.strokeStyle=INK_A; c.stroke();
+    buildNest();
+    if(nest) c.drawImage(nest.cv, 0, 0, W, H);
     if(doorOpen>0){
+      // the way in, lit from inside — the only part of this that moves
+      const hx=nestCx(), hy=nestCy(), hr=nestHR();
       const pulse=.5+.5*Math.sin(t/480);
-      c.strokeStyle='rgba(255,236,190,'+(.5*doorOpen*pulse)+')';
-      c.lineWidth=Math.max(2,w*.05);
-      c.beginPath(); c.ellipse(cxx,cyy,hr*1.12,hr*1.36,0,0,TAU); c.stroke();
+      c.save();
+      const g=c.createRadialGradient(hx,hy,hr*.2,hx,hy,hr*2.1);
+      g.addColorStop(0,'rgba(255,238,196,'+(.42*doorOpen*pulse)+')');
+      g.addColorStop(1,'rgba(255,238,196,0)');
+      c.fillStyle=g;
+      c.beginPath(); c.arc(hx,hy,hr*2.1,0,TAU); c.fill();
+      c.restore();
     }
-    c.restore();
   }
 
   function drawArch(c,t){

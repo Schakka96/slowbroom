@@ -128,6 +128,20 @@ global.AudioContext=function(){ return new Proxy({},{get:()=>()=>({})}); };
 blocks.forEach(b=>{ try{ eval(b); }catch(e){} });
 
 const which=(process.argv[2]||'all');
+// The ant nest is not a mop, but it is the other thing here that is pure
+// drawing — and drawing is what this harness exists to let you SEE.
+if(which==='nest'){
+  const W2=520, H2=340;
+  out=[]; stack=[]; tf=[1,0,0,1,0,0]; path=[]; clip=null;
+  st={fill:'#000',stroke:'#000',lw:1,alpha:1};
+  global.__nestArt(ctx, W2, H2, 34);
+  const f=process.argv[3]||'/private/tmp/nest.svg';
+  fs.writeFileSync(f,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${W2}" height="${H2}" viewBox="0 0 ${W2} ${H2}">`+
+    `<rect width="${W2}" height="${H2}" fill="#4a6b32"/>`+out.join('')+`</svg>`);
+  console.log('wrote '+f+'  (nest)');
+  process.exit(0);
+}
 const file=process.argv[3]||'/private/tmp/mopshot.svg';
 const WOOD={stick:'#7a5533', band:'#b08a55'};
 const names = which==='all' ? global.__mopArt.list() : [which];
