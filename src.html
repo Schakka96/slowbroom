@@ -3645,85 +3645,91 @@
   }
   const myBroom = () => broomWood(mopName());
   /* ── the thing in your hand ────────────────────────────────────────
-     The mop, the flat pad and the glass squeegee, drawn the way the rest of
-     the page is drawn: flat fills, no gradients, and a heavy ink line round
-     every part with a hard offset shadow under it. The shapes are the ones
-     they always were — this is the crayon treatment applied to them, not a
-     redesign. Each keeps the player's own broom wood, so a shared floor
-     still shows who is who.                                                */
-  const INK='#2b2119';
-  const toolInk = w => Math.max(1.7, w*.036);
-  // one shape, laid down as shadow then fill then outline
-  function slab(c,fn,fill,lw,off){
-    c.save(); c.translate(off,off);
-    c.fillStyle='rgba(43,33,25,.28)'; fn(); c.fill(); c.restore();
-    c.fillStyle=fill; fn(); c.fill();
-    c.lineWidth=lw; c.strokeStyle=INK; c.lineJoin='round'; c.stroke();
-  }
+     The original broom art, exactly as it was before the crayon experiment:
+     gradients, a steel channel, a microfibre pad with fringe down both long
+     edges, and a string mop head. Restored verbatim from bea21ca — the
+     flat-pad drawing is split into its own function only so the harness can
+     draw one without going through onGlass() and S.mopStyle.
 
-  function drawSqueegee(X,Y,A,WD,wood){
+     The doorways keep the heavy ink line, which was asked for separately and
+     is deliberately not undone here.                                        */
+  function drawSqueegee(X,Y,A,WD){
     X=(X===undefined?px:X); Y=(Y===undefined?py:Y);
     A=(A===undefined?heading:A);
-    wood=wood||myBroom();
-    const w=WD||mopPx(), h=w*.16, lw=toolInk(w), off=lw*1.6;
+    const w=WD||mopPx(), h=w*.16;
     ctx.save(); ctx.translate(X,Y); ctx.rotate(A+Math.PI/2);
-    // channel and blade first…
-    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w/2,-h*1.5,w,h*1.4,h*.35); },
-         '#cfd8de', lw, off);
-    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w/2,-h*.35,w,h*1.1,h*.4); },
-         '#3b4148', lw, off);
-    // …then the pole over them, running down into the middle of the channel
-    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w*.055,-h*9,w*.11,h*8.2,w*.05); },
-         wood.stick, lw, off);
-    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w*.085,-h*2.4,w*.17,h*1.7,h*.35); },
-         wood.band, lw, off);
+    ctx.fillStyle='rgba(0,0,0,.25)';
+    ctx.beginPath(); ctx.roundRect(-w/2+2,-h/2+3,w,h*2.1,h*.4); ctx.fill();
+    ctx.fillStyle='#1d2126';                                  // rubber blade
+    ctx.beginPath(); ctx.roundRect(-w/2,-h/2,w,h,h*.35); ctx.fill();
+    const ch=ctx.createLinearGradient(0,-h*1.9,0,-h*.4);      // steel channel
+    ch.addColorStop(0,'#9aa4ae'); ch.addColorStop(.45,'#e8eef3'); ch.addColorStop(1,'#7f8892');
+    ctx.fillStyle=ch;
+    ctx.beginPath(); ctx.roundRect(-w/2,-h*1.9,w,h*1.5,h*.3); ctx.fill();
+    ctx.strokeStyle='rgba(60,70,80,.45)'; ctx.lineWidth=Math.max(.8,h*.12);
+    ctx.beginPath(); ctx.moveTo(-w/2+h*.2,-h*.55); ctx.lineTo(w/2-h*.2,-h*.55); ctx.stroke();
+    ctx.fillStyle='#39414a';                                   // yoke and grip
+    ctx.beginPath(); ctx.roundRect(-w*.07,-h*3.4,w*.14,h*1.7,h*.3); ctx.fill();
+    const grip=ctx.createLinearGradient(-w*.05,0,w*.05,0);
+    grip.addColorStop(0,'#6d5a48'); grip.addColorStop(.5,'#a98a68'); grip.addColorStop(1,'#6d5a48');
+    ctx.fillStyle=grip;
+    ctx.beginPath(); ctx.roundRect(-w*.05,-h*9,w*.1,h*5.8,w*.05); ctx.fill();
     ctx.restore();
   }
 
   function drawMopFlat(X,Y,A,WD,wood){
-    const w=WD, h=w*.3, lw=toolInk(w), off=lw*1.6;
+    wood=wood||myBroom();
+    const w=WD, h=w*.3;
     ctx.save(); ctx.translate(X,Y); ctx.rotate(A+Math.PI/2);
-    // the pad, and the nap on it
-    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w/2,-h/2,w,h,h*.3); },
-         '#f4f7f9', lw, off);
-    ctx.save();
-    ctx.beginPath(); ctx.roundRect(-w/2,-h/2,w,h,h*.3); ctx.clip();
-    ctx.strokeStyle='rgba(43,33,25,.4)'; ctx.lineWidth=Math.max(1,h*.08); ctx.lineCap='round';
-    for(let i=0;i<14;i++){
-      const x=-w/2+h*.35+(w-h*.7)*i/13;
-      ctx.beginPath(); ctx.moveTo(x,-h*.5); ctx.lineTo(x+h*.05,h*.5); ctx.stroke();
+    // handle first, so the pad sits on top of it
+    const pole=ctx.createLinearGradient(-h*.2,0,h*.2,0);
+    pole.addColorStop(0,wood.stick); pole.addColorStop(.45,wood.band); pole.addColorStop(1,wood.stick);
+    ctx.fillStyle=pole;
+    ctx.beginPath(); ctx.roundRect(-h*.17,-w*1.5,h*.34,w*1.5,h*.17); ctx.fill();
+    ctx.fillStyle='#5d6672';
+    ctx.beginPath(); ctx.roundRect(-h*.3,-h*1.25,h*.6,h*.9,h*.2); ctx.fill();
+    // shadow under the pad
+    ctx.fillStyle='rgba(0,0,0,.32)';
+    ctx.beginPath(); ctx.roundRect(-w/2+h*.12,-h/2+h*.3,w,h,h*.3); ctx.fill();
+    // microfibre pad
+    const pad=ctx.createLinearGradient(0,-h/2,0,h/2);
+    pad.addColorStop(0,'#ffffff'); pad.addColorStop(.55,'#eef2f5'); pad.addColorStop(1,'#cfd8de');
+    ctx.fillStyle=pad;
+    ctx.beginPath(); ctx.roundRect(-w/2,-h/2,w,h,h*.3); ctx.fill();
+    // fringe along both long edges
+    ctx.strokeStyle='rgba(186,198,206,.85)'; ctx.lineWidth=Math.max(.8,h*.07); ctx.lineCap='round';
+    for(let i=0;i<24;i++){
+      const x=-w/2+h*.2+(w-h*.4)*i/23;
+      ctx.beginPath(); ctx.moveTo(x,-h*.5); ctx.lineTo(x+h*.06,-h*.28); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x,h*.5); ctx.lineTo(x-h*.06,h*.28); ctx.stroke();
     }
-    ctx.restore();
-    // The handle goes ON TOP and runs to the pad's CENTRE, not to its edge.
-    // Drawn underneath it vanished behind the pad and read as a separate
-    // stick lying against it, which is exactly what it looked like.
-    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-h*.19,-w*1.5,h*.38,w*1.5,h*.19); },
-         wood.stick, lw, off);
-    // a collar over the joint, so the two are plainly one object
-    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-h*.3,-h*.95,h*.6,h*1.35,h*.2); },
-         wood.band, lw, off*.7);
+    // grey mounting plate
+    ctx.fillStyle='#8b95a1';
+    ctx.beginPath(); ctx.roundRect(-w*.19,-h*.2,w*.38,h*.4,h*.14); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.45)';
+    ctx.beginPath(); ctx.roundRect(-w*.17,-h*.16,w*.34,h*.1,h*.05); ctx.fill();
     ctx.restore();
   }
 
   function drawMopClassic(X,Y,A,WD,wood){
-    const w=WD, h=w*.42, lw=toolInk(w), off=lw*1.6;
+    X=(X===undefined?px:X); Y=(Y===undefined?py:Y);
+    A=(A===undefined?heading:A);
+    wood=wood||myBroom();
+    const w=WD||mopPx(), h=w*.42;
     ctx.save(); ctx.translate(X,Y); ctx.rotate(A+Math.PI/2);
-    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w/2,-h/2,w,h,h*.42); },
-         '#eef3f7', lw, off);
-    ctx.save();
-    ctx.beginPath(); ctx.roundRect(-w/2,-h/2,w,h,h*.42); ctx.clip();
-    ctx.strokeStyle='rgba(43,33,25,.38)'; ctx.lineWidth=Math.max(1.1,h*.075);
-    ctx.lineCap='round';
-    for(let i=1;i<11;i++){
-      const x=-w/2+w*i/11;
-      ctx.beginPath(); ctx.moveTo(x,-h*.5); ctx.lineTo(x+h*.07,h*.5); ctx.stroke();
+    ctx.fillStyle='rgba(0,0,0,.3)';
+    ctx.beginPath(); ctx.roundRect(-w/2+2,-h/2+4,w,h,h*.42); ctx.fill();
+    const g=ctx.createLinearGradient(0,-h/2,0,h/2);
+    g.addColorStop(0,'#f6f9fc'); g.addColorStop(.5,'#d2dbe4'); g.addColorStop(1,'#9fb0c0');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.roundRect(-w/2,-h/2,w,h,h*.42); ctx.fill();
+    ctx.strokeStyle='rgba(90,104,120,.5)'; ctx.lineWidth=Math.max(1,h*.06);
+    for(let i=1;i<10;i++){
+      const x=-w/2+w*i/10; ctx.beginPath(); ctx.moveTo(x,-h*.36); ctx.lineTo(x,h*.36); ctx.stroke();
     }
-    ctx.restore();
-    // same again: the stick sits over the head and reaches its middle
-    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-h*.13,-h*4.3,h*.26,h*4.3,h*.13); },
-         wood.stick, lw, off);
-    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-h*.22,-h*1.55,h*.44,h*1.75,h*.15); },
-         wood.band, lw, off*.7);
+    ctx.strokeStyle=wood.stick; ctx.lineWidth=Math.max(2,h*.22); ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-h*4.2); ctx.stroke();
+    ctx.strokeStyle=wood.band; ctx.lineWidth=Math.max(1,h*.09);
+    ctx.beginPath(); ctx.moveTo(0,-h*.7); ctx.lineTo(0,-h*3.9); ctx.stroke();
     ctx.restore();
   }
 
@@ -3732,7 +3738,7 @@
     list:()=>['classic','flat','squeegee'],
     draw(n,X,Y,A,w,wood){
       wood=wood||myBroom();
-      if(n==='squeegee') drawSqueegee(X,Y,A,w,wood);
+      if(n==='squeegee') drawSqueegee(X,Y,A,w);
       else if(n==='flat') drawMopFlat(X,Y,A,w,wood);
       else drawMopClassic(X,Y,A,w,wood);
     }
@@ -3741,7 +3747,7 @@
     X=(X===undefined?px:X); Y=(Y===undefined?py:Y);
     A=(A===undefined?heading:A); WD=WD||mopPx();
     wood=wood||myBroom();
-    if(onGlass()){ drawSqueegee(X,Y,A,WD,wood); return; }
+    if(onGlass()){ drawSqueegee(X,Y,A,WD); return; }
     if(S.mopStyle==='classic') drawMopClassic(X,Y,A,WD,wood);
     else drawMopFlat(X,Y,A,WD,wood);
   }
@@ -3885,8 +3891,16 @@
     floorPush(roomIdx, bits, true);
   }
   // drop into a numbered room of the world you are standing in
-  function goToRoom(i){
-    leaveFloor();
+  // `fresh` means we have just stepped into a DIFFERENT world, so there is no
+  // handover to do. Without it, Fresh surface looked like it did nothing:
+  // enterWorld cleared the map and then goToRoom's leaveFloor() ran a moment
+  // later — after worldSeed had already changed — and pushed the room we were
+  // standing in straight back into mopMem, where enterFloor immediately
+  // applied it to the brand-new floor. The dust WAS rebuilt; it was wiped
+  // again in the same breath. And because writeMem now stamped it with the
+  // new seed, the stale clean floor survived a reload too.
+  function goToRoom(i, fresh){
+    if(!fresh) leaveFloor();
     i=Math.max(0, i|0);
     rooms.length=0; roomIdx=i;
     level=surfaceFor(i); pendingSeed=roomSeed(i);
@@ -3900,7 +3914,7 @@
     surfCacheWorld=0; surfCache.length=0;
     floorForget();
     loadMem();
-    goToRoom(at!=null ? at : whereWas());
+    goToRoom(at!=null ? at : whereWas(), true);
     __dbg.log('mop','world '+worldName+' · seed '+worldSeed.toString(16)+
               ' · standing in room '+(roomIdx+1)+' ('+SURFACES[level%SURFACES.length].name+')');
   }
@@ -3925,6 +3939,7 @@
     c.closePath(); c.fill();
     c.restore();
   }
+  const INK='#2b2119';                       // the page's ink, for the doorways
   function drawDoorway(c,side){
     const w=1.7*IN, h=doorH(), y=doorY()-h/2;
     const x = side==='right' ? ox+cell*cols-w*.5 : ox-w*.5;

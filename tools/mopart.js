@@ -19,8 +19,12 @@ function makeCtx(){
    'arcTo','quadraticCurveTo','bezierCurveTo','closePath','roundRect','rect',
    'fill','stroke','clip','fillRect','strokeRect','ellipse','setTransform',
    'drawImage','clearRect','fillText','strokeText','scale'].forEach(k=>c[k]=rec(k));
+  // Record the gradients and their stops. Without this the restored art looks
+  // gradient-free AND colourless: the flat pad puts the player's broom wood
+  // ONLY into a gradient's colour stops, so throwing the stops away hid it.
   ['createLinearGradient','createRadialGradient'].forEach(k=>
-    c[k]=()=>({addColorStop(){}}));
+    c[k]=(...a)=>{ calls.push(k+'('+a.map(v=>Math.round(v*100)/100).join(',')+')');
+                   return {addColorStop:(o,col)=>calls.push('stop('+o+','+col+')')}; });
   c.measureText=()=>({width:10});
   c.getImageData=(x,y,w,h)=>({data:new Uint8ClampedArray(Math.max(4,(w|0)*(h|0)*4))});
   c.createImageData=c.getImageData;
@@ -93,40 +97,30 @@ const art={}, shapes={};
 for(const n of NAMES){
   art[n]=draw(n); shapes[n]=shape(art[n]);
   ok(art[n].length>10, n+': draws something', art[n].length+' calls');
-  ok((shapes[n].fill||0)>0 && (shapes[n].stroke||0)>0, n+': is filled AND outlined');
-  ok(art[n].some(c=>c.includes(WOOD.stick)||c.includes(WOOD.band)),
+  ok((shapes[n].fill||0)>0, n+': has a filled body');
+  // The squeegee never took the player's wood — its grip is a fixed brown in
+  // the original art too. Only the two mops carry it.
+  if(n!=='squeegee') ok(art[n].some(c=>c.includes(WOOD.stick)||c.includes(WOOD.band)),
      n+": carries the player's own broom wood");
-  // the crayon treatment: a heavy ink line round every part
-  const inks=art[n].filter(c=>c.toLowerCase().includes('#2b2119')).length;
-  ok(inks>=3, n+': every part gets the ink line', inks+' ink passes');
-  ok(!art[n].some(c=>c.startsWith('createLinearGradient')||c.startsWith('createRadialGradient')),
-     n+': flat fills, no gradients left over from the old art');
-  ok(art[n].some(c=>/^fillStyle=rgba\(43,33,25/.test(c)), n+': sits on a hard offset shadow');
+  // This is the ORIGINAL art, restored. The gradients are the point of it —
+  // their absence is what the crayon version looked like, and she did not
+  // want that. So their presence is the check.
+  ok((shapes[n].createLinearGradient||0)>0,
+     n+': is the original gradient art, not the flat crayon one',
+     (shapes[n].createLinearGradient||0)+' gradients');
+  ok(!art[n].some(c=>c.toLowerCase().includes('#2b2119')),
+     n+': carries no ink outline — that stayed on the doorways only');
 }
 for(const n of NAMES) ok(draw(n,200,150,0).join()!==draw(n,200,150,1.4).join(),
    n+': turns with the heading');
 for(const n of NAMES) ok(draw(n).join()===draw(n).join(),
    n+': is steady frame to frame');
-ok(shape(draw('classic')).roundRect!==shape(draw('squeegee')).roundRect ||
-   draw('classic').join()!==draw('squeegee').join(),
-   'the three are still different shapes from each other');
-
-// ── the handle has to come out of the MIDDLE of the head ──
-// Drawn underneath, the handle vanished behind the head and read as a
-// separate stick butted against its edge. Two things fix it and both have to
-// hold: the handle is drawn AFTER the head, and it reaches the head's centre.
-for(const n of ['classic','flat','squeegee']){
-  const boxes=draw(n).map((c,i)=>({i,m:/^roundRect\((-?[\d.]+),(-?[\d.]+),([\d.]+),([\d.]+)/.exec(c)}))
-                     .filter(o=>o.m)
-                     .map(o=>({i:o.i, x:+o.m[1], y:+o.m[2], w:+o.m[3], h:+o.m[4]}));
-  // the head is the widest thing; the handle is the longest thin one
-  const head=boxes.reduce((a,b)=>b.w>a.w?b:a);
-  const handle=boxes.filter(b=>b!==head && b.h>b.w*2).reduce((a,b)=>b.h>a.h?b:a);
-  ok(handle.i>head.i, n+': the handle is drawn over the head, not under it');
-  ok(handle.y+handle.h >= head.y+head.h/2 - 0.5,
-     n+': and reaches the middle of it', 'handle ends '+(handle.y+handle.h).toFixed(1)+
-     ', head centre '+(head.y+head.h/2).toFixed(1));
-}
+ok(draw('classic').join()!==draw('flat').join() &&
+   draw('flat').join()!==draw('squeegee').join(),
+   'the three are different from each other');
+// the string mop's stick starts at the head's centre, as it always did
+ok(draw('classic').some(c=>c==='moveTo(0,0)'),
+   'the string mop\'s stick starts at the middle of the head');
 
 // ── the doors ──
 console.log('');

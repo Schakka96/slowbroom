@@ -259,6 +259,41 @@ const seedOf = b => (b.g.__mopDiag().match(/seed\s+([0-9a-f]+)/)||[0,''])[1];
   await new Promise(r=>setTimeout(r,140));
   ok('and picks up what they mopped', pct(S1)>1500, pct(S1)+' patches');
 
+  // ── Fresh surface, on your own ──────────────────────────────────────
+  // It takes two clicks: the first arms the button, the second does it. This
+  // drives the real handler, because the bug was never in any one function —
+  // enterWorld cleared the map and then goToRoom's leaveFloor(), running a
+  // moment later under the NEW world seed, put the room you were standing in
+  // straight back. The dust was rebuilt and wiped again in the same breath,
+  // so every part passed on its own and the button did nothing.
+  console.log('');
+  console.log('— fresh surface, on your own —');
+  const F=browser('Solo', 1200, 760, 48, {});
+  await new Promise(r=>setTimeout(r,60));
+  const click = id => { for(const fn of F.clicks[id]||[]) fn({preventDefault(){}, target:F.made[id]}); };
+  const worldOf = b => b.store['sb-mop-world'];
+  F.g.__mopCheat.room(1);
+  await new Promise(r=>setTimeout(r,40));
+  F.g.__mopCheat.band(100);
+  await new Promise(r=>setTimeout(r,120));
+  const dirty=pct(F);
+  ok('a room mopped from wall to wall', dirty>3000, dirty+' patches');
+  const wasWorld=worldOf(F), wasRoom=roomOf(F);
+  click('clear-btn');
+  ok('one click only arms it', pct(F)===dirty && F.made['clear-btn'].textContent==='Reset every room?',
+     F.made['clear-btn'].textContent);
+  click('clear-btn');
+  await new Promise(r=>setTimeout(r,160));
+  ok('the second click deals a different corridor', worldOf(F)!==wasWorld);
+  ok('and puts you in the first room', roomOf(F)===1, 'room '+roomOf(F)+', was '+wasRoom);
+  ok('THE DUST IS BACK', pct(F)<200, pct(F)+' patches still mopped');
+  // …and it has to stay back: the stale bits used to be written out stamped
+  // with the new world's seed, so a reload brought the clean floor with it
+  const saved=(()=>{ try{ return JSON.parse(F.store['sb-mop-map']||'null'); }catch(e){ return null; } })();
+  ok('and nothing clean was saved into the new world',
+     !saved || (saved.world>>>0)!==(+worldOf(F)>>>0) || !Object.keys(saved.rooms||{}).length,
+     saved? 'map world '+saved.world+' vs '+worldOf(F)+', rooms '+Object.keys(saved.rooms||{}).join() : 'no map');
+
   console.log(bad? '\n'+bad+' failed' : '\nall good');
   process.exit(bad?1:0);
 })();

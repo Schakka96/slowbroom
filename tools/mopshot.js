@@ -18,7 +18,22 @@ const mul=(a,b)=>[a[0]*b[0]+a[2]*b[1], a[1]*b[0]+a[3]*b[1],
                   a[0]*b[2]+a[2]*b[3], a[1]*b[2]+a[3]*b[3],
                   a[0]*b[4]+a[2]*b[5]+a[4], a[1]*b[4]+a[3]*b[5]+a[5]];
 const M = () => `matrix(${tf.map(n=>+n.toFixed(4)).join(' ')})`;
-const col = c => typeof c==='string'? c : '#000';
+// Gradients are back in the art, so the replay has to carry them or the mop
+// comes out as flat black. Same rule as the clip: the stop coordinates are in
+// the element's own space, so no transform on the gradient.
+let gradId=0;
+const col = c => {
+  if(typeof c==='string') return c;
+  if(c && c.__stops){
+    const id='g'+(++gradId);
+    out.push(`<linearGradient id="${id}" gradientUnits="userSpaceOnUse" `+
+      `x1="${c.x1}" y1="${c.y1}" x2="${c.x2}" y2="${c.y2}">`+
+      c.__stops.map(([o,k])=>`<stop offset="${o}" stop-color="${k}"/>`).join('')+
+      `</linearGradient>`);
+    return `url(#${id})`;
+  }
+  return '#000';
+};
 function emit(mode){
   if(!path.length) return;
   const d=path.join(' ');
@@ -59,6 +74,14 @@ const ctx=new Proxy({},{
     // every clipped thing silently disappears. That is what ate the strands.
     if(k==='clip')      return ()=>{ clip='c'+(++clipId);
       out.push(`<clipPath id="${clip}" clipPathUnits="userSpaceOnUse"><path d="${path.join(' ')}"/></clipPath>`); };
+    if(k==='createLinearGradient') return (x1,y1,x2,y2)=>{
+      const g={__stops:[],x1,y1,x2,y2,addColorStop(o,c){ g.__stops.push([o,c]); }};
+      return g;
+    };
+    if(k==='createRadialGradient') return (x1,y1,r1,x2,y2,r2)=>{
+      const g={__stops:[],x1:x2-r2,y1:y2,x2:x2+r2,y2:y2,addColorStop(o,c){ g.__stops.push([o,c]); }};
+      return g;
+    };
     if(k==='fillStyle')   return st.fill;
     if(k==='strokeStyle') return st.stroke;
     if(k==='lineWidth')   return st.lw;
