@@ -15,6 +15,7 @@ node tools/surfaces.js           # every surface builds; the live ones run
 node tools/antsound.js           # the ant's plops and landings, into a fake speaker
 node tools/skins.js              # the palette, and the rails that were stripped back
 node tools/mopart.js             # the three tools, into a recording canvas
+node tools/mopshot.js all out.svg   # and again, as a picture you can look at
 git add <paths> && git commit && git push        # GitHub Pages serves it
 ```
 
