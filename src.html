@@ -257,6 +257,10 @@
   .faqbody .progress{color:var(--ink)}
   .restore{display:flex; gap:8px; margin:6px 0}
   .restore input{flex:0 1 180px}
+  .acts button.danger, .rail button.danger{
+    border-color:#c0473f; color:#fff; background:#a8352e;
+  }
+  .acts button.danger:hover, .rail button.danger:hover{ background:#bd3b33 }
   .devlink{
     font:inherit; font-size:.68rem; font-family:"IBM Plex Mono",monospace;
     background:transparent; border:1px solid var(--edge); color:var(--ink-faint);
@@ -278,6 +282,10 @@
   }
   .stage:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
   canvas{display:block; width:100%; height:100%; touch-action:none}
+  .stage{touch-action:none}
+  /* on a phone the d-pad and the pickup switch are replaced by the finger */
+  html.touch .pad{display:none}
+  html.touch .touch-hide{display:none}
   .readout{
     position:absolute; left:12px; bottom:10px;
     font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.7rem;
@@ -480,6 +488,66 @@
     .live{justify-content:flex-start}
   }
 </style>
+
+<script>
+/* ──────── touch: a finger is a different instrument from a keyboard ──────── */
+(function(){
+  // Coarse pointer and no hover is the honest test for a phone or tablet. It
+  // is read once and kept, because a page that changes its controls halfway
+  // through a drag is worse than one that guessed.
+  const coarse = window.matchMedia &&
+    matchMedia('(pointer: coarse)').matches && !matchMedia('(hover: hover)').matches;
+  window.__touch = !!coarse;
+  if(coarse) document.documentElement.classList.add('touch');
+
+  // Both games steer the same way: a finger on the stage is a place to walk
+  // towards, a tap is the action button, two taps is the other one. This
+  // hands a game an `aim` it can read every frame and nothing else.
+  window.__followFinger = function(stage, opt){
+    const aim={on:false, x:0, y:0};
+    let downAt=0, downX=0, downY=0, moved=0, lastTap=0, id=null;
+    const at = e => {
+      const r=stage.getBoundingClientRect();
+      aim.x = e.clientX - r.left;
+      aim.y = e.clientY - r.top;
+    };
+    stage.addEventListener('pointerdown', e=>{
+      if(e.pointerType==='mouse' && !window.__touch) return;   // the mouse is not a finger
+      if(id!==null) return;
+      id=e.pointerId;
+      try{ stage.setPointerCapture(id); }catch(err){}
+      at(e); aim.on=true;
+      downAt=Date.now(); downX=e.clientX; downY=e.clientY; moved=0;
+      if(opt.start) opt.start();
+      e.preventDefault();
+    });
+    stage.addEventListener('pointermove', e=>{
+      if(e.pointerId!==id) return;
+      moved=Math.max(moved, Math.hypot(e.clientX-downX, e.clientY-downY));
+      at(e); e.preventDefault();
+    });
+    const up = e=>{
+      if(e.pointerId!==id) return;
+      id=null; aim.on=false;
+      try{ stage.releasePointerCapture(e.pointerId); }catch(err){}
+      // A tap is a touch that went nowhere and did not linger. It acts at
+      // once — waiting to see whether a second one is coming would put a lag
+      // on every single tap, and a double tap doing both things in order is
+      // no bad thing. A second tap soon after adds the other action.
+      const quick = Date.now()-downAt < 300 && moved < 12;
+      if(!quick){ lastTap=0; return; }
+      const now=Date.now();
+      const isSecond = lastTap && now-lastTap < 320;
+      lastTap = isSecond ? 0 : now;      // three taps are not three doubles
+      if(isSecond){ if(opt.twice) opt.twice(aim.x, aim.y); }
+      else if(opt.tap) opt.tap(aim.x, aim.y);
+    };
+    stage.addEventListener('pointerup', up);
+    stage.addEventListener('pointercancel', e=>{ if(e.pointerId===id){ id=null; aim.on=false; } });
+    return aim;
+  };
+})();
+</script>
 
 <script>
 /* ──────── dev console: /debug to show, /selftest to check the wiring ──────── */
@@ -894,9 +962,9 @@
       <button type="button" id="ant-restart">Restart level</button>
       <button type="button" id="ant-restart-all">Restart game</button>
     </div>
-    <div class="ctl">
-      <div class="row"><span class="lbl" id="pick-l">Picking up</span></div>
-      <div class="seg" role="group" aria-labelledby="pick-l">
+    <div class="ctl touch-hide">
+      <div class="row touch-hide"><span class="lbl" id="pick-l">Picking up</span></div>
+      <div class="seg touch-hide" role="group" aria-labelledby="pick-l">
         <button type="button" id="ant-pick" aria-pressed="true">Auto-pickup mode (click to hold shift instead)</button>
       </div>
     </div>
@@ -2971,7 +3039,21 @@
   // ───────────────────────── movement
   const DIRS={left:[-1,0,Math.PI], right:[1,0,0], up:[0,-1,-Math.PI/2], down:[0,1,Math.PI/2]};
   const held=new Set();
-  const moving = () => S.wander ? true : (S.hold ? held.size>0 : !!dir);
+  // Drag the mop about with a finger: it goes where the fingertip is and
+  // stops when it gets there. A tap pauses, as space does on a keyboard.
+  const aim = window.__followFinger
+    ? window.__followFinger(stage, {
+        start(){
+          if(!started){ started=true; hintEl.style.opacity='0'; nextStep=performance.now(); }
+          S.paused=false;
+          if(S.wander) setWander(false);        // your hand is on it now
+        },
+        tap(){ S.paused=!S.paused; updateReadout(); }
+      })
+    : {on:false, x:0, y:0};
+  const aimWants = () => aim.on && !S.wander &&
+    Math.hypot(aim.x-px, aim.y-py) > Math.max(3, mopPx()*.22);
+  const moving = () => S.wander ? true : (aimWants() || (S.hold ? held.size>0 : !!dir));
 
   function setDir(d,fromKey){
     if(!started){ started=true; hintEl.style.opacity='0'; nextStep=performance.now(); }
@@ -3002,29 +3084,39 @@
     // stage measured while the tab is hidden, which makes every cell zero
     // wide. Dividing by it asked for infinitely many lanes and the loop below
     // filled the heap until the tab died. Both ends are pinned now.
-    const lane = Math.max(4, S.mode==='mop' ? mopPx()*.82 : cell*(S.mode==='mosaic'?1:.9));
+    // a hand is not a machine: lanes sit a little wider than the mop and
+    // wander sideways, so a few specks are always left for whoever holds it
+    const slop = S.mode==='mop' ? R(1.0,1.14) : 1;
+    const lane = Math.max(4, (S.mode==='mop' ? mopPx()*.82 : cell*(S.mode==='mosaic'?1:.9))*slop);
+    const wob = S.mode==='mop' ? lane*.16 : 0;
     const lanes = span => Math.max(1, Math.min(300, Math.ceil(span/lane) || 1));
     const pattern = ['down-lr','down-rl','across-tb','across-bt'][(Math.random()*4)|0];
     const pts=[];
     if(pattern.startsWith('down')){
       const n=lanes(b.x1-b.x0);
       for(let i=0;i<=n;i++){
-        const t=i/n, x = pattern==='down-lr' ? b.x0+(b.x1-b.x0)*t : b.x1-(b.x1-b.x0)*t;
+        const t=i/n;
+        const x = (pattern==='down-lr' ? b.x0+(b.x1-b.x0)*t : b.x1-(b.x1-b.x0)*t) + R(-wob,wob);
         const flip = i%2===0;
-        pts.push({x, y: flip? b.y0 : b.y1});
-        pts.push({x, y: flip? b.y1 : b.y0});
+        const shy = Math.random()<.18 ? (b.y1-b.y0)*R(.02,.07) : 0;   // stops a touch short
+        pts.push({x, y: flip? b.y0+shy : b.y1-shy});
+        pts.push({x, y: flip? b.y1-shy : b.y0+shy});
       }
     }else{
       const n=lanes(b.y1-b.y0);
       for(let i=0;i<=n;i++){
-        const t=i/n, y = pattern==='across-tb' ? b.y0+(b.y1-b.y0)*t : b.y1-(b.y1-b.y0)*t;
+        const t=i/n;
+        const y = (pattern==='across-tb' ? b.y0+(b.y1-b.y0)*t : b.y1-(b.y1-b.y0)*t) + R(-wob,wob);
         const flip = i%2===0;
-        pts.push({y, x: flip? b.x0 : b.x1});
-        pts.push({y, x: flip? b.x1 : b.x0});
+        const shy = Math.random()<.18 ? (b.x1-b.x0)*R(.02,.07) : 0;
+        pts.push({y, x: flip? b.x0+shy : b.x1-shy});
+        pts.push({y, x: flip? b.x1-shy : b.x0+shy});
       }
     }
     auto.pts=pts; auto.i=0; auto.name=pattern; auto.mode='sweep'; auto.lane=lane;
     auto.target=-1; auto.skip=new Set(); auto.stuck=0; auto.lastX=px; auto.lastY=py;
+    // how far it will chase the leftovers before handing the mop back
+    auto.upTo = S.mode==='mop' ? R(.955,.99) : 1.01;
   }
   // A waypoint counts as reached once the mop has gone past it along the way
   // it was travelling, and is roughly on the lane sideways. Asking for both
@@ -3082,6 +3174,12 @@
       }
       auto.mode='hunt'; auto.target=-1;                  // pattern finished
     }
+    // close enough: the last few specks are yours
+    if(auto.upTo<1 && painted >= (countable||N)*auto.upTo){
+      setWander(false);
+      readEl.textContent='A few spots left — those are yours.';
+      return;
+    }
 
     // hunt: head for the nearest cell still dirty, one axis at a time
     const hadTarget=auto.target;
@@ -3114,6 +3212,7 @@
     const speed=cell/pace();
     const ppx=px, ppy=py;
     const b=bounds();
+    if(aimWants()) targetHeading=Math.atan2(aim.y-py, aim.x-px);
     if(S.drag){
       // You hold the stick a little way up and the head trails behind on a fixed
       // length: it swings wide out of a corner and settles as you straighten.
@@ -4421,7 +4520,23 @@
     save();
   });
 
-  document.getElementById('clear-btn').addEventListener('click',()=>{
+  // Fresh surface throws away every room you have walked through, so it asks
+  // once. The second click inside four seconds is the one that does it.
+  const clearBtn=document.getElementById('clear-btn');
+  let clearArmed=0;
+  function disarmClear(){
+    clearTimeout(clearArmed); clearArmed=0;
+    clearBtn.classList.remove('danger');
+    clearBtn.textContent='Fresh surface';
+  }
+  clearBtn.addEventListener('click',()=>{
+    if(S.mode==='mop' && !clearArmed){
+      clearArmed=setTimeout(disarmClear, 4000);
+      clearBtn.classList.add('danger');
+      clearBtn.textContent='Reset every room?';
+      return;
+    }
+    disarmClear();
     if(S.mode!=='mop'){ rooms.length=0; roomIdx=0; newGrid(); return; }
     if(mcoop && !mcoop.test){
       // in company the corridor belongs to everybody: go back to its start
@@ -4445,6 +4560,12 @@
     holdBtn.textContent=S.hold?'Holding':'Hold to move'; held.clear(); save();
   });
   const wanderBtn=document.getElementById('wander-btn');
+  function setWander(on){
+    S.wander=!!on;
+    wanderBtn.setAttribute('aria-pressed',String(S.wander));
+    wanderBtn.textContent=S.wander?'Sweeping':'Sweep it clean';
+    save();
+  }
   wanderBtn.addEventListener('click',()=>{
     S.wander=!S.wander; wanderBtn.setAttribute('aria-pressed',String(S.wander));
     wanderBtn.textContent=S.wander?'Sweeping':'Sweep it clean';
@@ -6250,6 +6371,9 @@
   const SPEED_NAMES=['Amble','Scurry','Dash','Bolt'];
   const SPEED_MULT=[3.2,6.4,11.5,19.5];   // body lengths per second
   const A = { speed:1, hold:true, tint:20, size:1, pick:true };
+  // A phone has no key to hold, so picking things up is simply always on and
+  // the switch for it is not shown.
+  const ALWAYS_PICK = !!window.__touch;
   let W=0,H=0,dpr=1, ground=null, itemsLayer=null, pilesLayer=null;
   let items=[], piles=[], carried=[], flying=[];
   let ant={x:0,y:0,h:0,th:0}, body=26, baseBody=26, itemPx=22, total=0;
@@ -6917,9 +7041,7 @@
   }
   function topCarried(){
     if(gift && gift.have) return 'gift:'+gift.kind;
-    let best=null, bn=0;
-    for(const [cat,n] of carryCounts()) if(n>bn){ bn=n; best=cat; }
-    return best;
+    return lastCat();
   }
   function netSend(t,d){ if(coop && coop.net) coop.net.send(Object.assign({t}, d||{})); }
   // a handful of pickups in a quarter second is one message, not twenty
@@ -7463,6 +7585,14 @@
     }
     return best;
   }
+  // The stack above the ant's head reads bottom-to-top oldest-to-newest, and
+  // space puts down whatever is on top of it — the kind picked up last.
+  function carryStack(){
+    const seen=new Map();
+    for(let i=0;i<carried.length;i++) seen.set(carried[i], i);   // newest index wins
+    return [...seen.entries()].sort((a,b)=>a[1]-b[1]).map(e=>e[0]);
+  }
+  const lastCat = () => carried.length ? carried[carried.length-1] : null;
   function dominantCat(){
     let best=null, bn=0;
     for(const [cat,n] of carryCounts()) if(n>bn){ bn=n; best=cat; }
@@ -7600,7 +7730,7 @@
       return;
     }
     if(!carried.length) return;
-    const cat=dominantCat();
+    const cat=lastCat();
     const pile={id:newPileId(), x:ant.x, y:ant.y, cat, items:[]};
     piles.push(pile);
     sendToPile(pile,cat,carryCounts().get(cat)||0);
@@ -7614,14 +7744,27 @@
     dir=d; ant.th=DIRS[d];
     if(fromKey) held.add(d);
   }
-  const wantsMove = () => A.hold ? held.size>0 : !!dir;
+  // A finger on the floor is somewhere to walk to. It overrides the keys
+  // while it is down, and the ant stops once it has arrived rather than
+  // jittering under the fingertip.
+  const aim = window.__followFinger
+    ? window.__followFinger(stage, {
+        start(){ if(hintEl.style.opacity!=='0') hintEl.style.opacity='0'; },
+        tap(){ place(); },
+        twice(){ blow(); }
+      })
+    : {on:false, x:0, y:0};
+  const aimReach = () => Math.max(6, body*.45);
+  const aimWants = () => aim.on && Math.hypot(aim.x-ant.x, aim.y-ant.y) > aimReach();
+  const wantsMove = () => aimWants() || (A.hold ? held.size>0 : !!dir);
   function angleLerp(a,b,t){
     const diff=((b-a+Math.PI)%TAU+TAU)%TAU-Math.PI;
     return a+diff*t;
   }
 
   function step(dt,now){
-    if(wantsMove() && dir!==null){
+    if(aimWants()) ant.th=Math.atan2(aim.y-ant.y, aim.x-ant.x);
+    if(wantsMove() && (dir!==null || aimWants())){
       ant.h = reduce ? ant.th : angleLerp(ant.h, ant.th, 1-Math.exp(-dt/34));
       const sp = body*SPEED_MULT[A.speed]/1000;
       const pad=body*.45;
@@ -7633,7 +7776,7 @@
     // pick up
     const rr=body*.5;
     // auto-pickup takes everything you walk over; with it off, only shift does
-    const picking = A.pick || grabbing;
+    const picking = ALWAYS_PICK || A.pick || grabbing;
     for(let i=items.length-1;i>=0 && picking && carried.length<capacity();i--){
       const it=items[i];
       if(Math.hypot(it.x-ant.x,it.y-ant.y)<rr+catPx(it.cat)*.3){
@@ -7800,13 +7943,11 @@
   function drawAnt(c,t){
     drawAntBody(c, ant.x, ant.y, ant.h, (ant.walk||0)/(body*.5), myStyle(), t);
     if(gift && gift.have && !laidGift){ drawGift(c,ant.x,ant.y,gift,t); }
-    const m=carryCounts(); let k=0;
-    for(const [cat,n] of [...m.entries()].sort((a,b)=>b[1]-a[1])){
-      if(k>=4) break;
+    const stack=carryStack().slice(-4);          // the newest four, newest last
+    stack.forEach((cat,k)=>{
       const px=catPx(cat), bob=Math.sin(t/300+k)*1.5;
       drawItem(c,cat,0, ant.x - k*2, ant.y - body*.55 - k*px*.42 + bob, -.2+k*.12, .85);
-      k++;
-    }
+    });
     if(carried.length>6){
       c.fillStyle='rgba(255,255,255,.8)'; c.font='600 11px Karla, sans-serif';
       c.textAlign='center';
@@ -8069,6 +8210,7 @@
   document.getElementById('ant-blow').addEventListener('click',()=>{ blow(); });
   const pickBtn=document.getElementById('ant-pick');
   function paintPick(){
+    if(ALWAYS_PICK) return;
     pickBtn.setAttribute('aria-pressed',String(A.pick));
     pickBtn.classList.toggle('off', !A.pick);
     pickBtn.textContent = A.pick ? 'Auto-pickup mode (click to pick up by hand)'

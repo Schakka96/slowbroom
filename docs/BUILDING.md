@@ -60,6 +60,19 @@ node -e "const h=require('fs').readFileSync('index.html','utf8');
 grep -nE "innerHTML *=" index.html
 ```
 
+## Two sessions, one tree
+
+`src.html` in this repo is the **shared source of truth**, and `index.html` is
+built from it. More than one Claude session has worked here at once: if you
+hold a private copy of the source somewhere else, build from it, and commit,
+you will silently delete whatever the other session added — that has happened
+(build 116 wiped the porthole and coop work; their next build wiped mine).
+
+So: **start every session by copying `src.html`**, write your changes back into
+it, and stage `index.html`, `src.html` and `version.json` by name. Never
+`git add -A`. If `src.html` has changed since you copied it, re-port your edits
+onto the new one rather than overwriting.
+
 ## Editing
 
 Edits are made by exact string replacement with a uniqueness assertion, never
