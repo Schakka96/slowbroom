@@ -7738,6 +7738,26 @@
   }
   const pileR = p => itemPx*.55 + Math.sqrt(p.items.length)*itemPx*.42;
 
+  /* ── what the floor sounds like ─────────────────────────── */
+  // Fifteen backgrounds, four kinds of landing. Boards and desks knock,
+  // gravel and marble click, the pond bloops, and everything that grew —
+  // grass, leaf litter, sand, snow, the carpet — only rustles.
+  const FLOOR_SFX={
+    wood:'wood', shed:'wood', desk:'wood', shop:'wood',
+    gravel:'stone', hall:'stone', hall2:'stone', throne:'stone',
+    pond:'water',
+    meadow:'nature', forest:'nature', garden:'nature',
+    snow:'nature', sand:'nature', carpet:'nature'
+  };
+  function floorSfx(){
+    const L=LEVELS[Math.min(level,LEVELS.length-1)];
+    return (L && FLOOR_SFX[L.ground]) || 'wood';
+  }
+  const sfx = n => (window.__sfx && window.__sfx[n]) || null;
+  const sfxPlop   = () => { const f=sfx('plop');   if(f) f(); };
+  const sfxPlace  = () => { const f=sfx('place');  if(f) f(floorSfx()); };
+  const sfxWhoosh = () => { const f=sfx('whoosh'); if(f) f(); };
+
   /* ── carrying and piling ────────────────────────────────── */
   function carryCounts(){
     const m=new Map();
@@ -7809,6 +7829,7 @@
     const room=capacity()-carried.length;
     const take=Math.min(room,p.items.length);
     for(let i=0;i<take;i++){ carried.push(p.cat); p.items.pop(); }
+    for(let i=0;i<Math.min(take,4);i++) sfxPlop();
     // things still flying towards it would land nowhere if the pile vanished
     const n=toN(p.x,p.y);
     if(!p.items.length && !inFlightTo(p)) piles.splice(piles.indexOf(p),1);
@@ -7823,6 +7844,7 @@
   }
   let puffs=[];
   function blowAt(x,y,broadcast){
+    if(broadcast) sfxWhoosh();
     const r=body*3.2;
     for(const it of items){
       const dx=it.x-x, dy=it.y-y, d=Math.hypot(dx,dy)||1;
@@ -7967,6 +7989,7 @@
       if(Math.hypot(it.x-ant.x,it.y-ant.y)<rr+catPx(it.cat)*.3){
         items.splice(i,1); carried.push(it.cat);
         if(coop) queueTake(it.id);
+        sfxPlop();
         itemsDirty=true; carryDirty=true; updateHud();
       }
     }
@@ -7989,6 +8012,7 @@
       if(f.t>=1){
         if(piles.indexOf(f.pile)<0) piles.push(f.pile);
         f.pile.items.push({dx:f.x1-f.pile.x, dy:f.y1-f.pile.y, rot:f.rot, sc:f.sc, v:f.v});
+        sfxPlace();
         flying.splice(i,1); pilesDirty=true; updateHud();
         if(coop) sharePiles();
       }
@@ -10253,8 +10277,163 @@
     [N.C5,N.E5,N.G5,1046.5,1318.5].forEach((f,i)=>bell(f, t+2.3+i*.12, .12));
   }
 
+  // ── the ant's hands ───────────────────────────────────────────────
+  // Everything below is deliberately the quietest thing in the game: a plop
+  // you only notice when it stops. Eight of them, dealt from a shuffled bag,
+  // so a handful picked up in a row never ticks twice the same way.
+  //
+  // Setting a thing down is not one sound either. A pebble dropped on
+  // flagstones and a leaf laid on moss do not land alike, so the placing
+  // sound is chosen by the floor the ant is standing on — and grass, moss,
+  // leaf litter, sand and snow get six of their own, because that is most of
+  // the game's floors and they are the ones a repeat would be heard on.
+  function haveAudio(){
+    if(!S.on) return false;
+    // A key can be pressed before the bed has ever been built: ask for the
+    // audio rather than dropping the sound on the floor (thunder learnt this
+    // the hard way).
+    if(!ready){ build(); resume(); }
+    return !!ready;
+  }
+  // one short burst of noise through one filter — the body of most of these
+  function noiseHit(o){
+    const t=o.at, dur=o.dur;
+    const src=ctx.createBufferSource(); src.buffer=noiseBuffer(dur);
+    const f=ctx.createBiquadFilter(); f.type=o.type||'bandpass';
+    f.frequency.setValueAtTime(o.f0,t);
+    if(o.f1) f.frequency.exponentialRampToValueAtTime(o.f1, t+dur);
+    f.Q.value=o.q||1;
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(.0001,t);
+    g.gain.exponentialRampToValueAtTime(Math.max(.0002,o.g), t+(o.atk||.004));
+    g.gain.exponentialRampToValueAtTime(.0001, t+dur);
+    src.connect(f); f.connect(g); g.connect(master);
+    src.start(t); src.stop(t+dur+.02);
+  }
+  // one damped sine — the pitched part of a plop, a knock or a bloop
+  function blip(o){
+    const t=o.at, dur=o.dur;
+    const osc=ctx.createOscillator(); osc.type=o.wave||'sine';
+    osc.frequency.setValueAtTime(o.f0,t);
+    if(o.f1) osc.frequency.exponentialRampToValueAtTime(o.f1, t+dur*(o.bend||1));
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(.0001,t);
+    g.gain.exponentialRampToValueAtTime(Math.max(.0002,o.g), t+(o.atk||.003));
+    g.gain.exponentialRampToValueAtTime(.0001, t+dur);
+    osc.connect(g); g.connect(master);
+    osc.start(t); osc.stop(t+dur+.02);
+  }
+  // deal indices without repeats, and without the seam of one bag's last
+  // landing next to the next bag's first
+  function shuffleBag(n){
+    let order=[], i=0;
+    const deal=avoid=>{
+      order=[]; for(let k=0;k<n;k++) order.push(k);
+      for(let k=n-1;k>0;k--){ const j=(Math.random()*(k+1))|0, t=order[k]; order[k]=order[j]; order[j]=t; }
+      if(n>1 && order[0]===avoid) order.push(order.shift());
+      i=0;
+    };
+    deal(-1);
+    return ()=>{ if(i>=order.length) deal(order[order.length-1]); return order[i++]; };
+  }
+  // Ten things picked up in one frame would be one loud click, not ten plops.
+  // Space them out, and once the queue runs further ahead than a person would
+  // connect to what they saw, drop the rest — nobody counts past about four.
+  function laneSlot(lane, gap, ahead){
+    const now=ctx.currentTime;
+    const t=Math.max(now+.004, (lane.t||0)+gap);
+    if(t > now+ahead) return 0;
+    lane.t=t;
+    return t;
+  }
+  const plopLane={t:0}, placeLane={t:0};
+
+  const PLOPS=[
+    {f0:840, f1:420, dur:.055, g:.030, hf:2600, hq:1.2, hg:.010, hd:.020},
+    {f0:720, f1:360, dur:.062, g:.028, hf:2200, hq:1.0, hg:.009, hd:.022},
+    {f0:960, f1:520, dur:.048, g:.031, hf:3100, hq:1.4, hg:.011, hd:.018},
+    {f0:640, f1:300, dur:.070, g:.026, hf:1900, hq:.9,  hg:.008, hd:.025},
+    {f0:1080,f1:600, dur:.044, g:.029, hf:3400, hq:1.6, hg:.010, hd:.016},
+    {f0:780, f1:330, dur:.060, g:.030, hf:2400, hq:1.1, hg:.009, hd:.020},
+    {f0:900, f1:470, dur:.050, g:.027, hf:2800, hq:1.3, hg:.010, hd:.019},
+    {f0:680, f1:390, dur:.066, g:.032, hf:2050, hq:1.0, hg:.009, hd:.024}
+  ];
+  const nextPlop=shuffleBag(PLOPS.length);
+  function plop(){
+    if(!haveAudio()) return;
+    const t=laneSlot(plopLane,.042,.30); if(!t) return;
+    const p=PLOPS[nextPlop()], j=R2(.93,1.08), v=R2(.8,1.2);
+    blip({at:t, f0:p.f0*j, f1:p.f1*j, dur:p.dur, g:p.g*v, bend:.55});
+    noiseHit({at:t, f0:p.hf*j, q:p.hq, dur:p.hd, g:p.hg*v, atk:.002});
+  }
+
+  // `f` is the body the floor gives back, `nf` the scrape on top of it
+  const PLACES={
+    // boards: a soft knock with a little room behind it
+    wood:[
+      {f:196, dur:.11, g:.050, nf:900,  nq:1.1, ng:.026, nd:.030, wave:'triangle'},
+      {f:240, dur:.095,g:.046, nf:1150, nq:1.3, ng:.024, nd:.026, wave:'triangle'},
+      {f:168, dur:.13, g:.052, nf:760,  nq:1.0, ng:.028, nd:.034, wave:'triangle'}
+    ],
+    // flagstone, gravel, marble: harder, brighter, over before it began
+    stone:[
+      {f:520, dur:.045,g:.036, nf:2600, nq:1.6, ng:.034, nd:.024},
+      {f:640, dur:.038,g:.033, nf:3300, nq:1.9, ng:.031, nd:.020},
+      {f:430, dur:.055,g:.038, nf:2100, nq:1.4, ng:.036, nd:.028}
+    ],
+    // water: the pitch rises as the surface closes over it — that rise is
+    // the whole reason a bloop reads as wet rather than as a low knock
+    water:[
+      {f:300, up:2.6, dur:.13, g:.052, nf:1500, nq:.9,  ng:.020, nd:.045},
+      {f:380, up:2.3, dur:.11, g:.048, nf:1800, nq:1.0, ng:.018, nd:.040},
+      {f:240, up:3.0, dur:.16, g:.055, nf:1200, nq:.8,  ng:.022, nd:.055}
+    ],
+    // grass, moss, leaf litter, sand, snow: almost no knock at all, just a
+    // small rustle that takes a moment to arrive and a moment to die
+    nature:[
+      {f:120, dur:.14, g:.014, nf:1500, nf2:900,  nq:1.1, ng:.040, nd:.14, atk:.012},
+      {f:100, dur:.18, g:.012, nf:1150, nf2:700,  nq:.9,  ng:.036, nd:.18, atk:.016},
+      {f:140, dur:.11, g:.013, nf:2000, nf2:1200, nq:1.3, ng:.042, nd:.11, atk:.010},
+      {f:90,  dur:.20, g:.011, nf:900,  nf2:560,  nq:.8,  ng:.034, nd:.20, atk:.020},
+      {f:130, dur:.13, g:.013, nf:1750, nf2:1050, nq:1.2, ng:.038, nd:.13, atk:.011},
+      {f:110, dur:.16, g:.012, nf:1300, nf2:800,  nq:1.0, ng:.037, nd:.16, atk:.014}
+    ]
+  };
+  const placeBags={};
+  function placeSound(surface){
+    if(!haveAudio()) return;
+    const set=PLACES[surface]||PLACES.wood;
+    if(!placeBags[surface]) placeBags[surface]=shuffleBag(set.length);
+    const t=laneSlot(placeLane,.055,.36); if(!t) return;
+    const s=set[placeBags[surface]()], j=R2(.94,1.07), v=R2(.82,1.18);
+    if(s.up) blip({at:t, f0:s.f*j, f1:s.f*j*s.up, dur:s.dur, g:s.g*v, bend:.8});
+    else     blip({at:t, f0:s.f*j, f1:s.f*j*.72,  dur:s.dur, g:s.g*v, bend:.9, wave:s.wave});
+    noiseHit({at:t, f0:s.nf*j, f1:s.nf2?s.nf2*j:0, q:s.nq, dur:s.nd,
+              g:s.ng*v, atk:s.atk||.003});
+  }
+
+  // the blow: one band of air that opens up and falls away, no loop, no drone
+  function whoosh(){
+    if(!haveAudio()) return;
+    const t=ctx.currentTime+.005, dur=R2(.34,.5);
+    const src=ctx.createBufferSource(); src.buffer=noiseBuffer(dur);
+    const bp=ctx.createBiquadFilter(); bp.type='bandpass';
+    bp.frequency.setValueAtTime(R2(420,540),t);
+    bp.frequency.exponentialRampToValueAtTime(R2(1500,2000), t+dur*.3);
+    bp.frequency.exponentialRampToValueAtTime(R2(520,680),  t+dur);
+    bp.Q.value=R2(.55,.9);
+    const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=3400;
+    const g=ctx.createGain();
+    g.gain.setValueAtTime(.0001,t);
+    g.gain.exponentialRampToValueAtTime(R2(.05,.075), t+dur*.22);
+    g.gain.exponentialRampToValueAtTime(.0001, t+dur);
+    src.connect(bp); bp.connect(lp); lp.connect(g); g.connect(master);
+    src.start(t); src.stop(t+dur+.05);
+  }
+
   window.__sfx={
     royal, royalFinale,
+    plop, place:placeSound, whoosh,
     weather(w){ S.weather=w; applyWeatherSound(w); },
     tool:setTool,
     thunder,
