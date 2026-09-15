@@ -3549,12 +3549,14 @@
       e.fillStyle='rgba(0,0,0,'+Math.min(.25, dt/900)+')'; e.fillRect(0,0,W,H);
       e.restore();
     }
-    // The cleaned map lives in `state`; this layer is only a sheen. Let it
-    // dry too, otherwise local and remote mop paths remain as bright tracks.
+    // The cleaned map lives in `state`; this layer is only a short-lived sheen.
+    // It is also used by replayed peer strokes, so it must dry at the same
+    // pace regardless of who made the path: after three seconds less than 1%
+    // remains.  Use the exponential form so that rate is frame-rate independent.
     if(clean){
       const k=clean.ctx;
       k.save(); k.globalCompositeOperation='destination-out';
-      k.fillStyle='rgba(0,0,0,'+Math.min(.16, dt/4200)+')'; k.fillRect(0,0,W,H);
+      k.fillStyle='rgba(0,0,0,'+Math.min(.25, 1-Math.exp(-dt/650))+')'; k.fillRect(0,0,W,H);
       k.restore();
     }
   }
