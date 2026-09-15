@@ -13,7 +13,7 @@ node tools/mopcheck.js           # the shared-floor machinery, on one browser
 node tools/together.js           # two browsers, one corridor — co-op end to end
 node tools/surfaces.js           # every surface builds; the live ones run
 node tools/antsound.js           # the ant's plops and landings, into a fake speaker
-node tools/skins.js              # all three looks, both ways into dark
+node tools/skins.js              # the palette, and the rails that were stripped back
 git add <paths> && git commit && git push        # GitHub Pages serves it
 ```
 
@@ -51,14 +51,17 @@ measures, not just whether it passes: its first version only kept nodes that
 were `start()`ed, so it never saw a filter, and it cheerfully reported grass
 as a 100 Hz knock. A rustle **is** its filter.
 
-`tools/skins.js` reads the stylesheet rather than the screen: it checks each
-look defines the whole palette (a skin that forgets one token silently
-inherits the house one — a violet accent stranded on cream paper), that each
-covers both routes into dark and agrees with itself between them, and that
-the skin blocks come after the ones they override, since they tie on
-specificity and source order decides. Note that `build.py` stamps its own
-little reset `<style>` into the head, and that one opens `:root{` too — the
-page's real stylesheet is the big one.
+`tools/skins.js` reads the markup and the stylesheet rather than the screen.
+It checks the palette defines every token and covers both routes into dark,
+that things sit where they were asked to sit, and — the part that earns its
+keep — that **nothing still reaches for a control that has been removed**.
+Deleting a button from the markup while its `getElementById` survives throws
+at load and takes that whole `<script>` block with it, so the game simply
+never starts. That happened twice in one afternoon (`holdBtn`, then
+`tintEl`); `sweep.js` catches the throw, and `skins.js` names the control.
+
+Note that `build.py` stamps its own little reset `<style>` into the head, and
+that one opens `:root{` too — the page's real stylesheet is the big one.
 
 `tools/sweep.js` is a stub-DOM harness. It loads each `<script>` block in a
 fake document and reports which ones throw at load. It exists because a

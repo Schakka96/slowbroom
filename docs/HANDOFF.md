@@ -30,13 +30,13 @@ Live: https://schakka96.github.io/slowbroom/ · build 123 — Mahagony Mop (what
 
 ## Open
 
-- **Three looks, and she has not picked one yet.** House (the original: cool
-  grey, violet, serif), Crayon and Linen, chosen under light/dark and stored
-  in `sb-skin`. The skins are pure CSS tokens — palette, plus `--font-body`,
-  `--font-display`, `--radius`, `--border-w` and friends. If one wins, the
-  others can be deleted and the winner folded into `:root`. If a third is
-  wanted, copy a block and keep both dark halves in step; `tools/skins.js`
-  will tell you if you forget one.
+- **Crayon is the look.** Warm cream paper, one tomato red, 2px ink borders,
+  fat corners, a hard offset shadow with no blur, Baloo 2 + Nunito. It is the
+  bare `:root` now — House and Linen were tried and deleted, so there is no
+  skin switch. Shape and type are tokens (`--radius`, `--border-w`,
+  `--font-display`, …), so a future look moves those too, not just colour.
+- **Three mop looks** — Chalk, Clay, Moss — live in the mopping rail and just
+  drive the four Palette sliders. Touching a slider drops the preset label.
 
 - **Mopping together is rebuilt and now shows for everyone.** `MOP_COOP()`
   returns `true`; the "Mop together" panel is part of the mopping rail. See
