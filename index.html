@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 112 — Mahagony Mop";</script>
+<script>window.SLOWBROOM_BUILD="build 113 — Mahagony Mop";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -1147,9 +1147,25 @@
   }
 
   // ── windows: one frame, many views
+  // ── the frame goes on last, every frame ──────────────────────────────
+  // Rain and snow are animated on top of the finished surface, so the only
+  // thing keeping them outdoors was a rounded rectangle hand-matched to each
+  // window's opening. It never quite matched: every sash window's bottom rail
+  // is 6.4% of the height but the clip stopped at 4.5%, so rain fell on the
+  // sill; nothing at all covered the glazing bars; and the desert hut's
+  // opening is an ellipse being masked by a rectangle, which let the sand and
+  // snow into all four corners. A surface now hands back how to draw its
+  // frame, that is rendered once into a layer of its own, and the layer is
+  // laid over the weather every frame. Whatever shape the opening is, the
+  // weather is behind it.
+  let pendingFrame=null;
+  const frameAfter = fn => { pendingFrame=fn; };
   function windowFrame(c,w,h,o){
     o=o||{};
     applyWeather(c,w,h);
+    frameAfter(fc=>windowFrameOn(fc,w,h,o));
+  }
+  function windowFrameOn(c,w,h,o){
     const f=Math.max(6,Math.min(w,h)*(o.thin?.016:.02));
     if(o.bars!==false){
       c.lineWidth=f*.75; c.strokeStyle=o.paint||'#eceadf';
@@ -1249,6 +1265,92 @@
     }
   }
   const applyWeather = (c,w,h) => { applyTime(c,w,h); applyWeatherTint(c,w,h); };
+
+
+  // ───────────────────────── the sea, for the boat's portholes
+  // A steel ring with rivets, drawn after everything else so the water and
+  // whatever swims in it stay on the far side of the glass.
+  function hullRing(w,h,o){
+    o=o||{};
+    frameAfter(c=>{
+      const ins=Math.min(w,h)*.07, r=Math.min(w,h)*.5;
+      c.save();
+      c.beginPath(); c.rect(0,0,w,h);
+      c.roundRect(ins,ins,w-2*ins,h-2*ins,r);
+      const st=c.createLinearGradient(0,0,w,h);
+      st.addColorStop(0, o.a||'#5a646c'); st.addColorStop(.35, o.b||'#98a4ad');
+      st.addColorStop(.62, o.c||'#3f4750'); st.addColorStop(1, o.d||'#79848d');
+      c.fillStyle=st; c.fill('evenodd');
+      c.restore();
+      c.strokeStyle='rgba(12,18,22,.66)'; c.lineWidth=Math.max(2,ins*.2);
+      c.beginPath(); c.roundRect(ins,ins,w-2*ins,h-2*ins,r); c.stroke();
+      c.strokeStyle='rgba(255,255,255,.18)'; c.lineWidth=Math.max(1,ins*.09);
+      c.beginPath(); c.roundRect(ins*1.35,ins*1.35,w-2.7*ins,h-2.7*ins,r); c.stroke();
+      for(let i=0;i<14;i++){                                   // rivets around the ring
+        const a=i/14*TAU;
+        const bx=w/2+Math.cos(a)*(w/2-ins*.48), by=h/2+Math.sin(a)*(h/2-ins*.48);
+        const g=c.createRadialGradient(bx-ins*.06,by-ins*.06,ins*.02,bx,by,ins*.22);
+        g.addColorStop(0,'#cfd8de'); g.addColorStop(1,'#6a747c');
+        c.fillStyle=g; c.beginPath(); c.arc(bx,by,ins*.21,0,TAU); c.fill();
+        c.fillStyle='rgba(10,14,18,.4)'; c.beginPath(); c.arc(bx,by,ins*.07,0,TAU); c.fill();
+      }
+    });
+  }
+  // one fish, nose pointing along `dir`
+  function fishShape(c,x,y,L,dir,body,fin,belly,tailWag){
+    c.save(); c.translate(x,y); c.scale(dir<0?-1:1,1);
+    const H=L*.4;
+    c.fillStyle=fin||body;                                     // tail
+    c.beginPath();
+    c.moveTo(-L*.42,0);
+    c.lineTo(-L*.62, -H*(.5+tailWag*.25));
+    c.lineTo(-L*.54, 0);
+    c.lineTo(-L*.62,  H*(.5-tailWag*.25));
+    c.closePath(); c.fill();
+    c.fillStyle=body;                                          // body
+    c.beginPath(); c.ellipse(0,0,L*.46,H*.5,0,0,TAU); c.fill();
+    if(belly){
+      c.fillStyle=belly;
+      c.beginPath(); c.ellipse(L*.02,H*.16,L*.36,H*.26,0,0,TAU); c.fill();
+    }
+    c.fillStyle=fin||body;                                     // dorsal
+    c.beginPath(); c.moveTo(-L*.1,-H*.44); c.lineTo(L*.06,-H*.86); c.lineTo(L*.16,-H*.4);
+    c.closePath(); c.fill();
+    c.fillStyle='rgba(8,14,20,.85)';                           // eye
+    c.beginPath(); c.arc(L*.3,-H*.1,Math.max(.8,L*.045),0,TAU); c.fill();
+    c.restore();
+  }
+  // a shaft of sunlight coming down through the surface
+  function sunShaft(c,x,top,len,wide,tilt,alpha,tint){
+    c.save(); c.translate(x,top); c.rotate(tilt);
+    const g=c.createLinearGradient(0,0,0,len);
+    g.addColorStop(0, tint||'rgba(226,248,255,'+alpha+')');
+    g.addColorStop(.55,'rgba(190,232,250,'+(alpha*.45)+')');
+    g.addColorStop(1,'rgba(150,210,240,0)');
+    c.fillStyle=g;
+    c.beginPath();
+    c.moveTo(-wide*.28,0); c.lineTo(wide*.28,0);
+    c.lineTo(wide*.85,len); c.lineTo(-wide*.85,len);
+    c.closePath(); c.fill();
+    c.restore();
+  }
+  // marine snow and plankton: the specks that tell you it is water
+  function motes(n,w,h,rmin,rmax){
+    const out=[];
+    for(let i=0;i<n;i++) out.push({x:R(0,w), y:R(0,h), r:R(rmin,rmax),
+                                   s:R(.004,.02), d:R(0,TAU), a:R(.12,.5)});
+    return out;
+  }
+  function driftMotes(c,list,w,h,dt,col){
+    c.fillStyle=col||'rgba(226,244,252,.5)';
+    for(const p of list){
+      p.d+=dt*.001; p.y-=p.s*dt*.22; p.x+=Math.sin(p.d)*dt*.012;
+      if(p.y<-4){ p.y=h+4; p.x=R(0,w); }
+      c.globalAlpha=p.a*(.55+.45*Math.sin(p.d*1.7));
+      c.beginPath(); c.arc(p.x,p.y,p.r,0,TAU); c.fill();
+    }
+    c.globalAlpha=1;
+  }
 
   function skyGrad(c,w,h,stops){
     const g=c.createLinearGradient(0,0,0,h);
@@ -1473,26 +1575,20 @@
         c.strokeStyle='rgba(255,255,255,.5)'; c.lineWidth=Math.max(1,h*.004);
         c.beginPath(); c.moveTo(w*.04,h*1.0); c.lineTo(w*.57,h*.545); c.stroke();
         applyWeather(c,w,h);
-        // cabin surround: a rounded porthole instead of sashes
-        const r=Math.min(w,h)*.3;
-        c.save();
-        c.beginPath(); c.roundRect(0,0,w,h,r); c.clip();
-        c.restore();
-        c.save();
-        c.beginPath();
-        c.rect(0,0,w,h);
-        c.roundRect(Math.min(w,h)*.045, Math.min(w,h)*.045,
-                    w-Math.min(w,h)*.09, h-Math.min(w,h)*.09, r*.85);
-        c.fill('evenodd');
-        const sur=c.createLinearGradient(0,0,0,h);
-        sur.addColorStop(0,'#f2f1ee'); sur.addColorStop(1,'#d7d6d1');
-        c.fillStyle=sur; c.fill('evenodd');
-        c.restore();
-        c.strokeStyle='rgba(120,120,118,.5)'; c.lineWidth=Math.max(1.5,Math.min(w,h)*.006);
-        c.beginPath();
-        c.roundRect(Math.min(w,h)*.045, Math.min(w,h)*.045,
-                    w-Math.min(w,h)*.09, h-Math.min(w,h)*.09, r*.85);
-        c.stroke();
+        frameAfter(fc=>{
+          // cabin surround: a rounded porthole instead of sashes
+          const r=Math.min(w,h)*.3, m=Math.min(w,h)*.045;
+          fc.save();
+          fc.beginPath();
+          fc.rect(0,0,w,h);
+          fc.roundRect(m, m, w-m*2, h-m*2, r*.85);
+          const sur=fc.createLinearGradient(0,0,0,h);
+          sur.addColorStop(0,'#f2f1ee'); sur.addColorStop(1,'#d7d6d1');
+          fc.fillStyle=sur; fc.fill('evenodd');
+          fc.restore();
+          fc.strokeStyle='rgba(120,120,118,.5)'; fc.lineWidth=Math.max(1.5,Math.min(w,h)*.006);
+          fc.beginPath(); fc.roundRect(m, m, w-m*2, h-m*2, r*.85); fc.stroke();
+        });
       }},
 
     { name:'Window over Tokyo', type:'window', dusty:'glass', glassy:1,
@@ -1622,22 +1718,356 @@
         c.fillStyle='rgba(255,246,214,.35)';
         c.beginPath(); c.ellipse(w*.7,h*.2,Math.min(w,h)*.07,Math.min(w,h)*.07,0,0,TAU); c.fill();
         applyWeather(c,w,h);
-        const ins=Math.min(w,h)*.06, r=Math.min(w,h)*.46;
-        c.save();
-        c.beginPath(); c.rect(0,0,w,h);
-        c.roundRect(ins,ins,w-2*ins,h-2*ins,r); 
-        const br=c.createLinearGradient(0,0,w,h);
-        br.addColorStop(0,'#c8a85e'); br.addColorStop(.4,'#8a6f36');
-        br.addColorStop(.7,'#e3c887'); br.addColorStop(1,'#775f2e');
-        c.fillStyle=br; c.fill('evenodd');
-        c.restore();
-        c.strokeStyle='rgba(60,46,18,.6)'; c.lineWidth=Math.max(1.5,ins*.18);
-        c.beginPath(); c.roundRect(ins,ins,w-2*ins,h-2*ins,r); c.stroke();
-        for(let i=0;i<10;i++){                                             // bolts
-          const a=i/10*TAU, bx=w/2+Math.cos(a)*(w/2-ins*.45), by=h/2+Math.sin(a)*(h/2-ins*.45);
-          c.fillStyle='#e8d29a'; c.beginPath(); c.arc(bx,by,ins*.2,0,TAU); c.fill();
-          c.fillStyle='rgba(70,54,20,.5)'; c.beginPath(); c.arc(bx,by,ins*.09,0,TAU); c.fill();
+        frameAfter(fc=>{
+          const ins=Math.min(w,h)*.06, r=Math.min(w,h)*.46;
+          fc.save();
+          fc.beginPath(); fc.rect(0,0,w,h);
+          fc.roundRect(ins,ins,w-2*ins,h-2*ins,r);
+          const br=fc.createLinearGradient(0,0,w,h);
+          br.addColorStop(0,'#c8a85e'); br.addColorStop(.4,'#8a6f36');
+          br.addColorStop(.7,'#e3c887'); br.addColorStop(1,'#775f2e');
+          fc.fillStyle=br; fc.fill('evenodd');
+          fc.restore();
+          fc.strokeStyle='rgba(60,46,18,.6)'; fc.lineWidth=Math.max(1.5,ins*.18);
+          fc.beginPath(); fc.roundRect(ins,ins,w-2*ins,h-2*ins,r); fc.stroke();
+          for(let i=0;i<10;i++){                                           // bolts
+            const a=i/10*TAU, bx=w/2+Math.cos(a)*(w/2-ins*.45), by=h/2+Math.sin(a)*(h/2-ins*.45);
+            fc.fillStyle='#e8d29a'; fc.beginPath(); fc.arc(bx,by,ins*.2,0,TAU); fc.fill();
+            fc.fillStyle='rgba(70,54,20,.5)'; fc.beginPath(); fc.arc(bx,by,ins*.09,0,TAU); fc.fill();
+          }
+        });
+      }},
+
+
+    { name:'Porthole on the reef', type:'window', dusty:'glass', sub:1, bed:'reef',
+      clip:{inset:.07, r:.5},
+      draw(c,w,h){
+        skyGrad(c,w,h,[[0,'#39c8d8'],[.35,'#1fa3c4'],[.72,'#127b9e'],[1,'#0b5675']]);
+        c.save(); c.globalCompositeOperation='lighter';       // sun on the water above
+        const top=c.createLinearGradient(0,0,0,h*.42);
+        top.addColorStop(0,'rgba(220,255,255,.5)'); top.addColorStop(1,'rgba(220,255,255,0)');
+        c.fillStyle=top; c.fillRect(0,0,w,h*.42); c.restore();
+        c.fillStyle='rgba(6,52,72,.5)';                        // sand shelf
+        c.beginPath(); c.moveTo(0,h*.86);
+        for(let x=0;x<=w;x+=w*.04) c.lineTo(x, h*.86-Math.sin(x/(w*.17))*h*.03);
+        c.lineTo(w,h); c.lineTo(0,h); c.fill();
+        c.fillStyle='#e7dcbe';
+        c.beginPath(); c.moveTo(0,h*.9);
+        for(let x=0;x<=w;x+=w*.04) c.lineTo(x, h*.9-Math.sin(x/(w*.15)+1.2)*h*.02);
+        c.lineTo(w,h); c.lineTo(0,h); c.fill();
+        const CORAL=['#ff8a5c','#ff6f91','#ffc65c','#c77dff','#5cd6a0','#ff5c7a','#7ad7f0'];
+        for(let i=0;i<26;i++){                                 // brain and boulder corals
+          const X=R(0,w), Y=h*R(.72,.93), sz=Math.min(w,h)*R(.035,.1);
+          const col=CORAL[(Math.random()*CORAL.length)|0];
+          c.fillStyle=col; c.globalAlpha=R(.7,.95);
+          c.beginPath();
+          for(let k=0;k<7;k++){
+            const a=k/7*TAU, rr=sz*R(.55,1);
+            c.lineTo(X+Math.cos(a)*rr, Y+Math.sin(a)*rr*.62);
+          }
+          c.closePath(); c.fill();
+          c.strokeStyle='rgba(255,255,255,.22)'; c.lineWidth=Math.max(.8,sz*.05);
+          for(let k=0;k<4;k++){
+            c.beginPath();
+            c.moveTo(X-sz*.7, Y-sz*.3+k*sz*.2);
+            c.quadraticCurveTo(X, Y-sz*.5+k*sz*.2, X+sz*.7, Y-sz*.28+k*sz*.2);
+            c.stroke();
+          }
         }
+        c.globalAlpha=1;
+        for(let i=0;i<14;i++){                                 // sea fans
+          const X=R(0,w), Y=h*R(.74,.9), sz=Math.min(w,h)*R(.06,.16);
+          const col=CORAL[(Math.random()*CORAL.length)|0];
+          c.strokeStyle=col; c.globalAlpha=.75;
+          c.lineWidth=Math.max(1,sz*.035); c.lineCap='round';
+          for(let k=-3;k<=3;k++){
+            c.beginPath(); c.moveTo(X,Y);
+            c.quadraticCurveTo(X+k*sz*.12, Y-sz*.5, X+k*sz*.26, Y-sz);
+            c.stroke();
+          }
+        }
+        c.globalAlpha=1;
+        for(let i=0;i<16;i++){                                 // tube sponges
+          const X=R(0,w), Y=h*R(.78,.92), sz=Math.min(w,h)*R(.03,.075);
+          c.fillStyle=CORAL[(Math.random()*CORAL.length)|0]; c.globalAlpha=.85;
+          for(let k=0;k<3;k++){
+            const ox2=X+k*sz*.5-sz*.5;
+            c.beginPath(); c.roundRect(ox2-sz*.16, Y-sz*R(.8,1.5), sz*.32, sz*1.5, sz*.16); c.fill();
+          }
+        }
+        c.globalAlpha=1;
+        hullRing(w,h);
+      },
+      seed(w,h){
+        const FISH=['#ffd24d','#ff8a3d','#4dd2ff','#ff5c8a','#9be86b','#f0f0f0','#ffa6d5'];
+        const fish=[];
+        for(let i=0;i<16;i++){
+          const L=Math.min(w,h)*R(.035,.085);
+          fish.push({x:R(0,w), y:h*R(.18,.84), L, dir:Math.random()<.5?-1:1,
+                     sp:R(.012,.045), bob:R(0,TAU), bobA:R(.2,.8),
+                     col:FISH[(Math.random()*FISH.length)|0], wag:R(0,TAU)});
+        }
+        return {fish, motes:motes(30,w,h,.7,2.1), t:0,
+                anem:Array.from({length:12},()=>({x:R(0,w), y:h*R(.76,.92),
+                  sz:Math.min(w,h)*R(.02,.05), ph:R(0,TAU),
+                  col:'hsl('+R(280,340)+' 80% 72%)'}))};
+      },
+      swim(c,w,h,dt,st,low){
+        st.t+=dt;
+        c.save(); c.globalCompositeOperation='lighter';        // light rippling on the sand
+        c.globalAlpha=.13+.06*Math.sin(st.t*.0011);
+        const g=c.createLinearGradient(0,0,0,h);
+        g.addColorStop(0,'rgba(190,255,255,.7)'); g.addColorStop(1,'rgba(190,255,255,0)');
+        c.fillStyle=g; c.fillRect(0,0,w,h);
+        c.restore();
+        for(const a of st.anem){                               // anemones breathing
+          a.ph+=dt*.0016;
+          const k=1+Math.sin(a.ph)*.16;
+          c.strokeStyle=a.col; c.globalAlpha=.7;
+          c.lineWidth=Math.max(.8,a.sz*.16); c.lineCap='round';
+          for(let i=-3;i<=3;i++){
+            c.beginPath(); c.moveTo(a.x,a.y);
+            c.quadraticCurveTo(a.x+i*a.sz*.2, a.y-a.sz*.7*k, a.x+i*a.sz*.42, a.y-a.sz*1.25*k);
+            c.stroke();
+          }
+        }
+        c.globalAlpha=1;
+        if(!low) driftMotes(c, st.motes, w, h, dt, 'rgba(232,252,255,.55)');
+        for(const f of st.fish){                               // the reef fish
+          f.wag+=dt*.012; f.bob+=dt*.0022;
+          f.x += f.dir*f.sp*dt;
+          f.y += Math.sin(f.bob)*dt*.012*f.bobA;
+          if(f.x < -f.L) f.x = w+f.L; else if(f.x > w+f.L) f.x = -f.L;
+          fishShape(c, f.x, f.y, f.L, f.dir, f.col, 'rgba(255,255,255,.55)',
+                    'rgba(255,255,255,.4)', Math.sin(f.wag));
+        }
+      }},
+
+    { name:'Porthole in open water', type:'window', dusty:'glass', sub:1, bed:'open',
+      clip:{inset:.07, r:.5},
+      draw(c,w,h){
+        skyGrad(c,w,h,[[0,'#8fe6f5'],[.18,'#3fb6da'],[.55,'#1573a8'],[1,'#062f55']]);
+        c.save(); c.globalCompositeOperation='lighter';
+        for(let i=0;i<30;i++){                                 // the underside of the swell
+          const X=R(0,w), Y=h*R(0,.14), l=R(w*.06,w*.26);
+          c.strokeStyle='rgba(235,255,255,'+R(.1,.4)+')';
+          c.lineWidth=Math.max(1,h*.004);
+          c.beginPath(); c.moveTo(X,Y);
+          c.quadraticCurveTo(X+l*.5, Y-h*.018, X+l, Y); c.stroke();
+        }
+        c.restore();
+        hullRing(w,h);
+      },
+      seed(w,h){
+        const beams=[];
+        for(let i=0;i<7;i++)
+          beams.push({x:R(-w*.1,w*1.1), wide:Math.min(w,h)*R(.05,.16), tilt:R(-.22,.22),
+                      sw:R(0,TAU), sp:R(.0004,.0011), a:R(.1,.3)});
+        const school=[];
+        const col='hsl('+R(185,205)+' 45% 78%)';
+        for(let i=0;i<34;i++)
+          school.push({ox:R(-.5,.5), oy:R(-.32,.32), wag:R(0,TAU), L:Math.min(w,h)*R(.02,.04)});
+        const big=[];
+        for(let i=0;i<3;i++)
+          big.push({x:R(0,w), y:h*R(.3,.75), L:Math.min(w,h)*R(.1,.17),
+                    dir:Math.random()<.5?-1:1, sp:R(.008,.018), bob:R(0,TAU), wag:R(0,TAU),
+                    col:'hsl('+R(195,215)+' 35% '+R(52,70)+'%)'});
+        return {beams, school, big, col, motes:motes(46,w,h,.6,1.8),
+                sx:R(0,w), sy:h*R(.3,.65), sdir:Math.random()<.5?-1:1,
+                ssp:R(.016,.03), sbob:R(0,TAU), spread:Math.min(w,h)*R(.3,.5), t:0};
+      },
+      swim(c,w,h,dt,st,low){
+        st.t+=dt;
+        c.save(); c.globalCompositeOperation='lighter';        // sunbeams from the surface
+        for(const b of st.beams){
+          b.sw+=dt*b.sp;
+          const a=b.a*(.5+.5*Math.sin(b.sw));
+          sunShaft(c, b.x+Math.sin(b.sw*.7)*w*.02, -h*.04, h*1.05,
+                   b.wide*(.85+.3*Math.sin(b.sw*1.3)), b.tilt, a);
+        }
+        c.restore();
+        if(!low) driftMotes(c, st.motes, w, h, dt);
+        for(const f of st.big){                                // a few larger fish, alone
+          f.wag+=dt*.008; f.bob+=dt*.0015;
+          f.x+=f.dir*f.sp*dt; f.y+=Math.sin(f.bob)*dt*.008;
+          if(f.x<-f.L*1.5) f.x=w+f.L*1.5; else if(f.x>w+f.L*1.5) f.x=-f.L*1.5;
+          fishShape(c, f.x, f.y, f.L, f.dir, f.col, 'rgba(210,240,255,.6)',
+                    'rgba(255,255,255,.45)', Math.sin(f.wag));
+        }
+        st.sbob+=dt*.0012;                                     // and one school, together
+        st.sx += st.sdir*st.ssp*dt;
+        st.sy += Math.sin(st.sbob)*dt*.01;
+        if(st.sx < -st.spread) st.sx = w+st.spread;
+        else if(st.sx > w+st.spread) st.sx = -st.spread;
+        st.sy = Math.max(h*.16, Math.min(h*.84, st.sy));
+        for(const f of st.school){
+          f.wag+=dt*.016;
+          const x=st.sx + f.ox*st.spread + Math.sin(st.sbob+f.wag*.2)*st.spread*.05;
+          const y=st.sy + f.oy*st.spread*.6 + Math.cos(st.sbob*1.3+f.ox*4)*st.spread*.04;
+          fishShape(c, x, y, f.L, st.sdir, st.col, 'rgba(255,255,255,.5)', null, Math.sin(f.wag));
+        }
+      }},
+
+    { name:'Porthole in the deep', type:'window', dusty:'glass', sub:1, bed:'deep',
+      clip:{inset:.07, r:.5},
+      draw(c,w,h){
+        skyGrad(c,w,h,[[0,'#06263f'],[.4,'#04172a'],[1,'#010a14']]);
+        c.fillStyle='rgba(120,200,235,.5)';                    // far-off bioluminescence
+        for(let i=0;i<70;i++){
+          const X=R(0,w), Y=R(0,h), r=R(.5,1.6);
+          c.globalAlpha=R(.1,.5);
+          c.beginPath(); c.arc(X,Y,r,0,TAU); c.fill();
+        }
+        c.globalAlpha=1;
+        hullRing(w,h,{a:'#3b444c',b:'#6d777f',c:'#262d34',d:'#525c64'});
+      },
+      seed(w,h){
+        const M=Math.min(w,h);
+        const beasts=[];
+        // an angler, a gulper eel and a squid, all silhouette and all slow
+        beasts.push({kind:'angler', x:R(0,w), y:h*R(.3,.7), L:M*R(.16,.26),
+                     dir:Math.random()<.5?-1:1, sp:R(.004,.009), bob:R(0,TAU), ph:R(0,TAU)});
+        beasts.push({kind:'eel', x:R(0,w), y:h*R(.2,.8), L:M*R(.3,.45),
+                     dir:Math.random()<.5?-1:1, sp:R(.003,.007), bob:R(0,TAU), ph:R(0,TAU)});
+        beasts.push({kind:'squid', x:R(0,w), y:h*R(.25,.75), L:M*R(.12,.2),
+                     dir:Math.random()<.5?-1:1, sp:R(.005,.011), bob:R(0,TAU), ph:R(0,TAU)});
+        return {beasts, motes:motes(34,w,h,.5,1.5), t:0,
+                glows:Array.from({length:14},()=>({x:R(0,w), y:R(0,h),
+                  r:M*R(.004,.012), ph:R(0,TAU), sp:R(.0008,.0026),
+                  col:Math.random()<.5?'150,225,255':'170,255,210'}))};
+      },
+      swim(c,w,h,dt,st,low){
+        st.t+=dt;
+        for(const g of st.glows){                              // things pulsing in the dark
+          g.ph+=dt*g.sp;
+          const k=(.5+.5*Math.sin(g.ph));
+          c.save(); c.globalCompositeOperation='lighter';
+          const rg=c.createRadialGradient(g.x,g.y,0,g.x,g.y,g.r*7);
+          rg.addColorStop(0,'rgba('+g.col+','+(.5*k)+')');
+          rg.addColorStop(1,'rgba('+g.col+',0)');
+          c.fillStyle=rg; c.beginPath(); c.arc(g.x,g.y,g.r*7,0,TAU); c.fill();
+          c.restore();
+        }
+        if(!low) driftMotes(c, st.motes, w, h, dt, 'rgba(170,220,240,.35)');
+        for(const b of st.beasts){
+          b.bob+=dt*.0011; b.ph+=dt*.009;
+          b.x+=b.dir*b.sp*dt; b.y+=Math.sin(b.bob)*dt*.006;
+          if(b.x<-b.L*1.6) b.x=w+b.L*1.6; else if(b.x>w+b.L*1.6) b.x=-b.L*1.6;
+          c.save(); c.translate(b.x,b.y); c.scale(b.dir<0?-1:1,1);
+          c.fillStyle='rgba(2,8,14,.88)';
+          const L=b.L;
+          if(b.kind==='angler'){
+            c.beginPath(); c.ellipse(0,0,L*.42,L*.3,0,0,TAU); c.fill();
+            c.beginPath();                                     // jaw and teeth
+            c.moveTo(L*.12,L*.06); c.lineTo(L*.46,L*.02); c.lineTo(L*.12,L*.26); c.closePath(); c.fill();
+            c.fillStyle='rgba(2,8,14,.88)';
+            for(let i=0;i<6;i++){
+              const tx=L*.14+i*L*.05;
+              c.beginPath(); c.moveTo(tx,L*.08); c.lineTo(tx+L*.02,L*.17); c.lineTo(tx+L*.04,L*.08);
+              c.closePath(); c.fill();
+            }
+            c.strokeStyle='rgba(2,8,14,.88)'; c.lineWidth=Math.max(1,L*.022);
+            c.beginPath(); c.moveTo(L*.1,-L*.26);
+            c.quadraticCurveTo(L*.42,-L*.66, L*.5,-L*.34); c.stroke();
+            c.save(); c.globalCompositeOperation='lighter';    // the lure
+            const k=.55+.45*Math.sin(b.ph);
+            const lg=c.createRadialGradient(L*.5,-L*.34,0,L*.5,-L*.34,L*.2);
+            lg.addColorStop(0,'rgba(190,255,235,'+(.85*k)+')');
+            lg.addColorStop(1,'rgba(120,230,210,0)');
+            c.fillStyle=lg; c.beginPath(); c.arc(L*.5,-L*.34,L*.2,0,TAU); c.fill();
+            c.restore();
+            c.fillStyle='rgba(2,8,14,.88)';
+            c.beginPath(); c.moveTo(-L*.4,0); c.lineTo(-L*.6,-L*.2);
+            c.lineTo(-L*.52,0); c.lineTo(-L*.6,L*.2); c.closePath(); c.fill();
+          } else if(b.kind==='eel'){
+            c.beginPath();
+            c.moveTo(L*.44,-L*.04);
+            c.quadraticCurveTo(L*.1,-L*.2, -L*.16,-L*.06+Math.sin(b.ph)*L*.05);
+            c.quadraticCurveTo(-L*.4,0, -L*.5, Math.sin(b.ph*1.2)*L*.09);
+            c.quadraticCurveTo(-L*.36,L*.04, -L*.12,L*.08+Math.sin(b.ph)*L*.05);
+            c.quadraticCurveTo(L*.12,L*.2, L*.44,L*.02);
+            c.closePath(); c.fill();
+            c.beginPath();                                     // the pelican mouth
+            c.moveTo(L*.4,-L*.03); c.lineTo(L*.5,L*.16); c.lineTo(L*.22,L*.1);
+            c.closePath(); c.fill();
+          } else {
+            c.beginPath(); c.ellipse(L*.16,0,L*.3,L*.19,0,0,TAU); c.fill();
+            for(let i=-3;i<=3;i++){                            // tentacles
+              c.strokeStyle='rgba(2,8,14,.86)'; c.lineWidth=Math.max(1,L*.035);
+              c.lineCap='round';
+              c.beginPath(); c.moveTo(-L*.08,i*L*.035);
+              c.quadraticCurveTo(-L*.34, i*L*.06+Math.sin(b.ph+i)*L*.06,
+                                 -L*.58, i*L*.08+Math.sin(b.ph*1.3+i)*L*.1);
+              c.stroke();
+            }
+          }
+          c.restore();
+        }
+      }},
+
+    { name:'Porthole, no light at all', type:'window', dusty:'glass', sub:1, bed:'abyss',
+      clip:{inset:.07, r:.5},
+      draw(c,w,h){
+        skyGrad(c,w,h,[[0,'#020912'],[1,'#00040a']]);
+        hullRing(w,h,{a:'#2b3238',b:'#4e565d',c:'#1b2126',d:'#3a4249'});
+      },
+      seed(w,h){
+        const M=Math.min(w,h);
+        return {t:0, L:M*R(.22,.3),
+                x:w*.5, y:h*.5, dir:1, tx:R(w*.2,w*.8), ty:R(h*.25,h*.75),
+                wait:0, ph:0, wag:0,
+                dust:motes(10,w,h,.4,1)};
+      },
+      swim(c,w,h,dt,st,low){
+        st.t+=dt; st.ph+=dt*.0018; st.wag+=dt*.006;
+        // it picks a spot, drifts to it, thinks, then picks another
+        const dx=st.tx-st.x, dy=st.ty-st.y, d=Math.hypot(dx,dy);
+        if(d<Math.min(w,h)*.05){
+          st.wait-=dt;
+          if(st.wait<=0){
+            st.tx=R(w*.15,w*.85); st.ty=R(h*.2,h*.8); st.wait=R(400,2200);
+          }
+        }else{
+          const sp=Math.min(w,h)*.000045*dt;
+          st.x+=dx/d*sp*dt*.35; st.y+=dy/d*sp*dt*.35;
+          if(Math.abs(dx)>Math.min(w,h)*.02) st.dir = dx>0 ? 1 : -1;
+        }
+        if(!low) driftMotes(c, st.dust, w, h, dt, 'rgba(90,120,140,.18)');
+        const L=st.L, lx=st.x+st.dir*L*.46, ly=st.y-L*.3;
+        // the lantern first: it is the only thing that really shows
+        c.save(); c.globalCompositeOperation='lighter';
+        const k=.62+.38*Math.sin(st.ph*2.3);
+        const far=c.createRadialGradient(lx,ly,0,lx,ly,L*2.6);
+        far.addColorStop(0,'rgba(255,224,120,'+(.3*k)+')');
+        far.addColorStop(.35,'rgba(240,190,70,'+(.11*k)+')');
+        far.addColorStop(1,'rgba(220,170,50,0)');
+        c.fillStyle=far; c.beginPath(); c.arc(lx,ly,L*2.6,0,TAU); c.fill();
+        const near=c.createRadialGradient(lx,ly,0,lx,ly,L*.3);
+        near.addColorStop(0,'rgba(255,248,214,'+(.95*k)+')');
+        near.addColorStop(.4,'rgba(255,214,96,'+(.8*k)+')');
+        near.addColorStop(1,'rgba(255,190,60,0)');
+        c.fillStyle=near; c.beginPath(); c.arc(lx,ly,L*.3,0,TAU); c.fill();
+        c.restore();
+        // and the fish itself: barely there, a ragged edge against the black
+        c.save(); c.translate(st.x,st.y); c.scale(st.dir<0?-1:1,1);
+        c.fillStyle='rgba(10,16,22,.82)';
+        c.beginPath();
+        c.moveTo(L*.44, 0);
+        c.quadraticCurveTo(L*.2,-L*.26, -L*.06,-L*.22+Math.sin(st.wag)*L*.02);
+        c.quadraticCurveTo(-L*.3,-L*.18, -L*.42,-L*.06);
+        c.lineTo(-L*.62,-L*.22+Math.sin(st.wag)*L*.06);        // the tail, ragged
+        c.lineTo(-L*.5, 0);
+        c.lineTo(-L*.62, L*.2+Math.sin(st.wag)*L*.06);
+        c.lineTo(-L*.42, L*.06);
+        c.quadraticCurveTo(-L*.24,L*.24, L*.04,L*.2);
+        c.quadraticCurveTo(L*.26,L*.16, L*.44,0);
+        c.closePath(); c.fill();
+        c.fillStyle='rgba(10,16,22,.82)';                      // jaw
+        c.beginPath(); c.moveTo(L*.3,L*.04); c.lineTo(L*.5,L*.1); c.lineTo(L*.28,L*.16);
+        c.closePath(); c.fill();
+        c.fillStyle='rgba(255,226,150,'+(.1+.1*k)+')';         // the lit flank
+        c.beginPath(); c.ellipse(L*.08,-L*.04,L*.2,L*.08,0,0,TAU); c.fill();
+        c.restore();
       }},
 
     { name:'Window on the dunes', type:'window', dusty:'glass', glassy:1,
@@ -1662,18 +2092,25 @@
           c.beginPath(); c.ellipse(X,Y,sz,sz*.5,0,0,TAU); c.fill();
         }
         applyWeather(c,w,h);
-        const f=Math.max(8,Math.min(w,h)*.045);                            // clay reveal
-        const clay=c.createLinearGradient(0,0,0,h);
-        clay.addColorStop(0,'#cfa273'); clay.addColorStop(.5,'#b98a5c'); clay.addColorStop(1,'#9c6f46');
-        c.save();
-        c.beginPath(); c.rect(0,0,w,h);
-        c.ellipse(w/2,h/2,(w-f*2.6)/2,(h-f*2.6)/2,0,0,TAU);
-        c.fillStyle=clay; c.fill('evenodd');
-        c.restore();
-        c.fillStyle='rgba(90,62,36,.25)';
-        for(let i=0;i<260;i++) c.fillRect(R(0,w),R(0,h),R(1,3),R(1,3));
-        c.strokeStyle='rgba(80,54,30,.45)'; c.lineWidth=Math.max(1.5,f*.14);
-        c.beginPath(); c.ellipse(w/2,h/2,(w-f*2.6)/2,(h-f*2.6)/2,0,0,TAU); c.stroke();
+        frameAfter(fc=>{
+          const f=Math.max(8,Math.min(w,h)*.045);                          // clay reveal
+          const clay=fc.createLinearGradient(0,0,0,h);
+          clay.addColorStop(0,'#cfa273'); clay.addColorStop(.5,'#b98a5c'); clay.addColorStop(1,'#9c6f46');
+          fc.save();
+          fc.beginPath(); fc.rect(0,0,w,h);
+          fc.ellipse(w/2,h/2,(w-f*2.6)/2,(h-f*2.6)/2,0,0,TAU);
+          fc.fillStyle=clay; fc.fill('evenodd');
+          // the speckles belong on the clay, so they are clipped to it too —
+          // they used to be sprayed over the view as well
+          fc.beginPath(); fc.rect(0,0,w,h);
+          fc.ellipse(w/2,h/2,(w-f*2.6)/2,(h-f*2.6)/2,0,0,TAU);
+          fc.clip('evenodd');
+          fc.fillStyle='rgba(90,62,36,.25)';
+          for(let i=0;i<260;i++) fc.fillRect(R(0,w),R(0,h),R(1,3),R(1,3));
+          fc.restore();
+          fc.strokeStyle='rgba(80,54,30,.45)'; fc.lineWidth=Math.max(1.5,f*.14);
+          fc.beginPath(); fc.ellipse(w/2,h/2,(w-f*2.6)/2,(h-f*2.6)/2,0,0,TAU); fc.stroke();
+        });
       }},
 
     { name:'Ceramic tile', type:'tile', dusty:'cool',
@@ -2125,6 +2562,29 @@
   }
 
   let parts=[], glassClip={inset:.045,r:0}, flash=0, flashIn=2600, drift=0;
+  let frameL=null;
+  // ── windows with something living behind them ────────────────────────
+  // Weather is painted over the finished surface every frame; the sea wants
+  // the same treatment, because a reef with nothing moving in it is a
+  // photograph. A surface can carry a `swim` pair: one call to lay out what
+  // is out there, and one to move it along. Both run behind the frame.
+  let liveFn=null, liveState=null;
+  function seedLive(){
+    const s=SURFACES[level%SURFACES.length];
+    liveFn = s.swim || null;
+    liveState = liveFn ? withSeedValue(surfaceSeed ^ 0x1eaf, ()=>s.seed(W,H)) : null;
+  }
+  function drawLive(dt){
+    if(!liveFn || !liveState || !W || !H) return false;
+    const ins=Math.min(W,H)*glassClip.inset;
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(ins,ins,W-2*ins,H-2*ins, Math.min(W,H)*glassClip.r);
+    ctx.clip();
+    liveFn(ctx, W, H, Math.min(60,dt), liveState, !!window.__lowPower);
+    ctx.restore();
+    return true;
+  }
   let bolt=[], flicker=0;
   function strike(){
     bolt=[];
@@ -2187,7 +2647,13 @@
     }
   }
   function drawWeatherMotion(dt){
-    if(!parts.length && weather!=='storm') return;
+    if(!parts.length && weather!=='storm') return false;
+    // A struggling machine used to have the weather switched off outright,
+    // which left rain hanging in the air: the drops stop moving but the grey
+    // light and the settled snow stay, so it reads as a broken texture while
+    // the wind carries on in the speakers. Thin it instead — a quarter of the
+    // drops still falling looks like weather; a full set frozen does not.
+    const thin = window.__lowPower ? 4 : 1;
     const ins=Math.min(W,H)*glassClip.inset;
     ctx.save();
     ctx.beginPath();
@@ -2198,9 +2664,11 @@
     if(weather==='rain'||weather==='storm'){
       ctx.strokeStyle='rgba(206,228,250,.85)'; ctx.lineWidth=Math.max(1,Math.min(W,H)*.0022);
       const slant = weather==='storm' ? .34 : .16;
+      let ri=0;
       for(const d of parts){
         d.y += d.s*dt*.55; d.x += d.s*dt*.55*slant;
         if(d.y>H){ d.y=-d.l; d.x=R(-W*.2,W); }
+        if(thin>1 && (ri++%thin)) continue;
         ctx.globalAlpha=d.a;
         ctx.beginPath(); ctx.moveTo(d.x,d.y); ctx.lineTo(d.x-d.l*slant,d.y-d.l); ctx.stroke();
       }
@@ -2228,9 +2696,11 @@
       }
     }
     if(weather==='hail'){
+      let hi=0;
       for(const p of parts){
         p.y += p.s*dt*.6; p.x += p.s*dt*.1;
         if(p.y>H){ p.y=-8; p.x=R(0,W); }
+        if(thin>1 && (hi++%thin)) continue;
         ctx.globalAlpha=p.a; ctx.fillStyle='#fff';
         ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,TAU); ctx.fill();
         ctx.globalAlpha=p.a*.4;
@@ -2239,9 +2709,11 @@
     }
     if(weather==='sand'){
       ctx.lineCap='round';
+      let si=0;
       for(const p of parts){
         p.x += p.s*dt*.5; p.y += Math.sin((drift+p.l)*.002)*dt*.02;
         if(p.x-p.l>W){ p.x=-p.l; p.y=R(0,H); }
+        if(thin>1 && (si++%thin)) continue;
         ctx.globalAlpha=p.a; ctx.strokeStyle=p.col;
         ctx.lineWidth=Math.max(1,Math.min(W,H)*.0035);
         ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x-p.l,p.y+p.l*.06); ctx.stroke();
@@ -2269,10 +2741,12 @@
     if(weather==='snow'||weather==='thick'||weather==='flurry'){
       const star = weather==='flurry';
       ctx.fillStyle='#fff'; ctx.strokeStyle='#fff';
+      let fi=0;
       for(const f of parts){
         f.y += f.s*dt*.4; f.d += dt*.0016; f.x += Math.sin(f.d)*dt*.022; f.sp += dt*.0008;
         if(f.y>H){ f.y=-6; f.x=R(0,W); }
         if(f.x>W+8) f.x=-8; else if(f.x<-8) f.x=W+8;
+        if(thin>1 && (fi++%thin)) continue;
         ctx.globalAlpha=f.a;
         if(star){
           ctx.lineWidth=Math.max(.8,f.r*.24);
@@ -2307,8 +2781,19 @@
       }
     }
     ctx.globalAlpha=1; ctx.restore();
+    return true;
   }
 
+  // The frame is drawn exactly once, into its own layer, and that layer is
+  // then stamped into the finished surface as well. Drawing it twice would
+  // risk the two copies disagreeing — the desert hut's speckles are random.
+  function buildFrameLayer(){
+    if(!pendingFrame) return;
+    frameL=makeLayer();
+    pendingFrame(frameL.ctx);
+    pendingFrame=null;
+    base.ctx.drawImage(frameL.cv, 0, 0, W, H);
+  }
   function buildSurface(){
     base=makeLayer(); dust=makeLayer(); wet=makeLayer(); clean=makeLayer(); tmp=makeLayer();
     const s = SURFACES[level % SURFACES.length];
@@ -2316,14 +2801,18 @@
     pendingSeed=null;
     lastPal=null;
     glassClip = s.clip || {inset:.045,r:0};
+    frameL=null; pendingFrame=null;
     if(s.glassy){
       const tx = withSeedValue(surfaceSeed ^ 0x5bf0, ()=>weighted(TIMES));
       const wx = withSeedValue(surfaceSeed ^ 0x9e37, ()=>weighted(WEATHER));
       tod=tx.id; todLabel=tx.label; weather=wx.id; weatherLabel=wx.label;
     }else{ weather='none'; weatherLabel=''; tod='midday'; todLabel=''; }
-    withSeed(surfaceSeed, ()=> s.draw(base.ctx, W, H));
-    seedWeatherParticles();
-    if(window.__sfx) window.__sfx.weather(S.mode==='mop' ? (s.glassy? weather : 'none') : 'none');
+    withSeed(surfaceSeed, ()=>{
+      s.draw(base.ctx, W, H);
+      buildFrameLayer();
+    });
+    seedWeatherParticles(); seedLive();
+    if(window.__sfx) window.__sfx.weather(S.mode==='mop' ? roomBed() : 'none');
     surfaceLabel = (s.wood && lastPal) ? woodName(lastPal)+' '+s.name
                  : s.name.charAt(0).toUpperCase()+s.name.slice(1);
     if(todLabel) surfaceLabel += ', '+todLabel;
@@ -2376,6 +2865,19 @@
     }
     if(!countable) countable=N;
   }
+  // How spotless is spotless. `painted` counts every cell the mop has touched,
+  // doorways included, but `countable` leaves doorways out — so the old test,
+  // painted >= countable × 0.999, could pass with a dozen real cells still
+  // dirty and read as 101% clean. What matters is how much of the floor you
+  // were actually asked to mop is still dirty.
+  const SPOTLESS=0.9996;                       // was 0.999
+  function dirtyLeft(){
+    if(!N || !state) return 0;
+    let n=0;
+    for(let i=0;i<N;i++) if(!state[i] && !(skipCells && skipCells[i])) n++;
+    return n;
+  }
+  const dirtyAllowed = () => Math.round((countable||N)*(1-SPOTLESS));
   function mark(i,kind,h,delay){
     if(state[i]===0) painted++;
     state[i]=kind; hueA[i]=h; t0A[i]=performance.now()+(delay||0);
@@ -2406,12 +2908,21 @@
   }
 
   function updateReadout(){
-    const done_=Math.min(painted, countable||N);
-    const pc = (countable||N) ? Math.round(done_/(countable||N)*100) : 0;
-    readEl.textContent = S.mode==='mop'
-      ? (surfaceLabel||SURFACES[level%SURFACES.length].name)+' — '+pc+'% clean'
-        + '  ·  room '+(roomIdx+1)
-      : pc+'% filled';
+    const need=countable||N;
+    if(S.mode!=='mop'){
+      readEl.textContent = (need? Math.round(Math.min(painted,need)/need*100) : 0)+'% filled';
+      return;
+    }
+    // shown against the same count the finish uses, so 100% and "spotless"
+    // arrive together instead of the readout sitting at 100% for a while first
+    const left=done? 0 : dirtyLeft();
+    const frac=need? (need-left)/need : 0;
+    const pc = done ? 100
+             : frac>=1 ? 99                      // never say 100 before it is
+             : Math.floor(frac*100);
+    readEl.textContent = (surfaceLabel||SURFACES[level%SURFACES.length].name)+' — '+pc+'% clean'
+      + (!done && left && left<=Math.max(6,dirtyAllowed()+5) ? ' · '+left+' spot'+(left===1?'':'s')+' left' : '')
+      + '  ·  room '+(roomIdx+1);
   }
 
   // ───────────────────────── movement
@@ -2440,14 +2951,20 @@
   }
 
   // ── systematic sweep: four serpentine patterns, one picked at random ──
-  const auto = {pts:[], i:0, name:'', mode:'sweep', target:-1, skip:new Set(), stuck:0, lastX:0, lastY:0};
+  const auto = {pts:[], i:0, name:'', mode:'sweep', target:-1, skip:new Set(), stuck:0,
+                lastX:0, lastY:0, lane:0};
   function buildSweep(){
     const b=bounds();
-    const lane = S.mode==='mop' ? mopPx()*.82 : cell*(S.mode==='mosaic'?1:.9);
+    // A lane can come out as zero — the mop-width slider reading empty, or a
+    // stage measured while the tab is hidden, which makes every cell zero
+    // wide. Dividing by it asked for infinitely many lanes and the loop below
+    // filled the heap until the tab died. Both ends are pinned now.
+    const lane = Math.max(4, S.mode==='mop' ? mopPx()*.82 : cell*(S.mode==='mosaic'?1:.9));
+    const lanes = span => Math.max(1, Math.min(300, Math.ceil(span/lane) || 1));
     const pattern = ['down-lr','down-rl','across-tb','across-bt'][(Math.random()*4)|0];
     const pts=[];
     if(pattern.startsWith('down')){
-      const n=Math.max(1,Math.ceil((b.x1-b.x0)/lane));
+      const n=lanes(b.x1-b.x0);
       for(let i=0;i<=n;i++){
         const t=i/n, x = pattern==='down-lr' ? b.x0+(b.x1-b.x0)*t : b.x1-(b.x1-b.x0)*t;
         const flip = i%2===0;
@@ -2455,7 +2972,7 @@
         pts.push({x, y: flip? b.y1 : b.y0});
       }
     }else{
-      const n=Math.max(1,Math.ceil((b.y1-b.y0)/lane));
+      const n=lanes(b.y1-b.y0);
       for(let i=0;i<=n;i++){
         const t=i/n, y = pattern==='across-tb' ? b.y0+(b.y1-b.y0)*t : b.y1-(b.y1-b.y0)*t;
         const flip = i%2===0;
@@ -2463,8 +2980,18 @@
         pts.push({y, x: flip? b.x1 : b.x0});
       }
     }
-    auto.pts=pts; auto.i=0; auto.name=pattern; auto.mode='sweep';
+    auto.pts=pts; auto.i=0; auto.name=pattern; auto.mode='sweep'; auto.lane=lane;
     auto.target=-1; auto.skip=new Set(); auto.stuck=0; auto.lastX=px; auto.lastY=py;
+  }
+  // A waypoint counts as reached once the mop has gone past it along the way
+  // it was travelling, and is roughly on the lane sideways. Asking for both
+  // axes to be within a couple of pixels made a near miss spin on the spot.
+  function reachedWaypoint(p, x, y, tol, cross){
+    const prev=auto.pts[auto.i-1];
+    if(!prev) return Math.abs(p.x-x)<=tol && Math.abs(p.y-y)<=tol;
+    const down = Math.abs(p.y-prev.y) > Math.abs(p.x-prev.x);
+    if(down) return (p.y>prev.y ? y>=p.y-tol : y<=p.y+tol) && Math.abs(p.x-x)<=cross;
+    return (p.x>prev.x ? x>=p.x-tol : x<=p.x+tol) && Math.abs(p.y-y)<=cross;
   }
   // once the serpentine is done, walk to whatever specks are still dirty
   function nearestDirty(x,y){
@@ -2486,31 +3013,58 @@
     const tol = mosaic ? cell*.55 : Math.max(2.5, cell*.3);
 
     if(auto.mode==='sweep'){
+      // Turning ninety degrees takes about twenty frames, and the mop keeps
+      // travelling the old way while it comes round — a good fifty pixels of
+      // overshoot at the corner. The old steering corrected x before it would
+      // ever consider y, so on a lane that runs *down* the room that overshoot
+      // was always the bigger worry: the mop turned back, overshot the other
+      // way, and dithered at the corner forever without ever walking the lane.
+      // Whichever axis is furthest off now wins, so the long run down the lane
+      // always beats the small sideways error, and the corner sorts itself out
+      // on the approach.
+      const cross=Math.max(tol, (auto.lane||tol)*1.1);
       let p=auto.pts[auto.i];
-      while(p && Math.abs(p.x-x)<=tol && Math.abs(p.y-y)<=tol){ p=auto.pts[++auto.i]; }
+      while(p && reachedWaypoint(p, x, y, tol, cross)){ p=auto.pts[++auto.i]; }
       if(p){
-        if(Math.abs(p.x-x)>tol) setDir(p.x>x?'right':'left',false);
-        else if(Math.abs(p.y-y)>tol) setDir(p.y>y?'down':'up',false);
+        const dx=p.x-x, dy=p.y-y;
+        if(Math.abs(dx)<=tol && Math.abs(dy)<=tol){ /* on it; let the loop above move on */ }
+        else if(Math.abs(dx) > Math.abs(dy)) setDir(dx>0?'right':'left',false);
+        else setDir(dy>0?'down':'up',false);
+        // a lane that cannot be walked at all must not hold the pattern up
+        const movedS=Math.abs(x-auto.lastX)+Math.abs(y-auto.lastY);
+        auto.lastX=x; auto.lastY=y;
+        auto.stuck = movedS<0.4 ? auto.stuck+dt : 0;
+        if(auto.stuck>1200){ auto.stuck=0; auto.i++; }
         return;
       }
       auto.mode='hunt'; auto.target=-1;                  // pattern finished
     }
 
     // hunt: head for the nearest cell still dirty, one axis at a time
+    const hadTarget=auto.target;
     if(auto.target<0 || state[auto.target]!==0) auto.target=nearestDirty(x,y);
+    if(auto.target!==hadTarget){ auto.near=Infinity; auto.stuck=0; }
     if(auto.target<0){
       if(auto.skip.size){ auto.skip.clear(); auto.target=nearestDirty(x,y); }
       if(auto.target<0){ buildSweep(); return; }         // nothing left: start a fresh pattern
     }
     const gx=auto.target%cols, gy=(auto.target-gx)/cols;
     const tx=ox+(gx+.5)*cell, ty=oy+(gy+.5)*cell;
-    if(Math.abs(tx-x)>tol) setDir(tx>x?'right':'left',false);
-    else if(Math.abs(ty-y)>tol) setDir(ty>y?'down':'up',false);
+    const dx=tx-x, dy=ty-y;                              // furthest off wins here too
+    if(Math.abs(dx)>tol || Math.abs(dy)>tol){
+      if(Math.abs(dx) > Math.abs(dy)) setDir(dx>0?'right':'left',false);
+      else setDir(dy>0?'down':'up',false);
+    }
     // if it cannot get any closer, give that speck up and take the next
-    const moved=Math.abs(x-auto.lastX)+Math.abs(y-auto.lastY);
-    auto.lastX=x; auto.lastY=y;
-    auto.stuck = moved<0.4 ? auto.stuck+dt : 0;
-    if(auto.stuck>900){ auto.skip.add(auto.target); auto.target=-1; auto.stuck=0; }
+    // Give up on a speck only when the mop has stopped getting closer to it.
+    // Measuring plain movement meant a mop circling a corner looked busy and
+    // kept its target forever, while one crossing the room looked idle for a
+    // moment and dropped a speck it was about to reach.
+    const near=Math.abs(dx)+Math.abs(dy);
+    const closing = near < (auto.near||Infinity)-0.4;
+    auto.near = closing ? near : (auto.near||near);
+    auto.stuck = closing ? 0 : auto.stuck+dt;
+    if(auto.stuck>1400){ auto.skip.add(auto.target); auto.target=-1; auto.stuck=0; auto.near=Infinity; }
   }
 
   function advance(dt){
@@ -2541,7 +3095,10 @@
       py=Math.min(b.y1, Math.max(b.y0, py+Math.sin(heading)*speed*dt));
       gx=px+Math.cos(heading)*mopPx()*.55; gy=py+Math.sin(heading)*mopPx()*.55;
     }
-    hueRun += (S.drift/100)*(dt/pace());
+    // Drift belongs to the mosaic, where the colour wandering across the grid
+    // is the point. On a floor it made the water slide round the colour wheel
+    // away from the Theme hue you picked, so here it stays put.
+    if(S.mode==='mop') hueRun=S.hue; else hueRun += (S.drift/100)*(dt/pace());
     cx=Math.min(cols-1,Math.max(0,Math.floor((px-ox)/cell)));
     cy=Math.min(rows-1,Math.max(0,Math.floor((py-oy)/cell)));
     cover(px,py, mopPx()*.46);
@@ -2654,7 +3211,13 @@
     e.fillStyle='rgba(0,0,0,'+Math.min(.25, dt/900)+')'; e.fillRect(0,0,W,H);
     e.restore();
   }
-  const onGlass = () => !!SURFACES[level%SURFACES.length].glassy;
+  const onGlass = () => { const s=SURFACES[level%SURFACES.length]; return !!(s.glassy||s.sub); };
+  // what this room should sound like: weather behind a window, the sea behind
+  // a hull, nothing at all on an ordinary floor
+  function roomBed(){
+    const s=SURFACES[level%SURFACES.length];
+    return s.sub ? (s.bed||'deep') : (s.glassy ? weather : 'none');
+  }
   function drawSqueegee(X,Y,A,WD){
     X=(X===undefined?px:X); Y=(Y===undefined?py:Y);
     A=(A===undefined?heading:A);
@@ -2678,16 +3241,37 @@
     ctx.beginPath(); ctx.roundRect(-w*.05,-h*9,w*.1,h*5.8,w*.05); ctx.fill();
     ctx.restore();
   }
-  function drawMop(X,Y,A,WD){
+  // Ten woods from near-black through to bleached ash, plus a few greys, the
+  // way the ant picks its shell: by the name, lower-cased, so the broom you
+  // are used to seeing is the same one tomorrow and the same one your friends
+  // see. Nothing about it is stored or sent — both ends work it out.
+  const BROOMS=[
+    {stick:'#2b1d12', band:'#463020'}, {stick:'#3a2617', band:'#5c4028'},
+    {stick:'#4e3320', band:'#6f4d2f'},   {stick:'#63452a', band:'#87613e'},
+    {stick:'#7a5533', band:'#9d7048'},   {stick:'#8a6a44', band:'#ad8659'},
+    {stick:'#a5824f', band:'#c39c66'},   {stick:'#c0a172', band:'#d9bd91'},
+    {stick:'#d8c29a', band:'#ecdcbb'},   {stick:'#ece0c6', band:'#f7efdc'},
+    {stick:'#3f4245', band:'#5a5e62'},   {stick:'#61666b', band:'#7e848a'},
+    {stick:'#8b9197', band:'#a8aeb4'},   {stick:'#b7bcc1', band:'#d2d6da'}
+  ];
+  function broomWood(name){
+    let h=2166136261;
+    const n=String(name||'mopper').toLowerCase().trim() || 'mopper';
+    for(let i=0;i<n.length;i++){ h^=n.charCodeAt(i); h=Math.imul(h,16777619); }
+    return BROOMS[Math.abs(h)%BROOMS.length];
+  }
+  const myBroom = () => broomWood(mopName());
+  function drawMop(X,Y,A,WD,wood){
     X=(X===undefined?px:X); Y=(Y===undefined?py:Y);
     A=(A===undefined?heading:A); WD=WD||mopPx();
+    wood=wood||myBroom();
     if(onGlass()){ drawSqueegee(X,Y,A,WD); return; }
-    if(S.mopStyle==='classic'){ drawMopClassic(X,Y,A,WD); return; }
+    if(S.mopStyle==='classic'){ drawMopClassic(X,Y,A,WD,wood); return; }
     const w=WD, h=w*.3;
     ctx.save(); ctx.translate(X,Y); ctx.rotate(A+Math.PI/2);
     // handle first, so the pad sits on top of it
     const pole=ctx.createLinearGradient(-h*.2,0,h*.2,0);
-    pole.addColorStop(0,'#8d97a4'); pole.addColorStop(.45,'#e3e9ef'); pole.addColorStop(1,'#7e8894');
+    pole.addColorStop(0,wood.stick); pole.addColorStop(.45,wood.band); pole.addColorStop(1,wood.stick);
     ctx.fillStyle=pole;
     ctx.beginPath(); ctx.roundRect(-h*.17,-w*1.5,h*.34,w*1.5,h*.17); ctx.fill();
     ctx.fillStyle='#5d6672';
@@ -2715,9 +3299,10 @@
     ctx.restore();
   }
 
-  function drawMopClassic(X,Y,A,WD){
+  function drawMopClassic(X,Y,A,WD,wood){
     X=(X===undefined?px:X); Y=(Y===undefined?py:Y);
     A=(A===undefined?heading:A);
+    wood=wood||myBroom();
     const w=WD||mopPx(), h=w*.42;
     ctx.save(); ctx.translate(X,Y); ctx.rotate(A+Math.PI/2);
     ctx.fillStyle='rgba(0,0,0,.3)';
@@ -2729,8 +3314,10 @@
     for(let i=1;i<10;i++){
       const x=-w/2+w*i/10; ctx.beginPath(); ctx.moveTo(x,-h*.36); ctx.lineTo(x,h*.36); ctx.stroke();
     }
-    ctx.strokeStyle='#8a6a44'; ctx.lineWidth=Math.max(2,h*.22); ctx.lineCap='round';
+    ctx.strokeStyle=wood.stick; ctx.lineWidth=Math.max(2,h*.22); ctx.lineCap='round';
     ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-h*4.2); ctx.stroke();
+    ctx.strokeStyle=wood.band; ctx.lineWidth=Math.max(1,h*.09);
+    ctx.beginPath(); ctx.moveTo(0,-h*.7); ctx.lineTo(0,-h*3.9); ctx.stroke();
     ctx.restore();
   }
 
@@ -2757,7 +3344,10 @@
       else if(since<4) wt*=.25;
       if(prevType==='special' && t==='special') wt*=.3;
       if(t===prevType && t!=='special') wt*=.1;
-      if(i===prev) wt*=.02;
+      // Never the same floor twice running. It used to be a 2% weight, which
+      // was fine when a "fresh surface" was a button; now it is a door, and
+      // walking through one into exactly the room you left looks broken.
+      if(i===prev) wt=0;
       w.push(wt); total+=wt;
     }
     let r=Math.random()*total, pick=0;
@@ -2796,8 +3386,8 @@
     tod = r.tod || 'midday'; todLabel = r.todLabel || '';
     if(r.seed!=null) surfaceSeed=r.seed;
     if(r.label) surfaceLabel=r.label;
-    seedWeatherParticles();
-    if(window.__sfx) window.__sfx.weather(S.mode==='mop' ? weather : 'none');
+    seedWeatherParticles(); seedLive();
+    if(window.__sfx) window.__sfx.weather(S.mode==='mop' ? roomBed() : 'none');
   }
 
   function stepThrough(d){
@@ -2933,18 +3523,14 @@
     painted=N; done=true; updateReadout();
   }
   // ───────── co-op mopping: one floor, several mops ─────────
-  // Mopping together was parked behind the dev name — which also locked out
-  // the friend the invite link was for, so a shared room could only ever be
-  // one person. The link itself is now a key, and /mopcoop opens it for good.
-  const MOP_COOP = () => {
-    if(window.__devHere && window.__devHere()) return true;
-    try{ if(localStorage.getItem('sb-mopcoop')==='1') return true; }catch(e){}
-    return /mop=[A-Za-z]{3,5}/.test(location.hash||'');
-  };
+  // Mopping together was parked behind the dev name, which also locked out
+  // the friend the invite link was for: a shared room could only ever hold
+  // one person. It is part of the game now.
+  const MOP_COOP = () => true;
   window.__mopCoopOpen = on => {
     try{ localStorage.setItem('sb-mopcoop', on?'1':'0'); }catch(e){}
     applyMode();
-    return !!on;
+    return true;
   };
   let mcoop=null, mPres=0, mSync=0, mId=0;
   const WIRE={SUBSCRIBED:'connected', CLOSED:'disconnected', CHANNEL_ERROR:'connection refused',
@@ -3061,7 +3647,7 @@
       const pos={x:(p.rx!==undefined?p.rx:mFromN(p.x,p.y).x),
                  y:(p.ry!==undefined?p.ry:mFromN(p.x,p.y).y)};
       const wd=Math.max(6,(p.mw||14)*IN);
-      drawMop(pos.x,pos.y,p.rh!==undefined?p.rh:(p.h||0),wd);
+      drawMop(pos.x,pos.y,p.rh!==undefined?p.rh:(p.h||0),wd,broomWood(p.name));
       ctx.font='600 '+Math.max(9,Math.round(cell*1.1))+'px Karla, sans-serif';
       ctx.textAlign='center';
       ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillText(p.name||'mopper', pos.x+1, pos.y+wd*.75+1);
@@ -3154,7 +3740,8 @@
         let p=b.wp[b.wi];
         while(p && Math.abs(p.x-b.x)<=tol && Math.abs(p.y-b.y)<=tol) p=b.wp[++b.wi];
         if(!p){ botLanes(b); p=b.wp[0]; }
-        b.th = Math.abs(p.x-b.x)>tol ? (p.x>b.x?0:Math.PI) : (p.y>b.y?Math.PI/2:-Math.PI/2);
+        const bdx=p.x-b.x, bdy=p.y-b.y;                  // furthest off wins, as above
+        b.th = Math.abs(bdx)>Math.abs(bdy) ? (bdx>0?0:Math.PI) : (bdy>0?Math.PI/2:-Math.PI/2);
       }else{
         b.turn-=dt;
         if(b.turn<=0){ b.turn=R(700,2600); b.th=[0,Math.PI/2,Math.PI,-Math.PI/2][(Math.random()*4)|0]; }
@@ -3176,7 +3763,7 @@
   function drawBots(){
     for(const b of mbots){
       const wd=Math.max(6,b.w*IN);
-      drawMop(b.x,b.y,b.h,wd);
+      drawMop(b.x,b.y,b.h,wd,broomWood(b.name));
       ctx.font='600 '+Math.max(9,Math.round(cell*1.1))+'px Karla, sans-serif';
       ctx.textAlign='center';
       ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillText(b.name, b.x+1, b.y+wd*.75+1);
@@ -3398,7 +3985,8 @@
 
   function checkLevel(){
     if(S.mode!=='mop'||done||!N) return;
-    if(painted < (countable||N)*.999) return;
+    if(painted < (countable||N)*SPOTLESS) return;      // cheap gate before the count
+    if(dirtyLeft() > dirtyAllowed()) return;
     wipeClean();
     if(S.mode==='mop'){ const bits=memMerge(roomIdx, shareBits()); saveMem(); floorPush(roomIdx, bits, true); }
     stats.rooms++; saveStats(); renderTally();
@@ -3458,6 +4046,63 @@
     }
     raf();
   }
+  // ── running the sweep on the spot, to see where it sticks ─────────
+  // The auto-mop walks a serpentine and used to stop dead in a corner. A
+  // stall is invisible from outside — the mop is still "moving", just not
+  // anywhere — so this drives the real tick with no drawing and reports the
+  // longest it ever went without covering ground.
+  let simming=false;
+  window.__mopSim=(secs)=>{
+    if(S.mode!=='mop') return {text:'not mopping'};
+    const want=Math.max(1, Math.min(600, secs|0 || 90));
+    const keep={wander:S.wander, paused:S.paused, px, py, last};
+    const L=[]; let worst=0, worstAt=null, stall=0, moved=0, steps=0;
+    let doors=0, patterns=0, maxI=0, hunting=0, startRoom=roomIdx, lastPts=null;
+    simming=true; S.wander=true; S.paused=false; started=true;
+    buildSweep();
+    let t=performance.now(), lx=px, ly=py;
+    last=0;
+    try{
+      for(let i=0;i<want*62;i++){
+        t+=16; steps++;
+        tick(t);
+        const d=Math.hypot(px-lx, py-ly); lx=px; ly=py; moved+=d;
+        if(roomIdx!==startRoom){ doors++; startRoom=roomIdx; }
+        if(auto.pts!==lastPts){ lastPts=auto.pts; patterns++; }
+        if(auto.mode==='sweep') maxI=Math.max(maxI, auto.i); else hunting+=16;
+        if(d < cell*.012){
+          stall+=16;
+          if(stall>worst){
+            worst=stall;
+            const p=auto.pts[auto.i];
+            worstAt={x:px, y:py, i:auto.i, of:auto.pts.length, mode:auto.mode,
+                     wx:p&&p.x, wy:p&&p.y, dir};
+          }
+        } else stall=0;
+        if(done) break;
+      }
+    } finally {
+      simming=false; S.wander=keep.wander; S.paused=keep.paused;
+      px=keep.px; py=keep.py; last=keep.last;
+    }
+    const b=bounds();
+    L.push('— the auto-mop, '+want+'s of it —');
+    L.push('  surface     '+SURFACES[level%SURFACES.length].name+' · pattern '+auto.name);
+    L.push('  room        '+cols+'×'+rows+' cells, cell '+cell.toFixed(1)+'px, mop '+mopPx().toFixed(1)+'px');
+    L.push('  reach       x '+b.x0.toFixed(1)+'…'+b.x1.toFixed(1)+'  y '+b.y0.toFixed(1)+'…'+b.y1.toFixed(1));
+    L.push('  covered     '+(painted/Math.max(1,countable||N)*100).toFixed(2)+'%'+
+           (done? ' · spotless after '+(steps*16/1000).toFixed(0)+'s' : ' · NOT finished'));
+    L.push('  travelled   '+Math.round(moved)+'px in '+steps+' frames');
+    L.push('  pattern     reached waypoint '+maxI+' of '+auto.pts.length+
+           ' · re-dealt '+patterns+'× · hunting '+Math.round(hunting/1000)+'s');
+    if(doors) L.push('  doors       walked through '+doors+' — the room reset that many times');
+    L.push('  longest stall '+worst+'ms'+(worst>1500?'   ← STUCK':''));
+    if(worstAt) L.push('    at '+worstAt.x.toFixed(1)+','+worstAt.y.toFixed(1)+
+      ' heading '+worstAt.dir+' · '+worstAt.mode+' waypoint '+worstAt.i+' of '+worstAt.of+
+      ' → '+(worstAt.wx==null?'none':worstAt.wx.toFixed(1)+','+worstAt.wy.toFixed(1)));
+    return {text:L.join('\n'), stall:worst, covered:painted/Math.max(1,countable||N)};
+  };
+
   let mAcc=0, mN=0, mAt=0;
   function tick(now){
     if(!visible()){ last=0; return; }
@@ -3479,7 +4124,9 @@
       {
         peerStrokes(dt);
         if(go || mbots.length) stepMopBots(dt);
-        dryWet(dt); drawMopScene(); drawShimmerMop(dt); checkLevel();
+        dryWet(dt);
+        if(!simming) drawMopScene();
+        drawShimmerMop(dt); checkLevel();
         if(mcoop){
           mPres+=dt;
           if(mPres>170){ mPres=0; pushMopPos(); pruneMopPeers(); }
@@ -3527,7 +4174,10 @@
     ctx.setTransform(dpr,0,0,dpr,0,0);
     ctx.fillStyle='#0b0b0d'; ctx.fillRect(0,0,W,H);
     if(base) ctx.drawImage(base.cv,0,0,W,H);
-    if(!window.__lowPower) drawWeatherMotion(lastDt);
+    const weatherDrew = drawWeatherMotion(lastDt);
+    const liveDrew = drawLive(lastDt);
+    // whatever moved out there, the frame is in front of it
+    if((weatherDrew || liveDrew) && frameL) ctx.drawImage(frameL.cv,0,0,W,H);
     if(dust) ctx.drawImage(dust.cv,0,0,W,H);
     if(shine && clean && tmp){
       const t=tmp.ctx;
@@ -3722,11 +4372,11 @@
     ox=(W-cell*cols)/2; oy=(H-cell*rows)/2;
     if(S.mode==='mop' && old.dust){
       const sf=SURFACES[level%SURFACES.length];
-      base=makeLayer();
-      withSeed(surfaceSeed, ()=> sf.draw(base.ctx, W, H));
+      base=makeLayer(); frameL=null; pendingFrame=null;
+      withSeed(surfaceSeed, ()=>{ sf.draw(base.ctx, W, H); buildFrameLayer(); });
       const rescale=src=>{ const l=makeLayer(); l.ctx.drawImage(src.cv,0,0,W,H); return l; };
       dust=rescale(old.dust); wet=rescale(old.wet); clean=rescale(old.clean);
-      tmp=makeLayer(); buildShine(); seedWeatherParticles();
+      tmp=makeLayer(); buildShine(); seedWeatherParticles(); seedLive();
       for(const b of mbots){ b.x=b.x/oldW*W; b.y=b.y/oldH*H; b.wp=[]; }
       auto.pts=[];
     }
@@ -3962,6 +4612,13 @@
     why.forEach(w=>L.push('  · '+w));
     return L.join('\n');
   };
+  // drive the living part of a surface without drawing the rest of the game
+  window.__mopLiveFrames=(n)=>{
+    if(!liveFn || !liveState) return 0;
+    let ran=0;
+    for(let i=0;i<(n|0);i++){ liveFn(ctx, W, H, 16, liveState, false); ran++; }
+    return ran;
+  };
   window.__mopRoom=()=>{
     if(!mcoop) return null;
     return {code:mcoop.code, isHost:mcoop.isHost, myId:mcoop.myId,
@@ -4027,12 +4684,12 @@
   function rebuildAtmosphere(){
     if(S.mode!=='mop' || !base) return;
     const sf=SURFACES[level%SURFACES.length];
-    base=makeLayer();
-    withSeed(surfaceSeed, ()=> sf.draw(base.ctx, W, H));
+    base=makeLayer(); frameL=null; pendingFrame=null;
+    withSeed(surfaceSeed, ()=>{ sf.draw(base.ctx, W, H); buildFrameLayer(); });
     surfaceLabel=(sf.wood&&lastPal? woodName(lastPal)+' '+sf.name
                  : sf.name.charAt(0).toUpperCase()+sf.name.slice(1))
                  + (todLabel? ', '+todLabel:'') + (weatherLabel? (todLabel?' · ':', ')+weatherLabel:'');
-    if(window.__sfx) window.__sfx.weather(sf.glassy? weather : 'none');
+    if(window.__sfx) window.__sfx.weather(roomBed());
     updateReadout();
   }
   function checkLevelForce(){
@@ -8758,9 +9415,13 @@
   function resume(){ if(ctx && ctx.state==='suspended') ctx.resume(); }
 
   // ── weather beds ──────────────────────────────────────────────────
+  // Every weather was one filtered noise loop, which meant rain and wind were
+  // the same sound at different cutoffs — the rain read as wind, because it
+  // was. Rain and storm now get drops on the glass on top of the bed, the way
+  // hail already had its ticks.
   const BEDS={
-    rain:   {f:1900, q:.6,  g:.17, lfo:0},
-    storm:  {f:1500, q:.5,  g:.24, lfo:.03},
+    rain:   {f:1900, q:.6,  g:.13, lfo:0,   drops:{every:52,  n:3, f:[900,2600], g:.05, d:.1}},
+    storm:  {f:1500, q:.5,  g:.19, lfo:.03, drops:{every:26,  n:5, f:[700,2400], g:.075,d:.13}},
     sand:   {f:820,  q:.9,  g:.19, lfo:.07},
     gale:   {f:430,  q:1.4, g:.2,  lfo:.11},
     hail:   {f:3200, q:.7,  g:.1,  lfo:0},
@@ -8768,7 +9429,12 @@
     thick:  {f:520,  q:.6,  g:.045,lfo:.02},
     flurry: {f:700,  q:.6,  g:.025,lfo:.02},
     cloudy: {f:380,  q:.8,  g:.035,lfo:.05},
-    clear:  {f:500,  q:.7,  g:.016,lfo:.03}
+    clear:  {f:500,  q:.7,  g:.016,lfo:.03},
+    // behind a hull: no weather, just water and the boat around you
+    reef:   {f:340,  q:.9,  g:.05, lfo:.04},
+    open:   {f:240,  q:1.1, g:.055,lfo:.06},
+    deep:   {f:130,  q:1.6, g:.07, lfo:.09},
+    abyss:  {f:95,   q:1.9, g:.06, lfo:.12}
   };
   function applyWeatherSound(w){
     if(!ready) return;
@@ -8776,7 +9442,7 @@
     const t=ctx.currentTime;
     if(!b){
       bedGain.gain.setTargetAtTime(0,t,.4);
-      stopTicks(); return;
+      stopTicks(); stopDrops(); return;
     }
     bedFilter.frequency.setTargetAtTime(b.f,t,.5);
     bedFilter.Q.setTargetAtTime(b.q,t,.5);
@@ -8784,6 +9450,34 @@
     bedLfo.frequency.setTargetAtTime(w==='gale'?.16:.1,t,.5);
     bedLfoGain.gain.setTargetAtTime(b.lfo,t,.5);
     if(w==='hail') startTicks(); else stopTicks();
+    if(b.drops) startDrops(b.drops); else stopDrops();
+  }
+  // ── rain on the glass ─────────────────────────────────────────────
+  // Short wet taps, scattered rather than metronomic, low enough not to
+  // sit on top of the bed. Heavier and more often in a storm.
+  let dropTimer=null;
+  function startDrops(o){
+    stopDrops();
+    dropTimer=setInterval(()=>{
+      if(!ready||!S.on||ctx.state!=='running') return;
+      const n=1+((Math.random()*o.n)|0);
+      for(let i=0;i<n;i++) drop(o, Math.random()*(o.every/1000));
+    }, o.every);
+  }
+  function stopDrops(){ if(dropTimer){ clearInterval(dropTimer); dropTimer=null; } }
+  function drop(o, delay){
+    const t=ctx.currentTime+delay;
+    const src=ctx.createBufferSource(); src.buffer=noiseBuffer(o.d);
+    const f=ctx.createBiquadFilter(); f.type='bandpass';
+    f.frequency.value=o.f[0]+Math.random()*(o.f[1]-o.f[0]);
+    f.Q.value=.8+Math.random()*1.6;
+    const g=ctx.createGain();
+    const peak=o.g*(.45+Math.random()*.75);
+    g.gain.setValueAtTime(.0001,t);
+    g.gain.exponentialRampToValueAtTime(peak,t+.006);
+    g.gain.exponentialRampToValueAtTime(.0001,t+o.d);
+    src.connect(f); f.connect(g); g.connect(master);
+    src.start(t); src.stop(t+o.d+.02);
   }
   // hail: little ticks on the glass
   function startTicks(){

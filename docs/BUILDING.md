@@ -11,6 +11,7 @@ python3 build.py src.html        # writes index.html + version.json
 node tools/sweep.js              # loads every script block, catches throws
 node tools/mopcheck.js           # the shared-floor machinery, on one browser
 node tools/together.js           # two browsers, one corridor — co-op end to end
+node tools/surfaces.js           # every surface builds; the live ones run
 git add <paths> && git commit && git push        # GitHub Pages serves it
 ```
 
@@ -31,6 +32,15 @@ two different window shapes, and wires their co-op channels to each other and
 to a pretend `mop_floors` table. It is the test that otherwise needs a second
 person and a second laptop. `tools/mopcheck.js` runs the page's own
 `/mopcheck` from the command line — the same test Antonia can run in-game.
+
+`tools/surfaces.js` walks every surface, builds it, and runs a few hundred
+frames of any `swim` hook. A surface that throws only when somebody walks into
+it is invisible until a player finds it.
+
+In-game there is also `/mopsim`-style help: `window.__mopSim(seconds)` drives
+the real tick with no drawing and reports the longest the auto-mop went without
+covering ground. That is how the corner stall was found — a stall is invisible
+from outside, because the mop is still "moving", just not anywhere.
 
 `tools/sweep.js` is a stub-DOM harness. It loads each `<script>` block in a
 fake document and reports which ones throw at load. It exists because a
