@@ -294,6 +294,49 @@ const seedOf = b => (b.g.__mopDiag().match(/seed\s+([0-9a-f]+)/)||[0,''])[1];
      !saved || (saved.world>>>0)!==(+worldOf(F)>>>0) || !Object.keys(saved.rooms||{}).length,
      saved? 'map world '+saved.world+' vs '+worldOf(F)+', rooms '+Object.keys(saved.rooms||{}).join() : 'no map');
 
+  // ── Fresh surface, in company ───────────────────────────────────────
+  // The shared floor CANNOT be emptied in place: mop_floors has a trigger
+  // that throws away any update whose patch count went down, and no delete
+  // policy at all. So a reset moves the corridor to a new generation of rows
+  // and the generation is kept in a marker row. Three things have to hold:
+  // everyone here now goes dirty, it survives walking away and back, and
+  // somebody arriving later — with nobody around to tell them — gets the new
+  // corridor too, not the old rows that are still sitting in the table.
+  console.log('');
+  console.log('— fresh surface, in company —');
+  const G1=browser('Gia', 1200, 760, 48, {});
+  const G2=browser('Hal', 1100, 700, 48, {});
+  G1.g.__mopJoin('WXYZ', true);
+  G2.g.__mopJoin('WXYZ', false);
+  await new Promise(r=>setTimeout(r,120));
+  ok('both are in the room', seen(G1)>1 && seen(G2)>1, seen(G1)+' and '+seen(G2));
+  G1.g.__mopCheat.band(100);
+  await new Promise(r=>setTimeout(r,200));
+  ok('Gia mops the room from wall to wall', pct(G1)>3000, pct(G1)+' patches');
+  ok('and Hal sees it', pct(G2)>1500, pct(G2)+' patches');
+  const clickG = (b,id) => { for(const fn of b.clicks[id]||[]) fn({preventDefault(){}, target:b.made[id]}); };
+  clickG(G1,'clear-btn');
+  ok('the warning names who it is for', G1.made['clear-btn'].textContent==='Reset for everyone?',
+     G1.made['clear-btn'].textContent);
+  clickG(G1,'clear-btn');
+  await new Promise(r=>setTimeout(r,400));
+  ok("Gia's floor is dirty again", pct(G1)<200, pct(G1)+' patches');
+  ok("and so is Hal's, without Hal touching anything", pct(G2)<200, pct(G2)+' patches');
+  ok('the corridor is still the same corridor', seedOf(G1)===seedOf(G2), seedOf(G1));
+  // walk away and back: the old rows are still in the table, so landing on
+  // the wrong generation would bring the mopped floor straight back
+  G1.g.__mopCheat.room(4);
+  await new Promise(r=>setTimeout(r,120));
+  G1.g.__mopCheat.room(1);
+  await new Promise(r=>setTimeout(r,200));
+  ok('walking out and back does not resurrect it', pct(G1)<200, pct(G1)+' patches');
+  // and the one who was not there
+  const G3=browser('Ivy', 1000, 680, 48, {});
+  G3.g.__mopJoin('WXYZ', false);
+  await new Promise(r=>setTimeout(r,400));
+  ok('someone arriving later gets the new corridor, not the old rows',
+     pct(G3)<200, pct(G3)+' patches');
+
   console.log(bad? '\n'+bad+' failed' : '\nall good');
   process.exit(bad?1:0);
 })();

@@ -4127,6 +4127,15 @@
       const p=mcoop.peers.get(d.id);
       if(p){ p.away=!!d.away; p.seen=Date.now(); setMopNestUI(); }
     }
+    else if(d.t==='wipe'){
+      setFloorGen(d.gen);
+      wipeLocalFloors();
+      const st=document.getElementById('mnest-status');
+      if(st){
+        st.textContent=(d.name||'someone')+' started the corridor again — every room is dirty';
+        setTimeout(setMopNestUI, 4000);
+      }
+    }
     else if(d.t==='pos'){ noteMopPeer(d); }
     else if(d.t==='who'){ pushMopPos(true); mSentAt=0; floorPush(roomIdx, shareBits(), true); }
     else if(d.t==='kick' && d.who===mcoop.myId){
@@ -4385,7 +4394,59 @@
                               'Content-Type':'application/json'}, opts.headers||{})
     }));
   }
-  const worldKey = () => 'w'+worldSeed.toString(36);
+  /* ── starting a shared corridor again ──────────────────────────────
+     mop_floors has a trigger, mop_floor_only_fills, that throws away any
+     update whose patch count went DOWN, and there is deliberately no delete
+     policy — the anon key is public, so both of those protect a corridor from
+     a lagging browser and from passers-by. Which means a shared floor cannot
+     be emptied in place, at all, by anything holding this key.
+
+     So Fresh surface does not empty it. It moves the whole corridor to a new
+     set of rows: the SAME worldSeed, so the room code still deals the same
+     surfaces, with a generation number on the end of the database key. The
+     old rows are simply left behind, and slowbroom_tidy sweeps anything
+     untouched for 30 days.
+
+     The generation itself lives in one marker row of the corridor, at a room
+     number no corridor will ever reach, with the generation kept in `patches`
+     — a counter that only ever goes UP, which is the one kind of write the
+     trigger allows. That is a liberty with the column's name and it is taken
+     on purpose: it means this works today, on the schema that is already
+     deployed, with no migration for anyone to remember to run.            */
+  const GEN_ROOM=2000;                    // the check constraint's ceiling
+  let floorGen=0;
+  const genKey   = () => 'w'+worldSeed.toString(36);
+  const worldKey = () => genKey() + (floorGen? '~'+floorGen : '');
+  async function readFloorGen(){
+    if(!shared()) return floorGen;
+    try{
+      const res=await dbFetch('mop_floors?world=eq.'+genKey()+'&room=eq.'+GEN_ROOM+'&select=patches');
+      if(!res.ok) return floorGen;
+      const rows=await res.json();
+      return rows.length ? (rows[0].patches|0) : 0;
+    }catch(e){ return floorGen; }
+  }
+  async function bumpFloorGen(){
+    const next=Math.max(floorGen, await readFloorGen())+1;
+    if(shared()){
+      dbWrites++;
+      try{
+        await dbFetch('mop_floors', {method:'POST',
+          headers:{'Prefer':'resolution=merge-duplicates'},
+          body:JSON.stringify({world:genKey(), room:GEN_ROOM, mask:'reset', patches:next})});
+      }catch(e){}
+    }
+    return next;
+  }
+  // Adopt a generation we have just been told about, from a peer or from the
+  // marker row. Anything lower than ours is an older browser catching up.
+  function setFloorGen(n){
+    n=Math.max(0, n|0);
+    if(n<=floorGen) return false;
+    floorGen=n;
+    __dbg.log('floor','corridor generation '+n);
+    return true;
+  }
   function floorPull(room){
     if(!shared()) return;
     const w=worldKey(), r=room|0;
@@ -4441,6 +4502,31 @@
     if(row.timer) return;
     row.timer=setTimeout(write, Math.max(0, 8000-(Date.now()-row.at)));
   }
+  // Fresh surface in company: the corridor stays the same corridor — the
+  // code deals it, so it cannot be re-dealt — but every room in it goes back
+  // to dirty, for everybody.
+  //
+  // There is no delete policy on mop_floors and there should not be one: the
+  // anon key is public, so a delete would let any passer-by drop a table.
+  // Update IS allowed, and writing an empty mask over a row does the same job
+  // through the door that is already open.
+  async function wipeSharedCorridor(){
+    const next = shared() ? await bumpFloorGen() : floorGen+1;
+    floorGen=next;
+    __dbg.log('floor','corridor started again — generation '+next+' ('+worldKey()+')');
+    return next;
+  }
+  // everything this browser remembers, and the floor under our feet
+  function wipeLocalFloors(){
+    clearTimeout(memSaveT); memSaveT=null;
+    mopMem.clear();
+    floorForget();
+    try{ localStorage.removeItem('sb-mop-map'); }catch(e){}
+    // `fresh`: there is nothing to hand over, and handing over is exactly
+    // what would put the mopped floor straight back
+    goToRoom(roomIdx, true);
+    saveMem(true);
+  }
   function floorForget(){
     for(const row of floorRows.values()) clearTimeout(row.timer);
     floorRows.clear();
@@ -4481,6 +4567,7 @@
     mcoop=room;
     // the code IS the world: everyone who types it deals the same corridor,
     // so there is nothing to agree on and nothing to get out of step
+    floorGen=0;
     if(!resuming) enterWorld(hash32('slowbroom-mop-'+C), C);
     const conn=await net.connect('mop-'+code, {event:onMopEvent, peers:onMopPeers,
       status:t=>{
@@ -4506,6 +4593,13 @@
     mcoop.net=conn; mcoop.myId=conn.myId||net.myId; joiningMop=false;
     __dbg.set('mop room', code+(host?' (host)':'')); __dbg.log('nest','joined mop room '+code);
     setMopNestUI();
+    // Which GENERATION of this corridor is current, before reading any floor
+    // from it. Somebody may have started it again while nobody was here, and
+    // a peer's presence cannot tell us that if we are the only one in the
+    // room — the old rows are still in the table and would come straight back.
+    const g=await readFloorGen();
+    if(mcoop!==room) return;                   // we left again while asking
+    if(setFloorGen(g)) wipeLocalFloors();
     pushMopPresence(); pushMopPos();
     floorPull(roomIdx);
     floorPush(roomIdx, shareBits(), true);
@@ -4532,7 +4626,8 @@
   }
   function pushMopPresence(){
     if(!mcoop) return;
-    const p={name:mopName(), since:mcoop.since, w:worldSeed, lvl:level, ridx:roomIdx};
+    const p={name:mopName(), since:mcoop.since, w:worldSeed, lvl:level, ridx:roomIdx,
+             fg:floorGen};
     if(mcoop.net) mcoop.net.presence(p);
     if(mcoop.bridge) mcoop.bridge.presence(p);
   }
@@ -4548,7 +4643,8 @@
     mSent={x:n.x, y:n.y, h:heading, at:now};
     roomFast({id:mcoop.myId, name:mopName(),
                     x:+n.x.toFixed(4), y:+n.y.toFixed(4), h:+heading.toFixed(2),
-                    mw:S.mopw, w:worldSeed, lvl:level, ridx:roomIdx, since:mcoop.since});
+                    mw:S.mopw, w:worldSeed, lvl:level, ridx:roomIdx, fg:floorGen,
+                    since:mcoop.since});
   }
   let mPosIn=0, mPosSelf=0;
   function noteMopPeer(d){
@@ -4563,6 +4659,9 @@
     const moved = cur.x!==d.x || cur.y!==d.y;
     Object.assign(cur, d, {seen:Date.now()});
     mcoop.peers.set(d.id, cur);
+    // Somebody in this room may have started the corridor again while we were
+    // away. Their generation arrives with every position they send.
+    if(d.fg!=null && setFloorGen(d.fg)) wipeLocalFloors();
     if(typeof d.x==='number' && (isNew || moved)) notePeerPoint(cur);
     if(isNew){
       __dbg.log('nest','first sight of '+(d.name||d.id)+' on surface '+d.lvl+
@@ -4928,21 +5027,24 @@
     if(S.mode==='mop' && !clearArmed){
       clearArmed=setTimeout(disarmClear, 4000);
       clearBtn.classList.add('danger');
-      clearBtn.textContent='Reset every room?';
+      clearBtn.textContent = (mcoop && !mcoop.test)
+        ? 'Reset for everyone?' : 'Reset every room?';
       return;
     }
     disarmClear();
     if(S.mode!=='mop'){ rooms.length=0; roomIdx=0; newGrid(); return; }
     if(mcoop && !mcoop.test){
-      // in company the corridor belongs to everybody: go back to its start
-      // rather than quietly wiping what the others mopped
-      goToRoom(0);
-      // say it, then give the panel back: it is the only place that tells you
-      // who else is here, and a note that never clears hides exactly that
+      // The corridor belongs to everybody and cannot be re-dealt — the room
+      // code deals it. But it can be started again: same rooms, all dirty.
       const st=document.getElementById('mnest-status');
-      st.textContent='back at the first room of '+mcoop.code+
-                     ' — a shared corridor cannot be re-dealt';
-      setTimeout(setMopNestUI, 3500);
+      st.textContent='starting '+mcoop.code+' again…';
+      wipeSharedCorridor().then(gen=>{
+        roomSend({t:'wipe', id:mcoop.myId, name:mopName(), gen});
+        wipeLocalFloors();
+        goToRoom(0, true);
+        st.textContent='every room of '+mcoop.code+' is dirty again, for everyone';
+        setTimeout(setMopNestUI, 4000);
+      });
       return;
     }
     try{ localStorage.removeItem('sb-mop-map'); localStorage.removeItem('sb-mop-at'); }catch(e){}
