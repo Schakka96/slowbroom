@@ -1,82 +1,110 @@
-// The three looks, checked without a browser. A skin that forgets one token
-// silently inherits the house one — a violet accent stranded on cream paper,
-// or white text on sage green that nobody can read. Both of those are
-// invisible until somebody switches skin in the dark and squints.
+// The look and the rail, checked without a browser.
+//
+// Crayon won and was folded into :root, so there is one palette again — but
+// it still has to define every token and still has to work both ways into
+// dark. The rest of this file is about what was deliberately taken OUT of the
+// two rails: a control removed from the markup while its JS still reaches for
+// it throws on load and takes the whole game with it, which is exactly what
+// happened twice while this batch was being written (holdBtn, then tintEl).
 const fs=require('fs');
 const src=fs.readFileSync('index.html','utf8');
 // build.py stamps its own little reset <style> into the head, and that one
-// opens ":root{" too — so neither "the first style block" nor all of them
-// joined will do. The page's real stylesheet is the big one.
+// opens ":root{" too — the page's real stylesheet is the big one.
 const css=(src.match(/<style>[\s\S]*?<\/style>/g)||[])
   .map(b=>b.slice(7,-8)).sort((a,b)=>b.length-a.length)[0]||'';
 let bad=0;
 const ok=(pass,label,note)=>{ console.log((pass?'  ok    ':'  FAIL  ')+label+(note?'  — '+note:'')); if(!pass) bad++; };
-
-ok(css.length>1000, 'the stylesheet is there', css.length+' chars');
-const opens=(css.match(/{/g)||[]).length, closes=(css.match(/}/g)||[]).length;
-ok(opens===closes, 'every brace is closed', opens+' open, '+closes+' close');
-
-// ── the palette every skin owes ──
-const PALETTE=['--ground','--panel','--edge','--ink','--ink-soft','--ink-faint','--accent','--accent-ink','--shadow'];
-const SHAPE=['--font-body','--font-display','--radius','--radius-lg','--border-w'];
+const has=re=>new RegExp(re).test(src);
 function block(sel){
   const i=css.indexOf(sel+'{');
-  if(i<0) return null;
-  return css.slice(i+sel.length+1, css.indexOf('}', i));
-}
-const house=block(':root');
-ok(!!house, 'the house look is the bare :root');
-PALETTE.concat(SHAPE).forEach(t=>ok(house.includes(t+':'), 'house defines '+t));
-
-for(const skin of ['crayon','linen']){
-  const light=block(':root[data-skin="'+skin+'"]');
-  ok(!!light, skin+': has a light palette');
-  PALETTE.forEach(t=>ok(light.includes(t+':'), skin+' light defines '+t));
-  ok(SHAPE.some(t=>light.includes(t+':')), skin+' moves shape or type, not only colour');
-  // both ways of arriving at dark: the system's preference, and the toggle
-  const forced=block(':root[data-skin="'+skin+'"][data-theme="dark"]');
-  const auto=block(':root[data-skin="'+skin+'"]:not([data-theme="light"])');
-  ok(!!forced, skin+': Dark on the toggle is covered');
-  ok(!!auto,   skin+': a dark system with Auto is covered');
-  if(forced&&auto){
-    const f=PALETTE.filter(t=>forced.includes(t+':')).join(),
-          a=PALETTE.filter(t=>auto.includes(t+':')).join();
-    ok(f===a, skin+": the two dark routes say the same thing");
-  }
-  // the toggle has to beat the media query, which sits above it in the file
-  ok(css.indexOf(':root[data-skin="'+skin+'"][data-theme="dark"]') >
-     css.indexOf(':root[data-skin="'+skin+'"]:not([data-theme="light"])'),
-     skin+': forcing Light in a dark room actually works');
-  // a skin block after the house dark block, or the house dark wins on ties
-  ok(css.indexOf(':root[data-skin="'+skin+'"]') > css.indexOf(':root[data-theme="dark"]'),
-     skin+': ordered after the house palette it overrides');
+  return i<0 ? null : css.slice(i+sel.length+1, css.indexOf('}', i));
 }
 
-// ── nothing should still be hard-coded onto the accent ──
-const onAccent=[...css.matchAll(/background:var\(--accent\);\s*color:(#[0-9a-f]{3,6})/gi)];
-ok(onAccent.length===0, 'nothing paints fixed white on a moving accent',
-   onAccent.length? onAccent.map(m=>m[1]).join(', ') : 'all use --accent-ink');
+console.log('— the look —');
+ok(css.length>1000, 'the stylesheet is there', css.length+' chars');
+const o=(css.match(/{/g)||[]).length, c=(css.match(/}/g)||[]).length;
+ok(o===c, 'every brace is closed', o+' open, '+c+' close');
+const PALETTE=['--ground','--panel','--edge','--ink','--ink-soft','--ink-faint','--accent','--accent-ink','--shadow'];
+const SHAPE=['--font-body','--font-display','--radius','--radius-lg','--border-w'];
+const root=block(':root');
+PALETTE.concat(SHAPE).forEach(t=>ok(root.includes(t+':'), 'the palette defines '+t));
+ok(/--accent:#e2563d/.test(root), 'crayon is the palette now, not an option',
+   (root.match(/--accent:(#\w+)/)||[])[1]);
+ok(/--shadow:3px 3px 0/.test(root), 'and it kept the hard offset shadow, not a blur');
+ok(/Baloo/.test(root) && /Nunito/.test(root), 'and the rounded type');
+const forced=block(':root[data-theme="dark"]'), auto=block(':root:not([data-theme="light"])');
+ok(!!forced && !!auto, 'both routes into dark are covered');
+ok(PALETTE.filter(t=>forced.includes(t+':')).join()===PALETTE.filter(t=>auto.includes(t+':')).join(),
+   'and they say the same thing');
+ok(!/data-skin/.test(src), 'the House/Linen picker is gone, not just hidden');
+ok(!/background:var\(--accent\);\s*color:#[0-9a-f]/i.test(css),
+   'nothing paints fixed white on the accent');
 
-// ── the picker and the three games ──
-ok(/<div class="seg skin"/.test(src), 'the style picker is in the masthead');
-['','crayon','linen'].forEach(k=>
-  ok(src.includes('data-skin="'+k+'"'), 'picker offers '+(k||'house')));
-ok(src.indexOf('class="seg skin"') > src.indexOf('class="seg theme"'),
-   'and it sits below light/dark, where she asked for it');
-ok(/id="pickgame"/.test(src) && (src.match(/class="tico"/g)||[]).length===3,
-   'the three games have icons, not just words');
-ok(/\.pickgame\.fresh \.tabs\{/.test(css) && /@keyframes pickme/.test(css),
-   'a first-time visitor gets the games highlighted');
-ok(/sb-picked/.test(src), 'and the highlight remembers it has been seen');
-ok(/prefers-reduced-motion: reduce\)\{\s*\.pickgame\.fresh \.tabs\{animation:none\}/.test(css),
-   'the pulse holds still for anyone who asked it to');
+console.log('\n— the three games —');
+ok(has('id="pickgame"'), 'the selector is there');
+ok(src.indexOf('id="pickgame"') > src.indexOf('</header>'),
+   'and it stands below the masthead, over the field');
+ok(src.indexOf('id="pickgame"') < src.indexOf('id="tab-bloom"'), 'above the field, not inside it');
+ok(/\.pickgame\{[^}]*align-items:center/.test(css), 'centred');
+ok((src.match(/class="tico"/g)||[]).length===3, 'three icons');
+ok(/@keyframes pickme/.test(css) && /sb-picked/.test(src), 'first visit still gets the highlight');
 
-// ── the text she asked to be gone ──
-ok(!/developed with AI/.test(src), 'the AI disclaimer is gone from both games');
-ok(!/offline practice rooms/.test(src), 'the TEST/THIS footnote is gone');
-ok(/store\.steampowered\.com\/app\/3326230/.test(src) &&
-   /store\.steampowered\.com\/app\/4120790/.test(src),
-   'but Hozy and the Sorting Bureau are still credited and linked');
+console.log('\n— what was taken out —');
+// Every id/selector the JS still looks up must still exist in the markup.
+const GONE={
+  'the mop arrow pad':'data-dir=',
+  'the ant arrow pad':'data-adir=',
+  'the ant ● button':'id="ant-drop"',
+  'the Blow button':'id="ant-blow"',
+  'the ant Holding button':'id="ant-hold-btn"',
+  'the Shade slider':'id="ant-tint"',
+  'the Mop toggle':'data-mopstyle=',
+  'the Grain toggle':'data-cols=',
+  'the practice-nest footnote':'offline practice nest'
+};
+for(const [what,mark] of Object.entries(GONE)) ok(!src.includes(mark), what+' is gone');
+// …and nothing left behind may still reach for them at load time
+const LIVE=['ant-tint','ant-hold-btn','ant-blow','ant-drop'];
+LIVE.forEach(id=>ok(!new RegExp("getElementById\\('"+id+"'\\)").test(src),
+  'nothing still looks up #'+id));
+ok(/A\.tint/.test(src) && /tint:20/.test(src),
+   'but A.tint survives the slider — every background reads it');
+ok(/S\.mopStyle/.test(src) && /S\.cols/.test(src),
+   'and S.mopStyle / S.cols survive their toggles');
+
+console.log('\n— where things moved —');
+ok(src.indexOf('id="mnest-sec"') > src.indexOf('id="drag-btn"'),
+   'multiplayer sits below Drag broom mode');
+const mopwNote=src.indexOf('change the mop width');
+ok(mopwNote > src.indexOf('id="mopw"') && mopwNote < src.indexOf('id="drag-btn"'),
+   'the mop keys sit under the width slider');
+ok(src.indexOf("change the ant's size") < src.indexOf('id="carry-list"'),
+   'the ant keys sit at the very top, above the inventory');
+ok(src.indexOf('id="ant-restart"') > src.indexOf('id="ant-piles"'),
+   'both restarts sit in The round, under the round info');
+ok(has('<h2>Inventory') && !has('<h2>Carrying'), 'Carrying is called Inventory');
+ok(/\.carry\{[^}]*max-height/.test(css) && /\.carry\{[^}]*overflow-y:auto/.test(css),
+   'the inventory is capped and scrolls');
+ok(/carry-more/.test(css) && /carry-more/.test(src), 'and says how many it is hiding');
+
+console.log('\n— the mop looks —');
+['chalk','clay','moss'].forEach(k=>ok(has('data-look="'+k+'"'), 'the rail offers '+k));
+const looks=(src.match(/const LOOKS=\{[\s\S]*?\};/)||[''])[0];
+ok(/drift:0/.test(looks) && (looks.match(/drift:0/g)||[]).length===3,
+   'none of them drifts through the spectrum');
+const sats=[...looks.matchAll(/sat:(\d+)/g)].map(m=>+m[1]);
+ok(sats.length===3 && Math.max(...sats)<=50,
+   'all three stay muted enough to sit beside the paper', 'sat '+sats.join(', '));
+ok(/paintLook/.test(src), 'and moving a slider drops the preset label');
+
+ok(/if\(done && roomIdx===0\) drawWayOut/.test(src),
+   'the arrow to the door shows in the first room only');
+
+console.log('\n— the blurbs —');
+ok(!/developed with AI/.test(src), 'no AI disclaimer');
+ok((src.match(/\(Community Chat below\)/g)||[]).length===2,
+   'both games point at the chat below');
+ok(has('app/3326230') && has('app/4120790'), 'Hozy and the Sorting Bureau still credited');
 
 console.log(bad? '\n'+bad+' failed' : '\nall good');
 process.exit(bad?1:0);

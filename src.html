@@ -4,54 +4,13 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500&family=Karla:wght@400;600&family=Baloo+2:wght@500;700&family=Nunito:wght@400;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
   :root{
-    --ground:#edecf1; --panel:#f7f6fa; --edge:#d8d5e0;
-    --ink:#1d1a24; --ink-soft:#615c6e; --ink-faint:#8f8a9c; --accent:#7a6cff;
-    --accent-ink:#fff;
-    --shadow:0 1px 2px rgba(29,26,36,.06), 0 8px 24px rgba(29,26,36,.07);
+    --ground:#fbf3e4; --panel:#fffaf0; --edge:#2b2119;
+    --ink:#2b2119; --ink-soft:#6b5947; --ink-faint:#9c8a74; --accent:#e2563d;
+    --accent-ink:#fffaf0;
+    --shadow:3px 3px 0 var(--edge);
     /* Shape and type are tokens too, not just colour: a skin that may only
        repaint is a palette, and the thing that reads as machine-made is the
        shape — one radius, one hairline, one soft shadow, everywhere. */
-    --font-body:"Karla","Helvetica Neue",Arial,sans-serif;
-    --font-display:"Fraunces",Georgia,serif;
-    --font-ui:var(--font-body);
-    --radius:5px; --radius-lg:8px; --border-w:1px;
-    --h1-weight:300; --h1-spacing:-.01em;
-    --label-spacing:0em; --label-case:none;
-    color-scheme:light;
-  }
-  @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]){
-      --ground:#131119; --panel:#1b1823; --edge:#2e2a3b;
-      --ink:#efecf6; --ink-soft:#a29cb4; --ink-faint:#726c84;
-      --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
-      color-scheme:dark;
-    }
-  }
-  :root[data-theme="dark"]{
-    --ground:#131119; --panel:#1b1823; --edge:#2e2a3b;
-    --ink:#efecf6; --ink-soft:#a29cb4; --ink-faint:#726c84;
-    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
-    color-scheme:dark;
-  }
-
-
-  /* ── two other ways this could look ───────────────────────────────
-     The house look above is cool-grey, violet-accented, thin-hairlined and
-     soft-shadowed, set in a high-contrast display serif. That combination is
-     the default taste of every design tool that writes CSS for you, which is
-     why it can feel machine-made even though the game underneath is not.
-     Neither of these two is a recolour: each moves the shape, the type and
-     the light as well, because that is where the tell lives.
-
-     Crayon — what a paper sticker looks like. Warm cream, one tomato red,
-     thick ink borders, fat corners, and a hard offset shadow with no blur,
-     the way something cut out and laid down casts a shadow. Rounded type.
-     Nothing here is 50% grey.                                              */
-  :root[data-skin="crayon"]{
-    --ground:#fbf3e4; --panel:#fffaf0; --edge:#2b2119;
-    --ink:#2b2119; --ink-soft:#6b5947; --ink-faint:#9c8a74;
-    --accent:#e2563d; --accent-ink:#fffaf0;
-    --shadow:3px 3px 0 var(--edge);
     --font-body:"Nunito","Trebuchet MS",sans-serif;
     --font-display:"Baloo 2","Nunito",cursive;
     --font-ui:var(--font-body);
@@ -61,55 +20,22 @@
     color-scheme:light;
   }
   @media (prefers-color-scheme: dark){
-    :root[data-skin="crayon"]:not([data-theme="light"]){
+    :root:not([data-theme="light"]){
       --ground:#241d17; --panel:#31271f; --edge:#efe0c8;
-      --ink:#f6ead6; --ink-soft:#c4ad90; --ink-faint:#8e7a63;
-      --accent:#ff7a5c; --accent-ink:#241d17;
+      --ink:#f6ead6; --ink-soft:#c4ad90; --ink-faint:#8e7a63; --accent:#ff7a5c;
+      --accent-ink:#241d17;
       --shadow:3px 3px 0 rgba(239,224,200,.55);
       color-scheme:dark;
     }
   }
-  :root[data-skin="crayon"][data-theme="dark"]{
+  :root[data-theme="dark"]{
     --ground:#241d17; --panel:#31271f; --edge:#efe0c8;
-    --ink:#f6ead6; --ink-soft:#c4ad90; --ink-faint:#8e7a63;
-    --accent:#ff7a5c; --accent-ink:#241d17;
-    --shadow:3px 3px 0 rgba(239,224,200,.55);
+      --ink:#f6ead6; --ink-soft:#c4ad90; --ink-faint:#8e7a63; --accent:#ff7a5c;
+      --accent-ink:#241d17;
+      --shadow:3px 3px 0 rgba(239,224,200,.55);
     color-scheme:dark;
   }
 
-  /* Linen — a stationery shop, not a dashboard. Oatmeal paper, one sage
-     green, hairlines that are genuinely hair thin, corners that are nearly
-     square, and no shadow at all: things sit on the page rather than float
-     above it. Labels are small, wide-tracked and lower case.               */
-  :root[data-skin="linen"]{
-    --ground:#efece3; --panel:#f8f6f0; --edge:#d6d1c4;
-    --ink:#33322d; --ink-soft:#6d6a60; --ink-faint:#9b978b;
-    --accent:#7e8d6a; --accent-ink:#f8f6f0;
-    --shadow:none;
-    --font-body:"Zen Kaku Gothic New","Hiragino Sans",system-ui,sans-serif;
-    --font-display:"Zen Kaku Gothic New","Hiragino Sans",system-ui,sans-serif;
-    --font-ui:var(--font-body);
-    --radius:2px; --radius-lg:3px; --border-w:1px;
-    --h1-weight:500; --h1-spacing:.06em;
-    --label-spacing:.11em; --label-case:lowercase;
-    color-scheme:light;
-  }
-  @media (prefers-color-scheme: dark){
-    :root[data-skin="linen"]:not([data-theme="light"]){
-      --ground:#22231f; --panel:#2b2c27; --edge:#3f4139;
-      --ink:#e7e5dc; --ink-soft:#a8a69a; --ink-faint:#787668;
-      --accent:#9fb187; --accent-ink:#22231f;
-      --shadow:none;
-      color-scheme:dark;
-    }
-  }
-  :root[data-skin="linen"][data-theme="dark"]{
-    --ground:#22231f; --panel:#2b2c27; --edge:#3f4139;
-    --ink:#e7e5dc; --ink-soft:#a8a69a; --ink-faint:#787668;
-    --accent:#9fb187; --accent-ink:#22231f;
-    --shadow:none;
-    color-scheme:dark;
-  }
 
   *{box-sizing:border-box}
   body{
@@ -131,15 +57,17 @@
     margin-left:auto; display:flex; flex-direction:column; align-items:flex-end; gap:7px;
   }
   .topbar{display:flex; justify-content:flex-end}
-  .seg.theme, .seg.skin{border-radius:99px}
-  .seg.theme button, .seg.skin button{padding:3px 10px; font-size:.7rem}
+  .seg.theme{border-radius:99px}
+  .seg.theme button{padding:3px 10px; font-size:.7rem}
   /* ── the three games ──────────────────────────────────────────────
      This used to be a row of small grey words above the player count, and it
      read as a settings control rather than as the choice of what to play.
      There are three whole games behind it. It is now the loudest thing in the
      masthead after the title: a proper card, icons so the three read as three
      things rather than three words, and the chosen one filled in.          */
-  .pickgame{display:flex; flex-direction:column; align-items:flex-end; gap:6px}
+  /* Centred over the field rather than tucked into the masthead corner:
+     it is the choice of what to play, so it sits where the eye lands. */
+  .pickgame{display:flex; flex-direction:column; align-items:center; gap:6px}
   .pickgame-lead{
     margin:0; font-size:.7rem; font-weight:600; color:var(--accent);
     letter-spacing:.07em; text-transform:uppercase;
@@ -418,7 +346,6 @@
   canvas{display:block; width:100%; height:100%; touch-action:none}
   .stage{touch-action:none}
   /* on a phone the d-pad and the pickup switch are replaced by the finger */
-  html.touch .pad{display:none}
   html.touch .touch-hide{display:none}
   .readout{
     position:absolute; left:12px; bottom:10px;
@@ -516,14 +443,6 @@
   .acts button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
   .acts button[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
 
-  .pad{display:grid; grid-template-columns:repeat(3,1fr); gap:5px; max-width:132px; margin:0 auto}
-  .pad button{
-    aspect-ratio:1/1; border:1px solid var(--edge); background:transparent; color:var(--ink-soft);
-    border-radius:4px; font-size:1rem; cursor:pointer; display:flex;
-    align-items:center; justify-content:center; user-select:none;
-  }
-  .pad button:active{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
-  .pad .sp{visibility:hidden}
   .peers{display:flex; flex-direction:column; gap:4px}
   .peer{display:flex; align-items:center; gap:7px; font-size:.78rem; color:var(--ink-soft)}
   .peer .dotc{width:11px; height:11px; border-radius:50%; flex:none; border:1px solid var(--edge)}
@@ -583,7 +502,22 @@
   .tally b{color:var(--accent); font-weight:500}
   .note{font-size:.73rem; color:var(--ink-faint); line-height:1.55; margin:0}
 
-  .carry{display:flex; flex-direction:column; gap:5px; min-height:44px}
+  /* Four rows, then it scrolls. A late round carries a dozen kinds at once,
+     and the list used to grow until Walking and The round were below the
+     fold — the menu disappeared behind the thing you picked up. */
+  .carry{
+    display:flex; flex-direction:column; gap:5px;
+    min-height:44px; max-height:calc(4 * 30px + 3 * 5px); overflow-y:auto;
+    scrollbar-width:thin; scrollbar-color:var(--edge) transparent;
+  }
+  .carry::-webkit-scrollbar{width:7px}
+  .carry::-webkit-scrollbar-track{background:transparent}
+  .carry::-webkit-scrollbar-thumb{background:var(--edge); border-radius:99px}
+  /* the fifth row peeking out is what says "there is more down there" */
+  .carry-more{
+    flex:none; font-size:.72rem; color:var(--ink-faint); letter-spacing:.12em;
+    padding:1px 0 2px; text-align:center;
+  }
   .carry-empty{font-size:.76rem; color:var(--ink-faint); line-height:1.5}
   .carry-row{display:flex; align-items:center; gap:8px; font-size:.8rem}
   .carry-row canvas{width:22px; height:22px; flex:none}
@@ -604,10 +538,6 @@
   .detent button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
   .levelbar{height:4px; border-radius:99px; background:var(--edge); overflow:hidden}
   .levelbar i{display:block; height:100%; background:var(--accent); transition:width .35s ease}
-  .pad button.drop{
-    font-size:.7rem; color:var(--accent); border-color:var(--accent);
-    border-style:dashed; letter-spacing:.05em;
-  }
   hr{border:0; border-top:1px solid var(--edge); margin:0}
 
   @media (max-width:820px){
@@ -935,13 +865,10 @@
         <button type="button" data-theme="dark" aria-pressed="false" title="Always dark">Dark</button>
       </div>
     </div>
-    <div class="topbar">
-      <div class="seg skin" role="group" aria-label="Style">
-        <button type="button" data-skin="" aria-pressed="true" title="The house look: cool grey and violet">House</button>
-        <button type="button" data-skin="crayon" aria-pressed="false" title="Warm paper, thick ink lines, hard shadows">Crayon</button>
-        <button type="button" data-skin="linen" aria-pressed="false" title="Oatmeal paper, sage green, hairlines, no shadow">Linen</button>
-      </div>
+    <p class="live" id="presence" aria-live="polite"><span class="dot"></span><span id="presence-text">Counting who else is here…</span></p>
     </div>
+  </header>
+
     <div class="pickgame" id="pickgame">
       <p class="pickgame-lead" id="pickgame-lead">Three games in here — take your pick</p>
       <div class="tabs" role="tablist" aria-label="Games">
@@ -950,9 +877,6 @@
         <button type="button" role="tab" data-tab="mosaic" aria-selected="false" aria-controls="tab-bloom"><svg class="tico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="2.8" y="2.8" width="8" height="8" rx="1.6"/><rect x="13.2" y="2.8" width="8" height="8" rx="1.6"/><rect x="2.8" y="13.2" width="8" height="8" rx="1.6"/><rect x="13.2" y="13.2" width="8" height="8" rx="1.6" fill="currentColor" stroke="none"/></svg><span>Mosaic</span></button>
       </div>
     </div>
-    <p class="live" id="presence" aria-live="polite"><span class="dot"></span><span id="presence-text">Counting who else is here…</span></p>
-    </div>
-  </header>
 
 <div class="wrap" id="tab-bloom" role="tabpanel">
   <div class="stage" id="stage" tabindex="0" aria-label="Canvas. Use the arrow keys to move.">
@@ -968,31 +892,17 @@
   </div>
 
   <aside class="rail">
-    <div class="sec" id="mnest-sec" hidden>
-      <hr>
-      <h2>Mop together</h2>
-      <div class="ctl">
-        <div class="acts">
-          <button type="button" id="mnest-host">Open a room</button>
-          <button type="button" id="mnest-leave" hidden>Leave</button>
-        </div>
-        <div class="say nestjoin">
-          <input id="mnest-code" type="text" maxlength="5" placeholder="code" autocomplete="off">
-          <button type="button" id="mnest-join">Join</button>
-        </div>
-        <label class="overlaytog groupchat-tog" title="Send to and show only the people in this multiplayer room">
-          <input type="checkbox"><span>Group chat only</span>
-        </label>
-        <span class="sub" id="mnest-status">Mopping alone.</span>
-        <span class="sub">Playing with friends? <b>Open a room</b> and send them the link.</span>
-        <div class="peers" id="mnest-peers"></div>
-        <button type="button" id="mnest-copy" hidden>Copy invite link</button>
-      </div>
-    </div>
-
     <div class="sec" id="palette-sec">
     <hr id="palette-rule" hidden>
     <h2 id="palette-title">Palette</h2>
+    <div class="ctl" id="look-ctl">
+      <div class="row"><span class="lbl" id="look-l">Look</span></div>
+      <div class="seg" role="group" aria-labelledby="look-l">
+        <button type="button" data-look="chalk" aria-pressed="true" title="Warm off-white, barely any colour at all">Chalk</button>
+        <button type="button" data-look="clay" aria-pressed="false" title="Terracotta, the same red as the page">Clay</button>
+        <button type="button" data-look="moss" aria-pressed="false" title="Muted green, the coolest of the three">Moss</button>
+      </div>
+    </div>
     <div class="group" id="palette">
       <div class="ctl" id="hue-ctl">
         <div class="row"><label for="hue" id="hue-l">Hue</label><output id="hue-o">258°</output></div>
@@ -1023,28 +933,36 @@
       <div class="ctl">
         <div class="row"><label for="mopw">Mop width</label><output id="mopw-o">14 in</output></div>
         <input type="range" id="mopw" min="8" max="26" step="1" value="14">
+        <p class="note"><b>1</b>–<b>4</b> set the speed, <b>−</b> and <b>+</b> change the mop width. Space pauses.</p>
       </div>
       <div class="ctl">
         <div class="acts">
           <button type="button" id="drag-btn" aria-pressed="false">Drag broom mode</button>
         </div>
       </div>
+    </div>
+    <div class="sec" id="mnest-sec" hidden>
+      <hr>
+      <h2>Mop together</h2>
       <div class="ctl">
-        <div class="row"><span class="lbl" id="mopstyle-l">Mop</span></div>
-        <div class="seg" role="group" aria-labelledby="mopstyle-l">
-          <button type="button" data-mopstyle="classic" aria-pressed="true">Classic</button>
-          <button type="button" data-mopstyle="strands">Flat pad</button>
+        <div class="acts">
+          <button type="button" id="mnest-host">Open a room</button>
+          <button type="button" id="mnest-leave" hidden>Leave</button>
         </div>
+        <div class="say nestjoin">
+          <input id="mnest-code" type="text" maxlength="5" placeholder="code" autocomplete="off">
+          <button type="button" id="mnest-join">Join</button>
+        </div>
+        <label class="overlaytog groupchat-tog" title="Send to and show only the people in this multiplayer room">
+          <input type="checkbox"><span>Group chat only</span>
+        </label>
+        <span class="sub" id="mnest-status">Mopping alone.</span>
+        <span class="sub">Playing with friends? <b>Open a room</b> and send them the link.</span>
+        <div class="peers" id="mnest-peers"></div>
+        <button type="button" id="mnest-copy" hidden>Copy invite link</button>
       </div>
     </div>
-    <div class="ctl" id="grain-ctl">
-      <div class="row"><span class="lbl" id="grain-l">Grain</span></div>
-      <div class="seg" role="group" aria-labelledby="grain-l">
-        <button type="button" data-cols="30">Coarse</button>
-        <button type="button" data-cols="48" aria-pressed="true">Medium</button>
-        <button type="button" data-cols="72">Fine</button>
-      </div>
-    </div>
+
 
     <div class="ctl" id="sound-ctl">
       <div class="row"><label for="volume">Sound</label><output id="volume-o">60%</output></div>
@@ -1059,15 +977,6 @@
       <button type="button" id="clear-btn">Fresh surface</button>
     </div>
 
-    <div class="pad">
-      <span class="sp"></span>
-      <button type="button" data-dir="up" aria-label="Move up">↑</button>
-      <span class="sp"></span>
-      <button type="button" data-dir="left" aria-label="Move left">←</button>
-      <button type="button" data-dir="down" aria-label="Move down">↓</button>
-      <button type="button" data-dir="right" aria-label="Move right">→</button>
-    </div>
-    <p class="note"><b>1</b>–<b>4</b> set the speed, <b>−</b> and <b>+</b> change the mop width. Space pauses.</p>
   </aside>
 </div>
 
@@ -1085,16 +994,12 @@
   </div>
 
   <aside class="rail">
-    <h2>Carrying <span class="sub" id="carry-cap">0/10</span></h2>
-    <div id="carry-list" class="carry"><span class="carry-empty">Nothing yet — walk over a blade of grass.</span></div>
+    <p class="note"><b>1</b>–<b>4</b> set the speed, <b>−</b> and <b>+</b> change the ant's size,
+<b>space</b> sets the biggest handful down where you stand and <b>alt</b> blows the floor clear. Standing on a pile drops items into it. With auto-pickup off, hold <b>0</b> to gather things.</p>
 
     <hr>
-    <h2>Ground</h2>
-    <div class="ctl">
-      <div class="row"><label for="ant-tint">Shade</label><output id="ant-tint-o">meadow</output></div>
-      <input type="range" id="ant-tint" min="0" max="100" step="1" value="20">
-      <div class="ticks" aria-hidden="true"><span>deep green</span><span>dry sand</span></div>
-    </div>
+    <h2>Inventory <span class="sub" id="carry-cap">0/10</span></h2>
+    <div id="carry-list" class="carry"><span class="carry-empty">Nothing yet — walk over a blade of grass.</span></div>
 
     <hr>
     <h2>Walking</h2>
@@ -1102,12 +1007,6 @@
       <div class="row"><span class="lbl" id="ant-speed-l">Speed</span><output id="ant-speed-o">Hustle</output></div>
       <div class="detent" id="ant-speed" role="radiogroup" aria-labelledby="ant-speed-l"></div>
       <div class="ticks" aria-hidden="true"><span>amble</span><span>blur</span></div>
-    </div>
-    <div class="acts">
-      <button type="button" id="ant-hold-btn" aria-pressed="true">Holding</button>
-      <button type="button" id="ant-blow">Blow (alt)</button>
-      <button type="button" id="ant-restart">Restart level</button>
-      <button type="button" id="ant-restart-all">Restart game</button>
     </div>
     <div class="ctl touch-hide">
       <div class="row touch-hide"><span class="lbl" id="pick-l">Picking up</span></div>
@@ -1131,7 +1030,7 @@
         <input type="checkbox"><span>Group chat only</span>
       </label>
       <span class="sub">Playing with friends? <b>Host a nest</b> and send them the link.
-        <b>TEST</b> is an offline practice nest with bots — friends cannot join it.</span>
+  </span>
       <span class="sub" id="nest-status">Sorting alone.</span>
       <div class="peers" id="nest-peers"></div>
       <button type="button" id="nest-copy" hidden>Copy invite link</button>
@@ -1144,20 +1043,11 @@
       <div class="levelbar"><i id="ant-bar" style="width:0%"></i></div>
       <span class="sub" id="ant-piles">3 kinds to sort</span>
     </div>
-
-    <div class="pad">
-      <span class="sp"></span>
-      <button type="button" data-adir="up" aria-label="Walk up">↑</button>
-      <span class="sp"></span>
-      <button type="button" data-adir="left" aria-label="Walk left">←</button>
-      <button type="button" id="ant-drop" aria-label="Set down a pile" class="drop">●</button>
-      <button type="button" data-adir="right" aria-label="Walk right">→</button>
-      <span class="sp"></span>
-      <button type="button" data-adir="down" aria-label="Walk down">↓</button>
-      <span class="sp"></span>
+    <div class="acts">
+      <button type="button" id="ant-restart">Restart level</button>
+      <button type="button" id="ant-restart-all">Restart game</button>
     </div>
-    <p class="note"><b>1</b>–<b>4</b> set the speed, <b>−</b> and <b>+</b> change the ant's size,
-<b>space</b> sets the biggest handful down where you stand and <b>alt</b> blows the floor clear. Standing on a pile drops items into it. With auto-pickup off, hold <b>0</b> to gather things.</p>
+
   </aside>
 </div>
  </div>
@@ -4890,7 +4780,9 @@
     }
     drawDoorway(ctx,'right');
     if(roomIdx>0) drawDoorway(ctx,'left');
-    if(done) drawWayOut(ctx);
+    // The arrow to the door is a tutorial, not scenery: it says "a finished
+    // room has a way out of it" once, in the first room, and never again.
+    if(done && roomIdx===0) drawWayOut(ctx);
     drawMopPeers();
     drawBots();
     if(started && S.drag){
@@ -4945,13 +4837,6 @@
   });
   window.addEventListener('blur',()=>held.clear());
 
-  document.querySelectorAll('.pad button[data-dir]').forEach(b=>{
-    const on=e=>{ e.preventDefault(); setDir(b.dataset.dir,true); };
-    const off=()=>held.delete(b.dataset.dir);
-    b.addEventListener('pointerdown',on); b.addEventListener('pointerup',off);
-    b.addEventListener('pointerleave',off); b.addEventListener('pointercancel',off);
-  });
-
   const palette=document.getElementById('palette');
   const mopwCtl=document.getElementById('mopw-ctl');
   function applyMode(){
@@ -4969,22 +4854,9 @@
     document.getElementById('mnest-sec').hidden = !mop || !MOP_COOP();
     if(!mop && mcoop) leaveMopNest();
   }
-  document.querySelectorAll('.seg button[data-cols]').forEach(b=>{
-    b.addEventListener('click',()=>{
-      document.querySelectorAll('.seg button[data-cols]').forEach(o=>
-        o.setAttribute('aria-pressed',String(o===b)));
-      S.cols=+b.dataset.cols; save(); newGrid();
-    });
-  });
-
-  document.querySelectorAll('.seg button[data-mopstyle]').forEach(b=>{
-    b.addEventListener('click',()=>{
-      S.mopStyle=b.dataset.mopstyle;
-      document.querySelectorAll('.seg button[data-mopstyle]').forEach(o=>
-        o.setAttribute('aria-pressed',String(o.dataset.mopstyle===S.mopStyle)));
-      save();
-    });
-  });
+  // The Grain and Mop toggles are gone from the rail. S.cols and S.mopStyle
+  // still exist and are still saved and restored — a floor already mopped at
+  // a different grain has to keep reading back correctly.
 
   const dragBtn=document.getElementById('drag-btn');
   dragBtn.addEventListener('click',()=>{
@@ -5064,14 +4936,10 @@
       S.drag=!!o.drag;
       dragBtn.setAttribute('aria-pressed',String(S.drag));
       dragBtn.textContent=S.drag?'Dragging the broom':'Drag broom mode';
-      document.querySelectorAll('.seg button[data-mopstyle]').forEach(b=>
-        b.setAttribute('aria-pressed',String(b.dataset.mopstyle===S.mopStyle)));
       S.hold=!!o.hold; S.wander=!!o.wander;
       ['hue','drift','sat','ground','mopw'].forEach(k=>{
         const el=document.getElementById(k); if(el) el.value=S[k];
       });
-      document.querySelectorAll('.seg button[data-cols]').forEach(b=>
-        b.setAttribute('aria-pressed',String(+b.dataset.cols===S.cols)));
       holdBtn.setAttribute('aria-pressed',String(S.hold));
       holdBtn.textContent=S.hold?'Holding':'Hold to move';
       wanderBtn.setAttribute('aria-pressed',String(S.wander));
@@ -5569,10 +5437,36 @@
   }
 
   restore();
-  bind('hue','hue',v=>v+'°',()=>{ hueRun=S.hue; syncAccent(); });
-  bind('drift','drift',v=>(v/100).toFixed(2)+'°/step');
-  bind('sat','sat',v=>v+'%',syncAccent);
-  bind('ground','ground',v=>v+'%');
+  /* Three looks that go with the paper the page is printed on: warm, low
+     saturation, and no hue drift, so a room is one colour rather than a
+     gradient walking through the spectrum. The four sliders below still do
+     exactly what they did — a look just moves all four at once, and touching
+     any slider afterwards quietly leaves the preset behind. */
+  const LOOKS={
+    chalk:{hue:34,  sat:16, ground:13, drift:0},
+    clay: {hue:14,  sat:44, ground:11, drift:0},
+    moss: {hue:104, sat:28, ground:15, drift:0}
+  };
+  const lookBtns=[...document.querySelectorAll('.seg button[data-look]')];
+  function paintLook(){
+    const here=Object.keys(LOOKS).find(k=>
+      ['hue','sat','ground','drift'].every(f=>S[f]===LOOKS[k][f]));
+    lookBtns.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.look===here)));
+  }
+  lookBtns.forEach(b=>b.addEventListener('click',()=>{
+    const L=LOOKS[b.dataset.look]; if(!L) return;
+    Object.assign(S,L);
+    ['hue','sat','ground','drift'].forEach(f=>{
+      const el=document.getElementById(f);
+      if(el){ el.value=S[f]; el.dispatchEvent(new Event('input',{bubbles:true})); }
+    });
+    hueRun=S.hue; syncAccent(); save(); paintLook();
+  }));
+
+  bind('hue','hue',v=>v+'°',()=>{ hueRun=S.hue; syncAccent(); paintLook(); });
+  bind('drift','drift',v=>(v/100).toFixed(2)+'°/step',paintLook);
+  bind('sat','sat',v=>v+'%',()=>{ syncAccent(); paintLook(); });
+  bind('ground','ground',v=>v+'%',paintLook);
   const spEl=document.getElementById('speed'), spOut=document.getElementById('speed-o');
   const spNotches=SPEEDS.map((v,i)=>{
     const b=document.createElement('button');
@@ -5608,7 +5502,7 @@
   });
   renderTally();
   applyMode();
-  hueRun=S.hue; syncAccent();
+  hueRun=S.hue; syncAccent(); paintLook();
   worldSeed=soloWorld(); worldName='solo';
   loadMem();
   roomIdx = S.mode==='mop' ? whereWas() : 0;
@@ -7431,7 +7325,6 @@
         }
     };
     if(coop && coop.seed!=null) withSeed((coop.seed+level*7919)>>>0, gen); else gen();
-    tintEl.value=A.tint; tintOut.textContent=tintName();
     ant.x=Math.min(W*.12, body*2); ant.y=H/2; ant.h=0; ant.th=0;
     complete=false; shimmer=0; doorOpen=0; ended=0; gift=null; laidGift=null;
     hushBanner();
@@ -8190,6 +8083,14 @@
       const num=document.createElement('span'); num.className='n'; num.textContent='×'+n;
       row.append(mini,label,num); carryEl.append(row);
     }
+    // CSS caps the box at four rows and scrolls the rest. Say so, rather than
+    // leaving a fifth row half-cut and hoping it reads as "scroll me".
+    if(rows.length>4){
+      const more=document.createElement('div');
+      more.className='carry-more';
+      more.textContent='··· '+(rows.length-4)+' more';
+      carryEl.append(more);
+    }
     carryDirty=false;
   }
 
@@ -8820,14 +8721,10 @@
     if(d){ held.delete(d); if(held.size) setDir([...held][held.size-1],false); }
   });
   window.addEventListener('blur',()=>{ held.clear(); grabbing=false; });
-  document.querySelectorAll('.pad button[data-adir]').forEach(b=>{
-    const on=e=>{ e.preventDefault(); setDir(b.dataset.adir,true); };
-    const off=()=>held.delete(b.dataset.adir);
-    b.addEventListener('pointerdown',on); b.addEventListener('pointerup',off);
-    b.addEventListener('pointerleave',off); b.addEventListener('pointercancel',off);
-  });
-  document.getElementById('ant-drop').addEventListener('click',place);
-  document.getElementById('ant-blow').addEventListener('click',()=>{ blow(); });
+  // The arrow pad, the ● and the Blow button are gone from the rail. The keys
+  // they stood in for — arrows, space and alt — are unchanged, and a finger on
+  // the field still walks, taps to set down and double-taps to blow, which is
+  // what a phone was actually using: `html.touch .pad` hid this pad anyway.
   const pickBtn=document.getElementById('ant-pick');
   function paintPick(){
     if(ALWAYS_PICK) return;
@@ -8844,11 +8741,9 @@
     buildLevel();
     if(coop && coop.isHost){ coop.applied={lvl:level, seed:coop.seed}; hostSnapshot(); }
   });
-  const holdBtn=document.getElementById('ant-hold-btn');
-  holdBtn.addEventListener('click',()=>{
-    A.hold=!A.hold; holdBtn.setAttribute('aria-pressed',String(A.hold));
-    holdBtn.textContent=A.hold?'Holding':'Keeps walking'; held.clear(); saveA();
-  });
+  // Holding is no longer a button, so the ant always walks while a key is
+  // held. A.hold stays in the saved state and is still read by wantsMove();
+  // anyone who had switched it off keeps that until they clear the site data.
   const spEl=document.getElementById('ant-speed'), spOut=document.getElementById('ant-speed-o');
   const notches=SPEED_NAMES.map((name,i)=>{
     const b=document.createElement('button');
@@ -8864,16 +8759,9 @@
     saveA();
   }
 
-  const tintEl=document.getElementById('ant-tint'), tintOut=document.getElementById('ant-tint-o');
-  const TINTS=['meadow','pasture','late summer','hay','dry sand'];
-  const tintName = () => TINTS[Math.min(TINTS.length-1, Math.floor(A.tint/100*TINTS.length))];
-  tintEl.addEventListener('input',()=>{
-    A.tint=+tintEl.value; tintOut.textContent=tintName();
-    if(ground){
-      ground=makeLayer();
-      withSeed(groundSeed, ()=> GROUNDS[LEVELS[Math.min(level,LEVELS.length-1)].ground](ground.ctx));
-    }
-  });
+  // The Shade slider is gone. A.tint is NOT — every one of the fifteen
+  // backgrounds reads it (`const t=A.tint/100`), so it stays at its default
+  // and each floor keeps the colour it was designed at.
 
   function saveA(){ try{ localStorage.setItem('tidy-ant',
     JSON.stringify({speed:A.speed, hold:A.hold, size:A.size, pick:A.pick, level})); }catch(e){} }
@@ -8893,8 +8781,6 @@
       };
     }catch(e){}
     setSpeed(A.speed);
-    holdBtn.setAttribute('aria-pressed',String(A.hold));
-    holdBtn.textContent=A.hold?'Holding':'Keeps walking';
   }
   function reflowAnt(){
     const box=stage.getBoundingClientRect();
@@ -9024,12 +8910,12 @@
   const STEAM = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 1.5A10.5 10.5 0 0 0 1.55 11L7 13.24a2.96 2.96 0 0 1 1.75-.55h.15l2.42-3.5v-.05a3.95 3.95 0 1 1 3.95 3.95h-.09l-3.45 2.46v.12a2.96 2.96 0 0 1-5.88.5l-3.9-1.61A10.5 10.5 0 1 0 12 1.5Zm-4.6 14.43.63.26a2.24 2.24 0 1 0 1.28-3.02l.65.27a1.65 1.65 0 1 1-1.26 3.05l-1.3-.56Zm10.5-7.2a2.63 2.63 0 1 0-2.63 2.64 2.63 2.63 0 0 0 2.63-2.63Zm-4.6 0a1.98 1.98 0 1 1 1.98 1.98 1.98 1.98 0 0 1-1.97-1.98Z"/></svg>';
   const BLURB={
     mop:{
-      main:'A simple social floor mopping game inspired by Hozy.<br>Take a look at the original game here: '+
+      main:'A simple social floor mopping game inspired by Hozy. (Community Chat below)<br>Take a look at the original game here: '+
         '<a class="ext" href="https://store.steampowered.com/app/3326230/Hozy/" target="_blank" rel="noopener">'+STEAM+'Hozy</a>.',
       fine:''
     },
     ant:{
-      main:'A simple social sorting game inspired by the Sorting Bureau.<br>Take a look at the original game here: '+
+      main:'A simple social sorting game inspired by the Sorting Bureau. (Community Chat below)<br>Take a look at the original game here: '+
         '<a class="ext" href="https://store.steampowered.com/app/4120790/The_Sorting_Bureau/" target="_blank" rel="noopener">'+STEAM+'The Sorting Bureau</a>.',
       fine:''
     },
@@ -11394,34 +11280,6 @@
       return viaRaw(code,handlers);
     }
   };
-})();
-</script>
-
-<script>
-/* ── which of the three looks the page wears ──
-   Kept apart from light/dark on purpose: a skin says what the paper and the
-   ink are made of, the theme says whether the lights are on, and every skin
-   has to work both ways round. */
-(function(){
-  const root=document.documentElement;
-  const SKINS={'':1, crayon:1, linen:1};
-  let skin='';
-  try{ const v=localStorage.getItem('sb-skin'); if(v in SKINS) skin=v; }catch(e){}
-  function apply(){
-    if(skin) root.setAttribute('data-skin',skin); else root.removeAttribute('data-skin');
-    document.querySelectorAll('.seg.skin button').forEach(b=>
-      b.setAttribute('aria-pressed', String(b.dataset.skin===skin)));
-    if(window.__dbg) __dbg.set('skin', skin||'house');
-  }
-  document.querySelectorAll('.seg.skin button').forEach(b=>{
-    b.addEventListener('click',()=>{
-      skin=b.dataset.skin;
-      try{ localStorage.setItem('sb-skin',skin); }catch(e){}
-      apply();
-    });
-  });
-  apply();
-  window.__skin=s=>{ if(s in SKINS){ skin=s; apply(); } return skin||'house'; };
 })();
 </script>
 
