@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 118 — Mahagony Mop";</script>
+<script>window.SLOWBROOM_BUILD="build 119 — Mahagony Mop";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -1815,23 +1815,99 @@
         const top=c.createLinearGradient(0,0,0,h*.42);
         top.addColorStop(0,'rgba(220,255,255,.5)'); top.addColorStop(1,'rgba(220,255,255,0)');
         c.fillStyle=top; c.fillRect(0,0,w,h*.42); c.restore();
-        c.fillStyle='rgba(6,52,72,.5)';                        // sand shelf
+        // ── the reef sits ON something ────────────────────────────────
+        // Coral does not float: every head, fan and sponge below is planted on
+        // a rock surface whose height is known at any x, so its root touches
+        // stone. Two ridge shapes, picked at random, with a few outcrops.
+        const rockKind = Math.random()<.5 ? 'ridge' : 'boulders';
+        const humps=[];
+        if(rockKind==='ridge'){
+          const n=3+((Math.random()*3)|0);
+          for(let i=0;i<n;i++)
+            humps.push({x:w*((i+R(.15,.85))/n), r:w*R(.18,.4), hgt:h*R(.1,.26)});
+        }else{
+          const n=5+((Math.random()*4)|0);
+          for(let i=0;i<n;i++)
+            humps.push({x:w*R(-.05,1.05), r:w*R(.1,.24), hgt:h*R(.07,.2)});
+        }
+        const floorY = h*(rockKind==='ridge' ? .84 : .88);
+        // the top of the rock at any x: the tallest hump covering it wins
+        const rockY = x => {
+          let y=floorY;
+          for(const m of humps){
+            const d=Math.abs(x-m.x);
+            if(d>=m.r) continue;
+            const k=Math.cos(d/m.r*Math.PI*.5);         // a smooth dome
+            y=Math.min(y, floorY - m.hgt*k*k);
+          }
+          return y;
+        };
+        c.fillStyle='rgba(6,52,72,.5)';                        // the water behind it
         c.beginPath(); c.moveTo(0,h*.86);
         for(let x=0;x<=w;x+=w*.04) c.lineTo(x, h*.86-Math.sin(x/(w*.17))*h*.03);
         c.lineTo(w,h); c.lineTo(0,h); c.fill();
-        c.fillStyle='#e7dcbe';
+        c.fillStyle='#e7dcbe';                                 // sand between the rocks
         c.beginPath(); c.moveTo(0,h*.9);
         for(let x=0;x<=w;x+=w*.04) c.lineTo(x, h*.9-Math.sin(x/(w*.15)+1.2)*h*.02);
         c.lineTo(w,h); c.lineTo(0,h); c.fill();
+
+        const step=Math.max(3,w*.006);
+        const rockTop=[];
+        for(let x=0;x<=w;x+=step) rockTop.push({x, y:rockY(x)});
+        const drawRock=(off, fill, alpha)=>{
+          c.globalAlpha=alpha; c.fillStyle=fill;
+          c.beginPath(); c.moveTo(0, rockTop[0].y+off);
+          for(const pt of rockTop) c.lineTo(pt.x, pt.y+off);
+          c.lineTo(w,h); c.lineTo(0,h); c.closePath(); c.fill();
+        };
+        drawRock(h*.02, '#0a3346', .55);                       // the rock's own shadow
+        drawRock(0, rockKind==='ridge' ? '#4b5b60' : '#54514c', 1);
+        // grain: mottling and a few cracks, clipped to the rock itself
+        c.save();
+        c.beginPath(); c.moveTo(0, rockTop[0].y);
+        for(const pt of rockTop) c.lineTo(pt.x, pt.y);
+        c.lineTo(w,h); c.lineTo(0,h); c.closePath(); c.clip();
+        for(let i=0;i<260;i++){
+          const X=R(0,w), Y=R(floorY-h*.3, h), rr=Math.min(w,h)*R(.006,.03);
+          c.globalAlpha=R(.05,.18);
+          c.fillStyle = Math.random()<.5 ? '#8ea0a4' : '#22333a';
+          c.beginPath(); c.ellipse(X,Y,rr,rr*R(.4,.8),R(0,TAU),0,TAU); c.fill();
+        }
+        c.globalAlpha=.3; c.strokeStyle='#1b2a31';
+        c.lineWidth=Math.max(1,w*.0016);
+        for(let i=0;i<12;i++){
+          let X=R(0,w), Y=rockY(X)+h*R(.01,.06);
+          c.beginPath(); c.moveTo(X,Y);
+          for(let k=0;k<4;k++){ X+=R(-w*.05,w*.05); Y+=h*R(.01,.05); c.lineTo(X,Y); }
+          c.stroke();
+        }
+        c.globalAlpha=1;
+        // a lit edge along the top, so the rock reads as solid
+        c.strokeStyle='rgba(180,220,230,.35)'; c.lineWidth=Math.max(1.2,h*.004);
+        c.beginPath(); c.moveTo(rockTop[0].x, rockTop[0].y);
+        for(const pt of rockTop) c.lineTo(pt.x, pt.y);
+        c.stroke();
+
         const CORAL=['#ff8a5c','#ff6f91','#ffc65c','#c77dff','#5cd6a0','#ff5c7a','#7ad7f0'];
-        for(let i=0;i<26;i++){                                 // brain and boulder corals
-          const X=R(0,w), Y=h*R(.72,.93), sz=Math.min(w,h)*R(.035,.1);
+        // a few gardens rather than an even scatter: reefs grow in clumps
+        const gardens=[];
+        const gn=2+((Math.random()*3)|0);
+        for(let i=0;i<gn;i++) gardens.push({x:w*((i+R(.2,.8))/gn), r:w*R(.12,.26)});
+        const plantX = () => {
+          const g=gardens[(Math.random()*gardens.length)|0];
+          return Math.max(w*.02, Math.min(w*.98, g.x + R(-g.r,g.r)));
+        };
+        for(let i=0;i<30;i++){                                 // brain and boulder corals
+          const X=plantX(), sz=Math.min(w,h)*R(.03,.085);
+          const Y=rockY(X) + sz*.42;                           // its base in the stone
           const col=CORAL[(Math.random()*CORAL.length)|0];
-          c.fillStyle=col; c.globalAlpha=R(.7,.95);
+          c.fillStyle='rgba(4,26,38,.4)';                      // sits in its own shadow
+          c.beginPath(); c.ellipse(X, Y+sz*.12, sz*.95, sz*.3, 0,0,TAU); c.fill();
+          c.fillStyle=col; c.globalAlpha=R(.75,.95);
           c.beginPath();
-          for(let k=0;k<7;k++){
-            const a=k/7*TAU, rr=sz*R(.55,1);
-            c.lineTo(X+Math.cos(a)*rr, Y+Math.sin(a)*rr*.62);
+          for(let k=0;k<9;k++){
+            const a2=k/9*TAU, rr=sz*R(.6,1);
+            c.lineTo(X+Math.cos(a2)*rr, Y+Math.sin(a2)*rr*.62);
           }
           c.closePath(); c.fill();
           c.strokeStyle='rgba(255,255,255,.22)'; c.lineWidth=Math.max(.8,sz*.05);
@@ -1843,24 +1919,33 @@
           }
         }
         c.globalAlpha=1;
-        for(let i=0;i<14;i++){                                 // sea fans
-          const X=R(0,w), Y=h*R(.74,.9), sz=Math.min(w,h)*R(.06,.16);
+        for(let i=0;i<16;i++){                                 // sea fans, rooted
+          const X=plantX(), sz=Math.min(w,h)*R(.06,.17);
+          const Y=rockY(X);
           const col=CORAL[(Math.random()*CORAL.length)|0];
-          c.strokeStyle=col; c.globalAlpha=.75;
+          c.fillStyle='rgba(4,26,38,.35)';
+          c.beginPath(); c.ellipse(X, Y+sz*.03, sz*.24, sz*.07, 0,0,TAU); c.fill();
+          c.strokeStyle=col; c.globalAlpha=.78;
           c.lineWidth=Math.max(1,sz*.035); c.lineCap='round';
           for(let k=-3;k<=3;k++){
-            c.beginPath(); c.moveTo(X,Y);
+            c.beginPath(); c.moveTo(X,Y);                       // every frond from one root
             c.quadraticCurveTo(X+k*sz*.12, Y-sz*.5, X+k*sz*.26, Y-sz);
             c.stroke();
           }
         }
         c.globalAlpha=1;
-        for(let i=0;i<16;i++){                                 // tube sponges
-          const X=R(0,w), Y=h*R(.78,.92), sz=Math.min(w,h)*R(.03,.075);
-          c.fillStyle=CORAL[(Math.random()*CORAL.length)|0]; c.globalAlpha=.85;
+        for(let i=0;i<18;i++){                                 // tube sponges, standing on it
+          const X=plantX(), sz=Math.min(w,h)*R(.028,.07);
+          const Y=rockY(X)+sz*.06;
+          c.fillStyle='rgba(4,26,38,.35)';
+          c.beginPath(); c.ellipse(X, Y, sz*.7, sz*.2, 0,0,TAU); c.fill();
+          const col=CORAL[(Math.random()*CORAL.length)|0];
           for(let k=0;k<3;k++){
-            const ox2=X+k*sz*.5-sz*.5;
-            c.beginPath(); c.roundRect(ox2-sz*.16, Y-sz*R(.8,1.5), sz*.32, sz*1.5, sz*.16); c.fill();
+            const ox2=X+k*sz*.5-sz*.5, tall=sz*R(.8,1.6);
+            c.fillStyle=col; c.globalAlpha=.88;
+            c.beginPath(); c.roundRect(ox2-sz*.16, Y-tall, sz*.32, tall, sz*.16); c.fill();
+            c.fillStyle='rgba(10,30,40,.5)';                    // the open mouth
+            c.beginPath(); c.ellipse(ox2, Y-tall, sz*.16, sz*.06, 0,0,TAU); c.fill();
           }
         }
         c.globalAlpha=1;
@@ -1876,7 +1961,7 @@
                      col:FISH[(Math.random()*FISH.length)|0], wag:R(0,TAU)});
         }
         return {fish, motes:motes(30,w,h,.7,2.1), t:0,
-                anem:Array.from({length:12},()=>({x:R(0,w), y:h*R(.76,.92),
+                anem:Array.from({length:12},()=>({x:R(0,w), y:h*R(.8,.93),
                   sz:Math.min(w,h)*R(.02,.05), ph:R(0,TAU),
                   col:'hsl('+R(280,340)+' 80% 72%)'}))};
       },
@@ -1993,18 +2078,21 @@
         const M=Math.min(w,h);
         const beasts=[];
         // an angler, a gulper eel and a squid, all silhouette and all slow
-        beasts.push({kind:'angler', x:R(0,w), y:h*R(.3,.7), L:M*R(.16,.26),
-                     dir:Math.random()<.5?-1:1, sp:R(.004,.009), bob:R(0,TAU), ph:R(0,TAU)});
-        beasts.push({kind:'eel', x:R(0,w), y:h*R(.2,.8), L:M*R(.3,.45),
-                     dir:Math.random()<.5?-1:1, sp:R(.003,.007), bob:R(0,TAU), ph:R(0,TAU)});
-        beasts.push({kind:'squid', x:R(0,w), y:h*R(.25,.75), L:M*R(.12,.2),
-                     dir:Math.random()<.5?-1:1, sp:R(.005,.011), bob:R(0,TAU), ph:R(0,TAU)});
+        // Big animals in deep water move deliberately: a third of the old
+        // speed, and large enough to read as something you would not want to
+        // meet. The lure and the fins keep their own slow rhythm.
+        beasts.push({kind:'angler', x:R(0,w), y:h*R(.32,.68), L:M*R(.32,.44),
+                     dir:Math.random()<.5?-1:1, sp:R(.0035,.006), bob:R(0,TAU), ph:R(0,TAU)});
+        beasts.push({kind:'eel', x:R(0,w), y:h*R(.2,.8), L:M*R(.44,.6),
+                     dir:Math.random()<.5?-1:1, sp:R(.003,.005), bob:R(0,TAU), ph:R(0,TAU)});
+        beasts.push({kind:'squid', x:R(0,w), y:h*R(.25,.75), L:M*R(.24,.36),
+                     dir:Math.random()<.5?-1:1, sp:R(.004,.0065), bob:R(0,TAU), ph:R(0,TAU)});
         return {beasts, motes:motes(34,w,h,.5,1.5), t:0,
                 glows:Array.from({length:14},()=>({x:R(0,w), y:R(0,h),
                   r:M*R(.004,.012), ph:R(0,TAU), sp:R(.0008,.0026),
                   col:Math.random()<.5?'150,225,255':'170,255,210'}))};
       },
-      swim(c,w,h,dt,st,low){
+      swim(c,w,h,dt,st,low,mop){
         st.t+=dt;
         for(const g of st.glows){                              // things pulsing in the dark
           g.ph+=dt*g.sp;
@@ -2018,35 +2106,112 @@
         }
         if(!low) driftMotes(c, st.motes, w, h, dt, 'rgba(170,220,240,.35)');
         for(const b of st.beasts){
-          b.bob+=dt*.0011; b.ph+=dt*.009;
-          b.x+=b.dir*b.sp*dt; b.y+=Math.sin(b.bob)*dt*.006;
+          b.bob+=dt*.0004; b.ph+=dt*.0028;          // a slow, heavy rhythm
+          // Now and then one of them takes an interest in the light on the
+          // glass and comes over to look. It is a drift, not a chase: it
+          // turns slowly, holds the interest for a few seconds, then forgets.
+          b.curious=(b.curious||0)-dt;
+          if(b.curious<=0 && Math.random() < dt*0.00001){
+            b.curious=R(3000,6000);
+          }
+          if(b.curious>0 && mop){
+            const dx=mop.x-b.x;
+            if(Math.abs(dx)>b.L*.6) b.dir += ((dx>0?1:-1)-b.dir)*Math.min(1,dt*.0015);
+            b.y += (mop.y-b.y) * Math.min(.06, dt*.00022);
+            if(Math.abs(dx) < b.L*.5) b.curious=0;   // had a good look
+          }
+          b.x+=b.dir*b.sp*dt; b.y+=Math.sin(b.bob)*dt*.0016;
+          b.y=Math.max(h*.12, Math.min(h*.88, b.y));
           if(b.x<-b.L*1.6) b.x=w+b.L*1.6; else if(b.x>w+b.L*1.6) b.x=-b.L*1.6;
-          c.save(); c.translate(b.x,b.y); c.scale(b.dir<0?-1:1,1);
+          // dir is no longer just ±1: while it turns it passes through zero,
+          // and narrowing the body as it does reads as the animal coming
+          // round side-on rather than flipping like a sprite.
+          const face=(b.dir<0?-1:1) * Math.max(.18, Math.min(1, Math.abs(b.dir)));
+          c.save(); c.translate(b.x,b.y); c.scale(face,1);
           c.fillStyle='rgba(2,8,14,.88)';
           const L=b.L;
           if(b.kind==='angler'){
-            c.beginPath(); c.ellipse(0,0,L*.42,L*.3,0,0,TAU); c.fill();
-            c.beginPath();                                     // jaw and teeth
-            c.moveTo(L*.12,L*.06); c.lineTo(L*.46,L*.02); c.lineTo(L*.12,L*.26); c.closePath(); c.fill();
-            c.fillStyle='rgba(2,8,14,.88)';
-            for(let i=0;i<6;i++){
-              const tx=L*.14+i*L*.05;
-              c.beginPath(); c.moveTo(tx,L*.08); c.lineTo(tx+L*.02,L*.17); c.lineTo(tx+L*.04,L*.08);
+            const gill='#12303c', skin='#1b3b46', dark='#0a1d25';
+            // body: a deep pear, widest just behind the head
+            c.fillStyle=skin;
+            c.beginPath();
+            c.moveTo(L*.44,L*.02);
+            c.bezierCurveTo(L*.34,-L*.34, -L*.02,-L*.42, -L*.24,-L*.2);
+            c.bezierCurveTo(-L*.4,-L*.06, -L*.4,L*.1, -L*.24,L*.22);
+            c.bezierCurveTo(-L*.02,L*.42, L*.3,L*.32, L*.44,L*.02);
+            c.closePath(); c.fill();
+            // scales: overlapping arcs, clipped to the body, fading back
+            c.save(); c.clip();
+            c.strokeStyle='rgba(120,190,205,.16)';
+            c.lineWidth=Math.max(.6,L*.008);
+            for(let row=-4;row<=4;row++){
+              for(let col=-4;col<=4;col++){
+                const sx=L*.06+col*L*.075, sy=row*L*.062+(col%2?L*.03:0);
+                c.beginPath(); c.arc(sx,sy,L*.05,Math.PI*.15,Math.PI*.85); c.stroke();
+              }
+            }
+            c.fillStyle='rgba(6,20,28,.55)';                  // shaded belly
+            c.beginPath(); c.ellipse(L*.02,L*.24,L*.4,L*.16,0,0,TAU); c.fill();
+            c.restore();
+            c.strokeStyle=dark; c.lineWidth=Math.max(1,L*.014);
+            c.stroke();                                        // its own outline
+            c.strokeStyle='rgba(140,210,225,.25)';             // gill arch
+            c.lineWidth=Math.max(1,L*.012);
+            c.beginPath(); c.moveTo(L*.14,-L*.2);
+            c.quadraticCurveTo(L*.06,0,L*.14,L*.2); c.stroke();
+            // the mouth: a wide hinge, lower jaw dropping as it breathes
+            const gape=.5+.5*Math.sin(b.ph);
+            c.fillStyle=dark;
+            c.beginPath();
+            c.moveTo(L*.44,L*.02);
+            c.lineTo(L*.1,-L*.06);
+            c.lineTo(L*.12, L*.1+L*.12*gape);
+            c.lineTo(L*.46, L*.06+L*.1*gape);
+            c.closePath(); c.fill();
+            c.fillStyle='#e8f2ee';                             // teeth, both jaws
+            for(let i=0;i<7;i++){
+              const t2=i/6, tx=L*.12+t2*L*.32;
+              const uy=-L*.05+t2*L*.06, ly=L*.1+t2*(-L*.02)+L*.12*gape;
+              const len=L*.055*(1-Math.abs(t2-.45));
+              c.beginPath(); c.moveTo(tx,uy); c.lineTo(tx+L*.018,uy+len); c.lineTo(tx+L*.036,uy);
+              c.closePath(); c.fill();
+              c.beginPath(); c.moveTo(tx,ly); c.lineTo(tx+L*.018,ly-len); c.lineTo(tx+L*.036,ly);
               c.closePath(); c.fill();
             }
-            c.strokeStyle='rgba(2,8,14,.88)'; c.lineWidth=Math.max(1,L*.022);
-            c.beginPath(); c.moveTo(L*.1,-L*.26);
-            c.quadraticCurveTo(L*.42,-L*.66, L*.5,-L*.34); c.stroke();
-            c.save(); c.globalCompositeOperation='lighter';    // the lure
+            c.fillStyle='#f4f8f2';                             // the eye
+            c.beginPath(); c.arc(L*.24,-L*.14,L*.045,0,TAU); c.fill();
+            c.fillStyle='#04121a';
+            c.beginPath(); c.arc(L*.252,-L*.138,L*.023,0,TAU); c.fill();
+            c.fillStyle='rgba(255,255,255,.8)';
+            c.beginPath(); c.arc(L*.243,-L*.152,L*.009,0,TAU); c.fill();
+            // fins: pectoral, dorsal and a ragged tail
+            c.fillStyle='rgba(20,60,72,.85)';
+            const fin=Math.sin(b.ph*1.3)*L*.03;
+            c.beginPath(); c.moveTo(L*.02,L*.16);
+            c.quadraticCurveTo(-L*.08,L*.34+fin, -L*.16,L*.2); c.closePath(); c.fill();
+            c.beginPath(); c.moveTo(-L*.06,-L*.32);
+            c.quadraticCurveTo(-L*.14,-L*.46-fin, -L*.22,-L*.24); c.closePath(); c.fill();
+            c.beginPath();
+            c.moveTo(-L*.34,-L*.06);
+            c.lineTo(-L*.58,-L*.22+fin); c.lineTo(-L*.48,0);
+            c.lineTo(-L*.58, L*.22-fin); c.lineTo(-L*.34,L*.08);
+            c.closePath(); c.fill();
+            // the illicium: a stalk from the brow with a lit bulb on the end
             const k=.55+.45*Math.sin(b.ph);
-            const lg=c.createRadialGradient(L*.5,-L*.34,0,L*.5,-L*.34,L*.2);
-            lg.addColorStop(0,'rgba(190,255,235,'+(.85*k)+')');
+            const tipX=L*.5+Math.sin(b.ph*.7)*L*.03, tipY=-L*.5+Math.cos(b.ph*.9)*L*.03;
+            c.strokeStyle='rgba(24,58,68,.95)'; c.lineWidth=Math.max(1,L*.018);
+            c.lineCap='round';
+            c.beginPath(); c.moveTo(L*.16,-L*.3);
+            c.quadraticCurveTo(L*.46,-L*.62, tipX, tipY); c.stroke();
+            c.save(); c.globalCompositeOperation='lighter';
+            const lg=c.createRadialGradient(tipX,tipY,0,tipX,tipY,L*.16);
+            lg.addColorStop(0,'rgba(210,255,240,'+(.75*k)+')');
+            lg.addColorStop(.45,'rgba(120,230,210,'+(.3*k)+')');
             lg.addColorStop(1,'rgba(120,230,210,0)');
-            c.fillStyle=lg; c.beginPath(); c.arc(L*.5,-L*.34,L*.2,0,TAU); c.fill();
+            c.fillStyle=lg; c.beginPath(); c.arc(tipX,tipY,L*.16,0,TAU); c.fill();
             c.restore();
-            c.fillStyle='rgba(2,8,14,.88)';
-            c.beginPath(); c.moveTo(-L*.4,0); c.lineTo(-L*.6,-L*.2);
-            c.lineTo(-L*.52,0); c.lineTo(-L*.6,L*.2); c.closePath(); c.fill();
+            c.fillStyle='rgba(226,255,244,'+(.55+.4*k)+')';    // the bulb itself
+            c.beginPath(); c.arc(tipX,tipY,L*.028,0,TAU); c.fill();
           } else if(b.kind==='eel'){
             c.beginPath();
             c.moveTo(L*.44,-L*.04);
@@ -2713,11 +2878,11 @@
     ctx.beginPath();
     ctx.roundRect(ins,ins,W-2*ins,H-2*ins, Math.min(W,H)*glassClip.r);
     ctx.clip();
-    liveFn(ctx, W, H, Math.min(60,dt), liveState, !!window.__lowPower);
+    liveFn(ctx, W, H, Math.min(60,dt), liveState, !!window.__lowPower, {x:px, y:py});
     ctx.restore();
     return true;
   }
-  let bolt=[], flicker=0;
+  let bolt=[], flicker=0, lastBoltAt=0, boltDistance=.5;
   function strike(){
     bolt=[];
     let X=R(W*.15,W*.85), Y=0;
@@ -2736,7 +2901,12 @@
       bolt.push(arm);
     }
     flash=1; flicker=110;
-    if(window.__sfx) window.__sfx.thunder(R(.25,1));
+    // How far off the storm is decides both the delay and the tone, and the
+    // same number drives both so the rumble always belongs to the flash you
+    // just saw: close strikes crack almost at once, far ones roll in late.
+    lastBoltAt=performance.now();
+    boltDistance=R(.1,.85);
+    if(window.__sfx && window.__sfx.thunder) window.__sfx.thunder(boltDistance);
   }
   function drawBolt(){
     for(const line of bolt){
@@ -3489,18 +3659,33 @@
   // a weighted draw: specials stay rare and spaced, and the same look
   // rarely turns up twice running
   const HIST=[];
+  let roomsSeen=0;                       // how many floors this browser has opened
+  try{ roomsSeen=Math.max(0, +localStorage.getItem('sb-rooms-seen')||0); }catch(e){}
   function pickSurfaceIdx(){
     const p=pickSurfaceFrom(HIST);
     HIST.push(p); if(HIST.length>60) HIST.shift();
+    roomsSeen++;
+    try{ localStorage.setItem('sb-rooms-seen', String(Math.min(9999,roomsSeen))); }catch(e){}
     return p;
   }
   function pickSurfaceFrom(HIST){
     const prev = HIST.length ? HIST[HIST.length-1] : -1;
     const prevType = prev>=0 ? SURFACES[prev].type : '';
+    // rooms since ANY underwater window, not merely since this one
+    let sinceSub=99;
+    for(let k=HIST.length-1;k>=0;k--) if(SURFACES[HIST[k]].sub){ sinceSub=HIST.length-k; break; }
     const w=[]; let total=0;
     for(let i=0;i<SURFACES.length;i++){
       const t=SURFACES[i].type;
       let wt = t==='special' ? .3 : t==='window' ? 1.15 : 1;
+      // The sea behind the glass is the rarest thing in the building. It
+      // stays shut for the first several rooms, then turns up seldom — and
+      // the cooling-off counts ALL of them together, so two different
+      // portholes cannot land back to back either.
+      if(SURFACES[i].sub){
+        if(roomsSeen < 8) wt = 0;
+        else wt *= (sinceSub<20 ? .006 : .16);
+      }
       const last=HIST.lastIndexOf(i);
       const since = last<0 ? 99 : HIST.length-last;
       if(t==='special' && since<14) wt*=.05;
@@ -9755,24 +9940,20 @@
     storm:  {f:1500, q:.5,  g:.19, lfo:.03, drops:{every:26,  n:5, f:[700,2400], g:.075,d:.13}},
     sand:   {f:820,  q:.9,  g:.19, lfo:.07},
     gale:   {f:430,  q:1.4, g:.2,  lfo:.11},
-    hail:   {f:3200, q:.7,  g:.1,  lfo:0},
-    snow:   {f:600,  q:.6,  g:.03, lfo:.02},
-    thick:  {f:520,  q:.6,  g:.045,lfo:.02},
-    flurry: {f:700,  q:.6,  g:.025,lfo:.02},
-    cloudy: {f:380,  q:.8,  g:.035,lfo:.05},
-    clear:  {f:500,  q:.7,  g:.016,lfo:.03},
-    // behind a hull: no weather, just water and the boat around you
-    reef:   {f:340,  q:.9,  g:.05, lfo:.04},
-    open:   {f:240,  q:1.1, g:.055,lfo:.06},
-    deep:   {f:130,  q:1.6, g:.07, lfo:.09},
-    abyss:  {f:95,   q:1.9, g:.06, lfo:.12}
+    hail:   {f:3200, q:.7,  g:.1,  lfo:0}
+    // Everything else is quiet on purpose. A constant hiss behind a snowfall,
+    // a clear sky, an indoor floor or a pane of glass with the sea behind it
+    // is not atmosphere, it is noise — snow falls silently, and a hull keeps
+    // the water out. Fair weather gets the odd breeze instead, below.
   };
+  // weathers that are silent but for an occasional breath of wind
+  const BREEZY={clear:1, cloudy:1, flurry:1};
   function applyWeatherSound(w){
     if(!ready) return;
     const b=BEDS[w];
     const t=ctx.currentTime;
     if(!b){
-      bedGain.gain.setTargetAtTime(0,t,.4);
+      bedGain.gain.setTargetAtTime(0,t,.8);      // fade out, never cut
       stopTicks(); stopDrops(); return;
     }
     bedFilter.frequency.setTargetAtTime(b.f,t,.5);
@@ -9831,8 +10012,13 @@
   }
   // thunder, delayed by how far the strike was
   function thunder(distance){
-    if(!ready||!S.on) return;
-    const t=ctx.currentTime + .25 + distance*2.4;
+    // The bed was built on the first user gesture, but a bolt can strike
+    // before anyone has clicked: ask for the audio rather than dropping the
+    // thunder on the floor, which is why flashes used to arrive in silence.
+    if(!S.on) return;
+    if(!ready){ build(); resume(); }
+    if(!ready) return;
+    const t=ctx.currentTime + .18 + distance*1.9;   // close enough to connect
     const dur=1.6+distance*2.2;
     const src=ctx.createBufferSource(); src.buffer=noiseBuffer(dur);
     const lp=ctx.createBiquadFilter(); lp.type='lowpass';
@@ -9840,8 +10026,8 @@
     lp.frequency.exponentialRampToValueAtTime(90,t+dur);
     const g=ctx.createGain();
     g.gain.setValueAtTime(.0001,t);
-    g.gain.exponentialRampToValueAtTime(.55*(1-distance*.55),t+.06);
-    g.gain.exponentialRampToValueAtTime(.12*(1-distance*.5),t+.5);
+    g.gain.exponentialRampToValueAtTime(.62*(1-distance*.45),t+.06);
+    g.gain.exponentialRampToValueAtTime(.16*(1-distance*.4),t+.5);
     g.gain.exponentialRampToValueAtTime(.0001,t+dur);
     src.connect(lp); lp.connect(g); g.connect(master);
     src.start(t); src.stop(t+dur+.1);
@@ -9914,6 +10100,9 @@
     if(!ready || !S.on || ctx.state!=='running') return;
     const dt=.12; modT+=dt;
     shapeTool(dt);
+    // A still, bright day is not silent — but it is not a wind machine
+    // either. Every now and again a single breath moves through and dies away.
+    if(BREEZY[S.weather] && Math.random() < .012) breeze();
     const b=BEDS[S.weather];
     if(b){
       const t=ctx.currentTime;
@@ -9924,6 +10113,27 @@
       if((S.weather==='rain'||S.weather==='storm') && Math.random()<.3) drip();
     }
   }, 120);
+  // One breath of wind: a soft band of noise that swells and fades on its own
+  // and is gone. Nothing loops, so it never becomes a drone.
+  function breeze(){
+    if(!ready || !S.on) return;
+    const t=ctx.currentTime+Math.random()*.3;
+    const dur=2.4+Math.random()*3.4;
+    const src=ctx.createBufferSource(); src.buffer=noiseBuffer(dur);
+    const bp=ctx.createBiquadFilter(); bp.type='bandpass';
+    bp.frequency.setValueAtTime(380+Math.random()*260,t);
+    bp.frequency.linearRampToValueAtTime(620+Math.random()*420,t+dur*.55);
+    bp.frequency.linearRampToValueAtTime(300+Math.random()*180,t+dur);
+    bp.Q.value=.7+Math.random()*.6;
+    const g=ctx.createGain();
+    const peak=.012+Math.random()*.016;          // barely there on purpose
+    g.gain.setValueAtTime(.0001,t);
+    g.gain.exponentialRampToValueAtTime(peak, t+dur*R2(.3,.5));
+    g.gain.exponentialRampToValueAtTime(.0001, t+dur);
+    src.connect(bp); bp.connect(g); g.connect(master);
+    src.start(t); src.stop(t+dur+.1);
+  }
+  const R2=(a,b)=>a+Math.random()*(b-a);
   // ── a regal fanfare, quiet at the flower shop and grander each room ──
   function brass(freq, at, dur, gain, dest){
     const t=at;
