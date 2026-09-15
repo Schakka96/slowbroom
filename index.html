@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 125 — Mahagony Mop";</script>
+<script>window.SLOWBROOM_BUILD="build 126 — Mahagony Mop";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -1130,9 +1130,10 @@
   let gx=0, gy=0, hvx=0, hvy=0, gripHeading=0;   // the hand on the stick, and the head's drift
   let cell=10, ox=0, oy=0, dpr=1, W=0, H=0, IN=4;
   let base=null, dust=null, wet=null, clean=null, shine=null, tmp=null, paint=null;
-  // `dust` records the lasting cleaned floor. `wet` and `clean` are only the
-  // short-lived water/gloss drawn while a broom is actually moving.
-  let lastTraceAt=0;
+  // `dust` records the lasting cleaned floor. Gloss is redrawn from this
+  // short queue so each individual bit of a path can expire on its own.
+  const GLOSS_LIFE=3000;
+  let glossStrokes=[];
 
   const R = (a,b)=>a+Math.random()*(b-a);
   const pick = a => a[(Math.random()*a.length)|0];
@@ -3129,6 +3130,7 @@
   }
   function buildSurface(){
     base=makeLayer(); dust=makeLayer(); wet=makeLayer(); clean=makeLayer(); tmp=makeLayer();
+    glossStrokes=[];
     const s = SURFACES[level % SURFACES.length];
     surfaceSeed = pendingSeed!=null ? pendingSeed : ((Math.random()*1e9)|0);
     pendingSeed=null;
@@ -3506,21 +3508,18 @@
   }
 
   function mopStroke(x0,y0,x1,y1,WD){
-    // Once Spotless has cleared its layers, continued movement must not put a
-    // new bright route back onto an otherwise clean room.
-    if(!dust || done) return;
-    const w=WD||mopPx(), d=dust.ctx, e=wet.ctx, k=clean.ctx;
+    if(!dust) return;
+    const w=WD||mopPx(), d=dust.ctx, e=wet.ctx;
     const len=Math.hypot(x1-x0,y1-y0);
     const ang = len>0.01 ? Math.atan2(y1-y0,x1-x0) : heading;
-    if(len>0.01) lastTraceAt=performance.now();
 
     d.save(); d.globalCompositeOperation='destination-out';
     sweep(x0,y0,x1,y1,(x,y)=>dab(d,x,y,w,ang,.85)); d.restore();
 
-    k.save(); k.globalAlpha=.5;
-    sweep(x0,y0,x1,y1,(x,y)=>dab(k,x,y,w*.94,ang,.9)); k.restore();
-
     if(len<0.01) return;
+    // Keep the geometry, not accumulated pixels. During rendering every
+    // segment gets its own age-based alpha and is omitted exactly at 3s.
+    glossStrokes.push({x0,y0,x1,y1,w,ang,at:performance.now()});
     const hue=wrapHue(hueRun), a=ang+Math.PI/2;
     const cax=Math.cos(a), say=Math.sin(a), now=performance.now();
 
@@ -3572,28 +3571,27 @@
     e.restore();
   }
   function dryWet(dt){
-    const now=performance.now();
-    // This is an explicit expiry, not just a very small remaining alpha: when
-    // the last broom stops, no transient trail can survive past three seconds.
-    if(lastTraceAt && now-lastTraceAt>=3000){
-      if(wet) wet.ctx.clearRect(0,0,W,H);
-      if(clean) clean.ctx.clearRect(0,0,W,H);
-      lastTraceAt=0;
-      return;
-    }
     if(wet){
       const e=wet.ctx;
       e.save(); e.globalCompositeOperation='destination-out';
       e.fillStyle='rgba(0,0,0,'+Math.min(.25, 1-Math.exp(-dt/650))+')'; e.fillRect(0,0,W,H);
       e.restore();
     }
-    // The cleaned map lives in `state`; this layer is only a short-lived sheen.
-    // At three seconds below 1% remains, independent of frame rate.
+  }
+  function drawGlossTraces(now){
     if(clean){
       const k=clean.ctx;
-      k.save(); k.globalCompositeOperation='destination-out';
-      k.fillStyle='rgba(0,0,0,'+Math.min(.25, 1-Math.exp(-dt/650))+')'; k.fillRect(0,0,W,H);
-      k.restore();
+      k.clearRect(0,0,W,H);
+      const alive=[];
+      for(const s of glossStrokes){
+        const left=1-(now-s.at)/GLOSS_LIFE;
+        if(left<=0) continue;
+        alive.push(s);
+        k.save(); k.globalAlpha=.5*left;
+        sweep(s.x0,s.y0,s.x1,s.y1,(x,y)=>dab(k,x,y,s.w*.94,s.ang,.9));
+        k.restore();
+      }
+      glossStrokes=alive;
     }
   }
   const onGlass = () => { const s=SURFACES[level%SURFACES.length]; return !!(s.glassy||s.sub); };
@@ -3919,7 +3917,7 @@
     // where any local or remote mop travelled.
     if(clean) clean.ctx.clearRect(0,0,W,H);
     if(wet) wet.ctx.clearRect(0,0,W,H);
-    lastTraceAt=0;
+    glossStrokes=[];
     for(let i=0;i<N;i++) if(state[i]===0) state[i]=1;
     painted=N; done=true; updateReadout();
   }
@@ -4663,6 +4661,7 @@
         peerStrokes(dt);
         if(go || mbots.length) stepMopBots(dt);
         dryWet(dt);
+        drawGlossTraces(now);
         if(!simming) drawMopScene();
         drawShimmerMop(dt); checkLevel();
         if(mcoop){
@@ -4951,6 +4950,10 @@
       const rescale=src=>{ const l=makeLayer(); l.ctx.drawImage(src.cv,0,0,W,H); return l; };
       dust=rescale(old.dust); wet=rescale(old.wet); clean=rescale(old.clean);
       tmp=makeLayer(); buildShine(); seedWeatherParticles(); seedLive();
+      const sx=W/oldW, sy=H/oldH, sw=(sx+sy)/2;
+      for(const s of glossStrokes){
+        s.x0*=sx; s.x1*=sx; s.y0*=sy; s.y1*=sy; s.w*=sw;
+      }
       for(const b of mbots){ b.x=b.x/oldW*W; b.y=b.y/oldH*H; b.wp=[]; }
       auto.pts=[];
     }
@@ -5036,7 +5039,8 @@
   window.__mopSelfTest=()=>{
     const out=[]; let bad=0;
     const ok=(name,pass,note)=>{ out.push((pass?'  ok    ':'  FAIL  ')+name+(note?'  — '+note:'')); if(!pass) bad++; };
-    const keep={worldSeed, cols, rows, N, state, painted, dust, clean, cw:surfCacheWorld};
+    const keep={worldSeed, cols, rows, N, state, painted, dust, clean,
+                gloss:glossStrokes, cw:surfCacheWorld};
     try{
       // Layers of their own, not the ones on screen: the drawing code must
       // really run, or the checks below pass by never reaching it — which is
@@ -5184,7 +5188,15 @@
          wide.filter(v=>v>.98).length/8 > 2.5,
          (wide.filter(v=>v>.98).length/8).toFixed(2)+' squares solid');
 
-      // 6 — a map survives the trip through text
+      // 6 — gloss belongs to individual strokes, never to the whole room.
+      // Rendering at its deadline must discard it, even if newer strokes
+      // would still be visible beside it.
+      glossStrokes=[{x0:0,y0:0,x1:10,y1:0,w:10,ang:0,at:0}];
+      drawGlossTraces(GLOSS_LIFE);
+      ok('a gloss stroke is fully gone exactly three seconds later',
+         glossStrokes.length===0);
+
+      // 7 — a map survives the trip through text
       ok('a map survives base64', shSame(shFrom64(shB64(left)), left));
       ok('nonsense is refused rather than half-read',
          shFrom64('not base64 at all!!')===null && shFrom64('QUJD')===null &&
@@ -5193,6 +5205,7 @@
     finally{
       worldSeed=keep.worldSeed; cols=keep.cols; rows=keep.rows; N=keep.N;
       state=keep.state; painted=keep.painted; dust=keep.dust; clean=keep.clean;
+      glossStrokes=keep.gloss;
       surfCacheWorld=0; surfCache.length=0; surfCacheWorld=keep.cw;
     }
     out.unshift('— mopping together · self test — '+(bad? bad+' failed':'all good'));
