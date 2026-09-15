@@ -55,8 +55,8 @@ its replacement, and the assert had been left out.
 - **Don't `git add -A`.** Recordings and screenshots get dropped in this folder;
   `.gitignore` covers the usual extensions now, but stage explicitly.
 - Both games have a `frame()` and a `tick()`. Only ever schedule frames through
-  that game's `raf()` helper — asking for a frame twice used to start a second
-  永 loop that never stopped, and six of them starved the network.
+  that game's `raf()` helper — asking for a frame twice used to start a second loop
+  that never stopped, and six of them starved the network.
 - The ant and the mop each have their own `keyup` listener with identical
   opening lines. Anchor replacements on something unique to the one you mean.
 - Timers: the games run on the animation clock (`performance.now()`), the
