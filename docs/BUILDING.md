@@ -7,16 +7,30 @@ blocks. There is no build step beyond stamping the head onto it.
 ## The loop
 
 ```
-python3 build.py <path to the artifact source>   # writes index.html + version.json
-node tools/sweep.js                              # loads every script block, catches throws
-git add -A && git commit && git push             # GitHub Pages serves it
+python3 build.py src.html        # writes index.html + version.json
+node tools/sweep.js              # loads every script block, catches throws
+node tools/mopcheck.js           # the shared-floor machinery, on one browser
+node tools/together.js           # two browsers, one corridor — co-op end to end
+git add <paths> && git commit && git push        # GitHub Pages serves it
 ```
+
+`src.html` is the artifact body, kept in the repo. It used to live in a temp
+file that did not survive the session, which meant the only copy of the source
+was whichever chat window had made it. Edit `src.html`, build, and the two stay
+in step; `build.py src.html` reproduces `index.html` byte for byte apart from
+the build number.
 
 `build.py` wraps the body in a doctype, head, favicon and OG tags, injects
 `window.SLOWBROOM_BUILD` ("build 107 — Mahagony Mop") and writes
 `version.json`, which the running page polls so players are told when a newer
 build exists. Pages caches for ten minutes, so hand out `?v=N` links (bump N)
 rather than telling anyone to hard-refresh.
+
+`tools/together.js` loads the whole page twice, in two isolated contexts with
+two different window shapes, and wires their co-op channels to each other and
+to a pretend `mop_floors` table. It is the test that otherwise needs a second
+person and a second laptop. `tools/mopcheck.js` runs the page's own
+`/mopcheck` from the command line — the same test Antonia can run in-game.
 
 `tools/sweep.js` is a stub-DOM harness. It loads each `<script>` block in a
 fake document and reports which ones throw at load. It exists because a
