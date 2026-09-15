@@ -1,0 +1,10 @@
+# recordings and screenshots live here but are not part of the site
+*.mp4
+*.mov
+*.m4v
+*.png
+*.jpg
+*.jpeg
+*.gif
+!favicon*
+.DS_Store
