@@ -72,7 +72,21 @@ just looks wrong, so no other harness here can see it. This one asks what a
 glance would: is anything there, is it a different shape from the other two,
 does it turn with the heading, and do the two that should move actually move.
 It is also the only way to draw a tool without a browser, via the
-`window.__mopTool` seam (`__mopTool.set('moss')` works in the console too).
+`window.__mopArt` seam.
+
+`tools/mopshot.js` goes one step further and replays those same calls into an
+SVG, which `qlmanage -t -s 840 -o . out.svg` turns into a PNG you can open.
+**Assertions are not eyes.** The mop handle passed every check in
+`mopart.js` — drawn in the right order, the right length, the right colour —
+while looking like a hammer with the shaft stuck to the side of the head.
+Render it and look at it before calling a drawing change done.
+
+One trap if you extend the replay: do NOT put the current transform on a
+`clipPath`'s geometry. SVG resolves a `userSpaceOnUse` clip in the
+referencing element's own user space, which already includes that element's
+transform, so repeating it applies the transform twice and everything clipped
+silently vanishes. That is what made the first render show a mop head with no
+strands on it at all.
 
 `tools/sweep.js` is a stub-DOM harness. It loads each `<script>` block in a
 fake document and reports which ones throw at load. It exists because a
