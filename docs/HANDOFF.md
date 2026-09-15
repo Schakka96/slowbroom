@@ -41,7 +41,9 @@ Live: https://schakka96.github.io/slowbroom/ · build 123 — Mahagony Mop (what
   shape language on purpose; if you add a fourth, make it a fourth SHAPE, and
   `tools/mopart.js` will tell you if it collides with an existing one. The
   old microfibre/string/squeegee art was deleted, so `S.mopStyle` now governs
-  only the wet trail.
+  only the wet trail. The tool travels on the wire (`tl`), so a shared floor
+  shows who is who — set it through `setTool()` / `__mopTool.set()`, never by
+  assigning `S.tool`, or the room is never told.
 
 - **Mopping together is rebuilt and now shows for everyone.** `MOP_COOP()`
   returns `true`; the "Mop together" panel is part of the mopping rail. See
