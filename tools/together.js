@@ -31,15 +31,16 @@ function db(url, opts){
 }
 
 // ── the pretend wire: every channel is a list of listeners ────────────
-const wires=new Map();
-function fakeNet(who, label){
+const hubs={socket:new Map(), relay:new Map()};
+function fakeNet(who, label, kind){
+  const wires=hubs[kind==='relay'?'relay':'socket'];
   return {
     myId:who,
     async connect(code, handlers){
       const list=wires.get(code)||[]; wires.set(code,list);
       const entry={who, label, handlers, mine:{}};
       list.push(entry);
-      const api={ kind:'test', myId:who,
+      const api={ kind:(kind||'test'), myId:who,
         send(d){ for(const o of wires.get(code)) if(o!==entry) o.handlers.event(Object.assign({id:who},d)); },
         fast(d){ api.send(Object.assign({t:'pos'},d)); },
         presence(p){
@@ -62,7 +63,7 @@ function fakeNet(who, label){
 }
 
 // ── one browser ───────────────────────────────────────────────────────
-function browser(name, stageW, stageH, cols, sharedStore){
+function browser(name, stageW, stageH, cols, sharedStore, kind){
   const store=sharedStore||{};
   const clicks={};
   const ctx2d=new Proxy({},{get:(t,k)=>{
@@ -114,8 +115,11 @@ function browser(name, stageW, stageH, cols, sharedStore){
   for(const b of blocks){ try{ vm.runInContext(b,g); }catch(e){ console.log(name+' THROW: '+e.message); } }
   // the page works out its own identity; the wire uses that, not a name the
   // test made up, so an identity clash between two tabs shows up here
-  g.__net=fakeNet(g.__netIdentity ? g.__netIdentity() : name, name);
-  return {name, g, store, clicks, id:(g.__netIdentity?g.__netIdentity():name)};
+  const id=g.__netIdentity ? g.__netIdentity() : name;
+  g.__net=fakeNet(id, name, kind);
+  // the slow road, which is what the real page opens when a room looks empty
+  g.__netBridge=(code,handlers)=>fakeNet(id, name, 'relay').connect(code,handlers);
+  return {name, g, store, clicks, id};
 }
 
 // ── the run ───────────────────────────────────────────────────────────
@@ -202,6 +206,27 @@ const seedOf = b => (b.g.__mopDiag().match(/seed\s+([0-9a-f]+)/)||[0,''])[1];
   T1.g.__mopCheat.band(50);
   await new Promise(r=>setTimeout(r,120));
   ok('and tab two sees what tab one mopped', pct(T2)>2000, pct(T2)+' patches');
+
+  // ── one on the socket, one on the plain-HTTP relay ──────────────────
+  // Exactly what two real browsers did: same code, same world, both correctly
+  // reporting themselves connected, on two roads that never meet.
+  console.log('');
+  console.log('— one on the socket, one on the slow road —');
+  const S1=browser('Socket', 1240, 758, 48, null, 'test');
+  const R1=browser('Relay',  1114, 791, 48, null, 'relay');
+  S1.g.__mopJoin('NPQQ', true);
+  R1.g.__mopJoin('NPQQ', false);
+  await new Promise(r=>setTimeout(r,80));
+  ok('they agree on the world', seedOf(S1)===seedOf(R1), seedOf(S1));
+  ok('but on different roads they cannot see each other', seen(S1)<=1 && seen(R1)<=1,
+     seen(S1)+' and '+seen(R1));
+  S1.g.__mopBridge();                        // what the game does after 9s alone
+  await new Promise(r=>setTimeout(r,120));
+  ok('the socket player listening on both now sees the relay player', seen(S1)>1,
+     seen(S1)+' in the room');
+  R1.g.__mopCheat.band(40);
+  await new Promise(r=>setTimeout(r,140));
+  ok('and picks up what they mopped', pct(S1)>1500, pct(S1)+' patches');
 
   console.log(bad? '\n'+bad+' failed' : '\nall good');
   process.exit(bad?1:0);

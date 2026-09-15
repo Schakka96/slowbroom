@@ -98,6 +98,28 @@ other watches, then walk apart and check each other's rooms.
 
 ## Recently fixed, 2026-09-15
 
+- **A room reached two ways was two rooms.** The websocket transports
+  (`viaSupabase`, `viaRaw`) talk over Supabase Realtime; the fallback
+  (`viaRest`) polls rows in `nest_events`. Same room name, no connection
+  between them — and both ends correctly report "connected". Two browsers sat
+  in WUWU for a minute, same world seed, `positions 0 in` on both.
+  Worse: the choice of road was kept in `localStorage`, so one bad afternoon
+  put a browser on the relay **permanently**, and `/reset` only ever cleared
+  `sb-direct`, never `sb-relay` — there was no way back. The preference is now
+  per session, so every tab re-tries the good road; and a room that still
+  looks empty after nine seconds opens the slow road *as well*, so the two
+  meet. `/bridge` forces it. `/mopdump` prints the road and names the mismatch.
+
+## Still to run on Supabase (neither has been)
+
+Both were reported missing in a live dump on 2026-09-15:
+
+- `supabase/update6.sql` — `GET rpc/live_counts → 404`. Without it the chat
+  counts the crowd the expensive way, which is the O(N²) trap the quota work
+  was for.
+- `supabase/update7.sql` — `write room 2 → 404`. Without it no floor is ever
+  kept, so mopping together only works between people online at the same time.
+
 - **Two tabs of one browser were one mopper.** `me` — the identity on the wire,
   used as the Supabase *presence key* and as the id on every position — came
   from `localStorage`, which is per browser **profile**, not per tab. So two

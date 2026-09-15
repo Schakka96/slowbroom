@@ -3531,8 +3531,59 @@
     mDropped[why]=now;
     __dbg.warn('floor', why);
   }
+  // A room can be reached two ways — a websocket, or rows in a table polled
+  // over plain HTTP — and they are different rooms with the same name. Anyone
+  // whose socket is blocked ends up alone on the slow road while everybody
+  // else is alone on the fast one, each correctly reporting itself connected.
+  // So whatever we say, we say on every road we have open.
+  function roomSend(d){
+    if(!mcoop) return;
+    if(mcoop.net) mcoop.net.send(d);
+    if(mcoop.bridge) mcoop.bridge.send(d);
+  }
+  function roomFast(d){
+    if(!mcoop) return;
+    if(mcoop.net) mcoop.net.fast(d);
+    if(mcoop.bridge) mcoop.bridge.fast(d);
+  }
+  // Opened only when a room we are actually in has looked empty for a while:
+  // a player on their own has no need of it, and it costs a request a second.
+  let bridging=false;
+  async function maybeBridge(){
+    if(bridging || !mcoop || mcoop.test || !mcoop.net || mcoop.bridge) return;
+    if(!window.__netBridge) return;
+    if((mcoop.net.kind||'')==='relay') return;          // already on that road
+    if(mcoop.peers.size>1) return;
+    if(Date.now()-mcoop.since < 9000) return;
+    if(mcoop.bridgeTried) return;
+    mcoop.bridgeTried=true; bridging=true;
+    const room=mcoop;
+    __dbg.log('nest','nobody here on the '+(mcoop.net.kind||'socket')+
+              ' after 9s — listening on the slow road as well');
+    let conn=null;
+    try{
+      conn=await window.__netBridge('mop-'+room.code, {
+        event:d=>{ if(mcoop!==room) return; room.bridgeIn=(room.bridgeIn||0)+1; onMopEvent(d); },
+        peers:rows=>{ if(mcoop===room) onMopPeers(rows); },
+        status:()=>{}
+      });
+    }catch(e){ __dbg.warn('nest','the slow road would not open'); }
+    bridging=false;
+    if(!conn) return;
+    if(mcoop!==room || room.leaving){ try{ conn.leave(); }catch(e){} return; }
+    room.bridge=conn;
+    setMopNestUI();
+    pushMopPresence(); pushMopPos(true);
+    floorPush(roomIdx, shareBits(), true);
+    roomSend({t:'who'});
+  }
+  function dropBridge(){
+    if(!mcoop || !mcoop.bridge) return;
+    try{ mcoop.bridge.leave(); }catch(e){}
+    mcoop.bridge=null;
+  }
   function floorPush(room, bits, force){
-    if(!mcoop || !mcoop.net || mcoop.test) return;
+    if(!mcoop || mcoop.test || !(mcoop.net || mcoop.bridge)) return;
     const now=Date.now();
     const same = mSentBits && shSame(mSentBits, bits) && mSentRoom===room;
     if(!force && same) return;
@@ -3549,7 +3600,7 @@
       mFloorOut++;
       const m=shB64(bits);
       mLastOut='room '+(room+1)+' · '+shPop(bits)+'/'+SH_N+' patches · '+m.length+' chars';
-      mcoop.net.send({t:'floor', w:worldSeed, r:room|0, m});
+      roomSend({t:'floor', w:worldSeed, r:room|0, m});
       mSentAt=now;
     }
     mSentBits=bits; mSentRoom=room;
@@ -3581,7 +3632,7 @@
       if(p){ p.away=!!d.away; p.seen=Date.now(); setMopNestUI(); }
     }
     else if(d.t==='pos'){ noteMopPeer(d); }
-    else if(d.t==='who'){ pushMopPos(true); floorPush(roomIdx, shareBits(), true); }
+    else if(d.t==='who'){ pushMopPos(true); mSentAt=0; floorPush(roomIdx, shareBits(), true); }
     else if(d.t==='kick' && d.who===mcoop.myId){
       leaveMopNest();
       document.getElementById('mnest-status').textContent='the host closed the room to you';
@@ -3684,7 +3735,7 @@
       if(mcoop.isHost && !p.me){
         const k=document.createElement('button');
         k.type='button'; k.className='unblock'; k.textContent='kick';
-        k.addEventListener('click',()=>{ mcoop.net.send({t:'kick',who:p.id}); mcoop.peers.delete(p.id); setMopNestUI(); });
+        k.addEventListener('click',()=>{ roomSend({t:'kick',who:p.id}); mcoop.peers.delete(p.id); setMopNestUI(); });
         row.append(k);
       }
       list.append(row);
@@ -3896,7 +3947,7 @@
     pushMopPresence(); pushMopPos();
     floorPull(roomIdx);
     floorPush(roomIdx, shareBits(), true);
-    conn.send({t:'who'});
+    roomSend({t:'who'});
     // say hello a few more times: the other side may not have been listening yet
     let hello=0;
     const hi=setInterval(()=>{
@@ -3904,33 +3955,36 @@
       // else a map, and six unanswered questions is plenty
       if(!mcoop || ++hello>6 || mFloorIn || mcoop.peers.size>1){ clearInterval(hi); return; }
       pushMopPresence(); pushMopPos();
-      mcoop.net.send({t:'who'});
+      roomSend({t:'who'});
     }, 900);
   }
   function leaveMopNest(){
     const was=!!(mcoop && !mcoop.test);
     leaveFloor();
     if(mcoop) mcoop.leaving=true;
+    dropBridge();
     if(mcoop && mcoop.net) mcoop.net.leave();
     mcoop=null; mbots=[]; floorForget(); setMopNestUI();
     // back to your own corridor, where you left it
     if(was) enterWorld(soloWorld(), 'solo');
   }
   function pushMopPresence(){
-    if(!mcoop || !mcoop.net) return;
-    mcoop.net.presence({name:mopName(), since:mcoop.since, w:worldSeed, lvl:level, ridx:roomIdx});
+    if(!mcoop) return;
+    const p={name:mopName(), since:mcoop.since, w:worldSeed, lvl:level, ridx:roomIdx};
+    if(mcoop.net) mcoop.net.presence(p);
+    if(mcoop.bridge) mcoop.bridge.presence(p);
   }
   // where the mop is goes out as a broadcast: presence is acknowledged by the
   // server and rate limited, and nine of those a second is far too many
   let mSent={x:-9,y:-9,h:-9,at:0};
   function pushMopPos(force){
-    if(!mcoop || !mcoop.net) return;
+    if(!mcoop || !(mcoop.net || mcoop.bridge)) return;
     const n=mToN(px,py), now=Date.now();
     const moved = Math.abs(n.x-mSent.x)>.0025 || Math.abs(n.y-mSent.y)>.0025 ||
                   Math.abs(heading-mSent.h)>.12;
     if(!force && !moved && now-mSent.at<1000) return;
     mSent={x:n.x, y:n.y, h:heading, at:now};
-    mcoop.net.fast({id:mcoop.myId, name:mopName(),
+    roomFast({id:mcoop.myId, name:mopName(),
                     x:+n.x.toFixed(4), y:+n.y.toFixed(4), h:+heading.toFixed(2),
                     mw:S.mopw, w:worldSeed, lvl:level, ridx:roomIdx, since:mcoop.since});
   }
@@ -3962,7 +4016,7 @@
       if(age>6000 && !p.quiet && !p.away){
         p.quiet=true;
         __dbg.warn('nest','no word from '+(p.name||'them')+' for 6s — asking again');
-        if(mcoop.net) mcoop.net.send({t:'who'});
+        roomSend({t:'who'});
       }
       if(age<3000 && p.quiet) p.quiet=false;
     }
@@ -4125,7 +4179,17 @@
           mId+=dt;
           if(mId>5000){ mId=0; pushMopPresence(); }
           mSync+=dt;
-          if(mSync>5000){ mSync=0; floorPush(roomIdx, memMerge(roomIdx, shareBits())); saveMem(); }
+          if(mSync>5000){
+            mSync=0;
+            floorPush(roomIdx, memMerge(roomIdx, shareBits())); saveMem();
+            maybeBridge();
+            // if the others turned up on our own wire and the slow road never
+            // carried anything, stop paying for it
+            if(mcoop.bridge && mcoop.peers.size>1 && !mcoop.bridgeIn){
+              __dbg.log('nest','the room filled up on the socket — closing the slow road');
+              dropBridge();
+            }
+          }
         }
         if(travel){
           travel.t+=dt/460;
@@ -4430,10 +4494,18 @@
 
   setInterval(()=>{ if(mcoop && mcoop.net) pushMopPos(); }, 1000);
   if(window.__mopAway) window.__mopAway(away=>{
-    if(mcoop && mcoop.net) mcoop.net.send({t:'away', id:mcoop.myId, name:mopName(), away});
+    if(mcoop) roomSend({t:'away', id:mcoop.myId, name:mopName(), away});
   });
-  window.__mopShout = d => { if(mcoop && mcoop.net) mcoop.net.send(d); };
-  window.__mopBye = () => { if(mcoop && mcoop.net) mcoop.net.send({t:'bye', id:mcoop.myId}); };
+  // force the slow road open now, without waiting to look lonely
+  window.__mopBridge = () => {
+    if(!mcoop) return 'not in a room';
+    if(mcoop.bridge) return 'already listening on the slow road';
+    mcoop.since=0; mcoop.bridgeTried=false;
+    maybeBridge();
+    return 'opening the slow road as well — give it a couple of seconds';
+  };
+  window.__mopShout = d => roomSend(d);
+  window.__mopBye = () => { if(mcoop) roomSend({t:'bye', id:mcoop.myId}); };
   window.__mopLeave=leaveMopNest;
   window.__mopJoin=(code,host)=>joinMopNest(String(code).toUpperCase(),!!host);
   // ── proving the two things that used to be quietly wrong ──────────
@@ -4557,6 +4629,10 @@
       L.push('  your id     '+mcoop.myId+
              (window.__netIdentity && window.__netIdentity()!==mcoop.myId
               ? '   (the wire calls you '+window.__netIdentity()+')' : ''));
+      L.push('  road        '+((mcoop.net&&mcoop.net.kind)||'none')+
+             (mcoop.bridge? ' + the slow road ('+(mcoop.bridgeIn||0)+' in)' : '')+
+             ((mcoop.net&&mcoop.net.kind)==='relay'
+              ? '   ← the slow road only: a socket player will NOT see you unless they bridge' : ''));
       L.push('  presence    '+mPresRows+' row'+(mPresRows===1?'':'s')+' last heard'+
              (mPresAt? ' '+Math.round((Date.now()-mPresAt)/1000)+'s ago' : ': never'));
       L.push('  positions   '+mPosIn+' in'+
@@ -4602,6 +4678,11 @@
       if(!mcoop.net) why.push('The room is open but there is no connection — try /nestcheck.');
       if(hash32('slowbroom-mop-'+mcoop.code)!==worldSeed)
         why.push('Your corridor was not dealt from the room code. Leave and rejoin '+mcoop.code+'.');
+      const road=(mcoop.net&&mcoop.net.kind)||'';
+      if(!others.length && road && !mcoop.bridge) why.push('You are on the '+road+
+        ' road. A websocket room and the plain-HTTP relay are different rooms with '+
+        'the same name — /mopdump on the other machine and compare the "road" line. '+
+        'Say /bridge to listen on both.');
       if(mPosSelf>2) why.push('Another browser is on the wire under your own id ('+mcoop.myId+
         '), so every move it makes is thrown away here as your own and presence '+
         'counts you both as one. Two tabs of one browser used to share an id; if '+
@@ -8895,6 +8976,7 @@
     ['/room',        'dump the mopping room state'],
     ['/mopdump',     'why mopping together is or is not working, copied for pasting'],
     ['/mopcheck',    'test the shared-floor machinery without needing a second person'],
+    ['/bridge',      'listen on the slow road as well, when a room looks empty'],
     ['/mopcoop',     'show the Mop together panel on this browser'],
     ['/goroom <n>',  'walk straight to that room of the corridor'],
     ['/mopband <n>', 'mop the left n% of this room, to stage a partner'],
@@ -9065,7 +9147,11 @@
         try{ if(window.__mopLeave) window.__mopLeave(); }catch(e){}
         window.__quickCloses=0; window.__socketCloses=0; window.__lastSocketClose='';
         if(window.__setDirect) window.__setDirect(false);
-        ['sb-direct'].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
+        if(window.__setRelay) window.__setRelay(false);        // this one was never cleared
+        ['sb-direct','sb-relay'].forEach(k=>{
+          try{ localStorage.removeItem(k); }catch(e){}
+          try{ sessionStorage.removeItem(k); }catch(e){}
+        });
         setTimeout(()=>location.replace(location.pathname+'?v='+Date.now()), 400);
         return 'leaving everything and reloading fresh…';
       }
@@ -9153,6 +9239,11 @@
         __dbg.log('flap','socket closes: '+(window.__socketCloses||0)+
                   (window.__lastSocketClose? ' · last: '+window.__lastSocketClose : ''));
         return 'see the dev console';
+      }
+      case 'bridge': {
+        __dbg.toggle(true);
+        if(!window.__mopBridge) return 'open the mopping tab first';
+        return window.__mopBridge();
       }
       case 'mopcheck': {
         __dbg.toggle(true);
@@ -10142,21 +10233,22 @@
     });
   }
 
-  let direct=false;
-  try{ direct = localStorage.getItem('sb-direct')==='1'; }catch(e){}
-  let relay=false;
-  try{ relay = localStorage.getItem('sb-relay')==='1'; }catch(e){}
+  // Which road this browser takes. These used to live in localStorage, which
+  // meant a single bad afternoon put a browser on the plain HTTP relay for
+  // good — and /reset only ever cleared the other one, so there was no way
+  // back. Two people in one room then ended up on two different roads that do
+  // not meet, both reporting themselves connected. Session storage re-tries
+  // the good road every time the tab is opened, and the ladder below still
+  // finds the slow one within a few seconds if it is really needed.
+  const wirePref=(k)=>{ try{ return sessionStorage.getItem(k)==='1'; }catch(e){ return false; } };
+  const setWirePref=(k,v)=>{ try{ sessionStorage.setItem(k, v?'1':'0'); }catch(e){} };
+  let direct=wirePref('sb-direct');
+  let relay=wirePref('sb-relay');
   window.__netMode=()=>({direct, relay, quickCloses:window.__quickCloses||0});
-  window.__setRelay=v=>{
-    relay=!!v;
-    try{ localStorage.setItem('sb-relay', relay?'1':'0'); }catch(e){}
-    return relay;
-  };
-  window.__setDirect=v=>{
-    direct=!!v;
-    try{ localStorage.setItem('sb-direct', direct?'1':'0'); }catch(e){}
-    return direct;
-  };
+  window.__setRelay=v=>{ relay=!!v; setWirePref('sb-relay',relay); return relay; };
+  window.__setDirect=v=>{ direct=!!v; setWirePref('sb-direct',direct); return direct; };
+  // the slow road, opened alongside a working socket when a room looks empty
+  window.__netBridge=(code,handlers)=>CFG? viaRest(code,handlers) : null;
 
   window.__net={
     myId:me,
