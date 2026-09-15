@@ -30,6 +30,14 @@ Live: https://schakka96.github.io/slowbroom/ · build 123 — Mahagony Mop (what
 
 ## Open
 
+- **Three looks, and she has not picked one yet.** House (the original: cool
+  grey, violet, serif), Crayon and Linen, chosen under light/dark and stored
+  in `sb-skin`. The skins are pure CSS tokens — palette, plus `--font-body`,
+  `--font-display`, `--radius`, `--border-w` and friends. If one wins, the
+  others can be deleted and the winner folded into `:root`. If a third is
+  wanted, copy a block and keep both dark halves in step; `tools/skins.js`
+  will tell you if you forget one.
+
 - **Mopping together is rebuilt and now shows for everyone.** `MOP_COOP()`
   returns `true`; the "Mop together" panel is part of the mopping rail. See
   below for how it works and how to test it. Still untested with a real
