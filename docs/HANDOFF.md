@@ -35,15 +35,17 @@ Live: https://schakka96.github.io/slowbroom/ · build 123 — Mahagony Mop (what
   bare `:root` now — House and Linen were tried and deleted, so there is no
   skin switch. Shape and type are tokens (`--radius`, `--border-w`,
   `--font-display`, …), so a future look moves those too, not just colour.
-- **Three mop tools** — Chalk (a hard-edged polygon slab), Clay (a barrel on
-  a fork that rolls with distance travelled) and Moss (fused lobes with
-  swaying sprigs) — in Handling, stored as `S.tool`. Each is a different
-  shape language on purpose; if you add a fourth, make it a fourth SHAPE, and
-  `tools/mopart.js` will tell you if it collides with an existing one. The
-  old microfibre/string/squeegee art was deleted, so `S.mopStyle` now governs
-  only the wet trail. The tool travels on the wire (`tl`), so a shared floor
-  shows who is who — set it through `setTool()` / `__mopTool.set()`, never by
-  assigning `S.tool`, or the room is never told.
+- **The mop art is the original three** — string mop, flat pad, glass
+  squeegee — wearing the crayon treatment: flat fills, no gradients, a heavy
+  ink line round every part over a hard offset shadow, via the `slab()`
+  helper. There is no picker: `onGlass()` picks the squeegee and `S.mopStyle`
+  picks between the other two. Three tools built from scratch (Chalk, Clay,
+  Moss) were tried in between and rejected — they are in the history around
+  `5ef3c89` if anyone wants them back. Players are told apart by broom wood,
+  which is dealt from the name, fourteen ways.
+- **Known flake, not ours:** `tools/surfaces.js` fails surface 19 (Porthole,
+  no light at all) on roughly a third of runs, landing on 18 instead. Present
+  at the same rate before any of the look work; the porthole is open work.
 
 - **Mopping together is rebuilt and now shows for everyone.** `MOP_COOP()`
   returns `true`; the "Mop together" panel is part of the mopping rail. See
