@@ -1,6 +1,6 @@
 # Where SlowBroom stands — 2026-09-15
 
-Live: https://schakka96.github.io/slowbroom/ · build 109 — Mahagony Mop
+Live: https://schakka96.github.io/slowbroom/ · build 107 — Mahagony Mop (whatever `version.json` says is what is live)
 
 ## Before you tell anyone about it
 
