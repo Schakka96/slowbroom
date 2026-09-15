@@ -30,6 +30,17 @@ Live: https://schakka96.github.io/slowbroom/ · build 123 — Mahagony Mop (what
 
 ## Open
 
+- **Resetting a shared corridor uses `patches` as a generation counter.**
+  `mop_floors` cannot be emptied by anything holding the anon key — the
+  `mop_floor_only_fills` trigger drops any update whose patch count fell, and
+  there is no delete policy. Both are right and should stay. So Fresh surface
+  in a room moves the corridor to a new generation of rows (`w<seed>~<n>`),
+  and keeps `<n>` in a marker row at room 2000 with the number in `patches`,
+  because a counter that only goes up is the one write the trigger allows.
+  It works on the deployed schema with no migration. If you ever DO add a
+  migration, a real `gen` column would be cleaner — but then handle corridors
+  already carrying a marker row.
+
 - **Crayon is the look.** Warm cream paper, one tomato red, 2px ink borders,
   fat corners, a hard offset shadow with no blur, Baloo 2 + Nunito. It is the
   bare `:root` now — House and Linen were tried and deleted, so there is no
