@@ -2459,6 +2459,73 @@
   // anyone sends can ever put dust back, so the order messages arrive in
   // does not matter and there is no host to be right.
   let shTot=null, shHit=null;
+  // ── laying down floor somebody else mopped ───────────────────────────
+  // A coverage map says which squares are clean, not how the mop travelled,
+  // so it has to be painted as a REGION. It used to be painted with `dab`,
+  // one per square — but `dab` is shaped for a stroke: a quarter as wide as
+  // it is tall, so that sweeping it along a path leaves a smooth band. Put
+  // once in each square it drew a tall oval two thirds the width of the
+  // square, leaving a gap down either side: a trail of separated bubbles
+  // instead of a path. Every restored floor looked like that — a friend's
+  // mopping, and your own after a reload.
+  //
+  // A region is filled as a region: solid squares that tile with no seam,
+  // and a soft edge only where the region actually stops, which is where the
+  // width of a real mop would have feathered it anyway.
+  const wipeStats=window.__mopWipeStats={cells:0, edge:0, blobs:0};
+  function softBlob(c,x,y,r,alpha){
+    const g=c.createRadialGradient(x,y,r*.42,x,y,r);
+    g.addColorStop(0,'rgba(255,255,255,'+alpha+')');
+    g.addColorStop(1,'rgba(255,255,255,0)');
+    c.fillStyle=g; c.beginPath(); c.arc(x,y,r,0,TAU); c.fill();
+    wipeStats.blobs++;
+  }
+  function boxes(c, cells){
+    const pad=0.6;                       // overlap a hair, so no seam shows
+    c.beginPath();
+    for(const i of cells){
+      const gx=i%cols, gy=(i-gx)/cols;
+      c.rect(ox+gx*cell-pad, oy+gy*cell-pad, cell+pad*2, cell+pad*2);
+    }
+    c.fill();
+  }
+  function wipeRegion(cells, edge){
+    if(!cells.length) return;
+    wipeStats.cells=cells.length; wipeStats.edge=edge.length; wipeStats.blobs=0;
+    const d=dust&&dust.ctx, k=clean&&clean.ctx;
+    if(d){
+      d.save();
+      d.globalCompositeOperation='destination-out';
+      d.fillStyle='#fff';
+      boxes(d, cells);
+      for(const i of edge){
+        const gx=i%cols, gy=(i-gx)/cols;
+        softBlob(d, ox+(gx+.5)*cell, oy+(gy+.5)*cell, cell*1.15, .95);
+      }
+      d.restore();
+    }
+    if(k){
+      // the shine layer is a mask, so a crisp border here shows up as a crisp
+      // edge on the gloss: feather it the same way
+      k.save(); k.globalAlpha=.5; k.fillStyle='#fff';
+      boxes(k, cells);
+      for(const i of edge){
+        const gx=i%cols, gy=(i-gx)/cols;
+        softBlob(k, ox+(gx+.5)*cell, oy+(gy+.5)*cell, cell*1.1, .9);
+      }
+      k.restore();
+    }
+  }
+  // the squares of a freshly laid region that still have dirt beside them
+  function regionEdge(cells){
+    const edge=[];
+    for(const i of cells){
+      const gx=i%cols, gy=(i-gx)/cols;
+      if((gx>0        && !state[i-1])    || (gx<cols-1 && !state[i+1]) ||
+         (gy>0        && !state[i-cols]) || (gy<rows-1 && !state[i+cols])) edge.push(i);
+    }
+    return edge;
+  }
   function applyBits(bits){
     if(!bits || !N || !state) return 0;
     if(!shTot || shTot.length!==N){ shTot=new Int16Array(N); shHit=new Int16Array(N); }
@@ -2472,19 +2539,15 @@
         if((bits[si>>3]>>(si&7))&1) shHit[li]++;
       }
     }
-    const d=dust&&dust.ctx, k=clean&&clean.ctx;
-    if(d){ d.save(); d.globalCompositeOperation='destination-out'; }
-    let n=0;
+    const cells=[];
     for(let i=0;i<N;i++){
       if(state[i] || !shTot[i] || shHit[i]*2 < shTot[i]) continue;
-      state[i]=1; painted++; n++;
-      const gx=i%cols, x=ox+(gx+.5)*cell, y=oy+(((i-gx)/cols)+.5)*cell;
-      if(d) dab(d,x,y,cell*1.6,0,.95);
-      if(k){ k.save(); k.globalAlpha=.5; dab(k,x,y,cell*1.5,0,.9); k.restore(); }
+      state[i]=1; painted++; cells.push(i);
     }
-    if(d) d.restore();
-    if(n) updateReadout();
-    return n;
+    if(!cells.length) return 0;
+    wipeRegion(cells, regionEdge(cells));
+    updateReadout();
+    return cells.length;
   }
 
   // what this browser knows about every floor in the world it is standing in
@@ -4572,7 +4635,16 @@
       ok('a union is at least as clean as its parts',
          shPop(shOr(left,right))>=Math.max(shPop(left),shPop(right)));
 
-      // 4 — a map survives the trip through text
+      // 4 — a restored floor is a region, not a row of blobs. `dab` is shaped
+      // for a stroke and left a gap either side of every square when it was
+      // used once per square, so a friend's mopping arrived as bubbles.
+      cols=48; rows=30; N=cols*rows; state=new Uint8Array(N); painted=0;
+      applyBits(left);
+      const st=window.__mopWipeStats;
+      ok('a restored floor is filled as a region, not one blob per square',
+         st.cells>50 && st.edge < st.cells*.5, st.edge+' soft edges for '+st.cells+' squares');
+
+      // 5 — a map survives the trip through text
       ok('a map survives base64', shSame(shFrom64(shB64(left)), left));
       ok('nonsense is refused rather than half-read',
          shFrom64('not base64 at all!!')===null && shFrom64('QUJD')===null &&
@@ -4736,18 +4808,14 @@
     band(pct){
       if(S.mode!=='mop' || !N) return 'not mopping';
       const upto=Math.max(0, Math.min(100, pct==null? 50 : pct|0))/100;
-      const d=dust&&dust.ctx, k=clean&&clean.ctx;
-      if(d){ d.save(); d.globalCompositeOperation='destination-out'; }
-      let n=0;
+      const cells=[];
       for(let i=0;i<N;i++){
         const gx=i%cols;
         if(state[i] || (gx+.5)/cols > upto) continue;
-        state[i]=1; painted++; n++;
-        const x=ox+(gx+.5)*cell, y=oy+(((i-gx)/cols)+.5)*cell;
-        if(d) dab(d,x,y,cell*1.6,0,.95);
-        if(k){ k.save(); k.globalAlpha=.5; dab(k,x,y,cell*1.5,0,.9); k.restore(); }
+        state[i]=1; painted++; cells.push(i);
       }
-      if(d) d.restore();
+      const n=cells.length;
+      wipeRegion(cells, regionEdge(cells));
       started=true; hintEl.style.opacity='0';
       updateReadout();
       const bits=memMerge(roomIdx, shareBits());

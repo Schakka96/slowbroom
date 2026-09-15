@@ -98,6 +98,21 @@ other watches, then walk apart and check each other's rooms.
 
 ## Recently fixed, 2026-09-15
 
+- **Restored floors arrived as bubbles, not a path.** A coverage map says
+  which squares are clean, not how the mop travelled, so it has to be painted
+  as a *region*. It was painted with `dab`, once per square — but `dab` is
+  shaped for a stroke: `scale(.4, 1)`, a quarter as wide as it is tall, so
+  that sweeping it along a path leaves a smooth band. Put once in each square
+  at `w = cell*1.6` it drew an oval **0.64 × cell wide in a 1 × cell slot** —
+  a 36% gap down either side, overlapping vertically. Tall ovals in stripes.
+  Every restored floor looked like that: a friend's mopping arriving over the
+  wire, and your own after a reload. Regions are now filled as regions —
+  squares that tile with no seam, and a soft edge only where the region stops.
+  `/mopcheck` guards it: a solid quarter-room is **38 soft edges for 360
+  squares**, where the old code drew 360.
+
+## Recently fixed, 2026-09-15 (earlier)
+
 - **A room reached two ways was two rooms.** The websocket transports
   (`viaSupabase`, `viaRaw`) talk over Supabase Realtime; the fallback
   (`viaRest`) polls rows in `nest_events`. Same room name, no connection
