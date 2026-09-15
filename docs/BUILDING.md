@@ -14,6 +14,7 @@ node tools/together.js           # two browsers, one corridor — co-op end to e
 node tools/surfaces.js           # every surface builds; the live ones run
 node tools/antsound.js           # the ant's plops and landings, into a fake speaker
 node tools/skins.js              # the palette, and the rails that were stripped back
+node tools/mopart.js             # the three tools, into a recording canvas
 git add <paths> && git commit && git push        # GitHub Pages serves it
 ```
 
@@ -62,6 +63,15 @@ never starts. That happened twice in one afternoon (`holdBtn`, then
 
 Note that `build.py` stamps its own little reset `<style>` into the head, and
 that one opens `:root{` too — the page's real stylesheet is the big one.
+
+`tools/mopart.js` draws each mop tool into a recording 2D context and counts
+the primitives it used. **A drawing bug is not a crash** — a tool that draws
+nothing, or draws the same silhouette as its neighbour, loads perfectly and
+just looks wrong, so no other harness here can see it. This one asks what a
+glance would: is anything there, is it a different shape from the other two,
+does it turn with the heading, and do the two that should move actually move.
+It is also the only way to draw a tool without a browser, via the
+`window.__mopTool` seam (`__mopTool.set('moss')` works in the console too).
 
 `tools/sweep.js` is a stub-DOM harness. It loads each `<script>` block in a
 fake document and reports which ones throw at load. It exists because a

@@ -35,8 +35,13 @@ Live: https://schakka96.github.io/slowbroom/ · build 123 — Mahagony Mop (what
   bare `:root` now — House and Linen were tried and deleted, so there is no
   skin switch. Shape and type are tokens (`--radius`, `--border-w`,
   `--font-display`, …), so a future look moves those too, not just colour.
-- **Three mop looks** — Chalk, Clay, Moss — live in the mopping rail and just
-  drive the four Palette sliders. Touching a slider drops the preset label.
+- **Three mop tools** — Chalk (a hard-edged polygon slab), Clay (a barrel on
+  a fork that rolls with distance travelled) and Moss (fused lobes with
+  swaying sprigs) — in Handling, stored as `S.tool`. Each is a different
+  shape language on purpose; if you add a fourth, make it a fourth SHAPE, and
+  `tools/mopart.js` will tell you if it collides with an existing one. The
+  old microfibre/string/squeegee art was deleted, so `S.mopStyle` now governs
+  only the wet trail.
 
 - **Mopping together is rebuilt and now shows for everyone.** `MOP_COOP()`
   returns `true`; the "Mop together" panel is part of the mopping rail. See
