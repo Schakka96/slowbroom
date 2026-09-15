@@ -152,6 +152,7 @@
   .log li:hover .blockbtn, .blockbtn:focus-visible{opacity:1}
   .unblock{opacity:1; margin-left:auto}
   .blockbtn:hover, .unblock:hover{border-color:var(--accent); color:var(--accent)}
+  .blockbtn.deletebtn:hover{border-color:#b54b45; color:#b54b45}
   .lockbar{
     margin:0; display:flex; align-items:center; gap:10px; font-size:.76rem;
     padding:6px 9px; border-radius:4px; color:var(--ink);
@@ -3734,13 +3735,17 @@
     return pick;
   }
   let travel=null;
+  // Touch controls stop at the finger. Holding it on a doorway is therefore
+  // the mobile equivalent of holding an arrow key into the opening.
+  let touchDoorSide='', touchDoorAt=0;
   const doorH = () => Math.min(H*.34, cell*9);
   function doorY(){ return oy+cell*rows/2; }
-  function atDoor(side){
+  function atDoor(side, needsDirection=true){
     const b=bounds();
     if(Math.abs(py-doorY())>doorH()/2) return false;
     const there = side==='right' ? px>=b.x1-1.5 : px<=b.x0+1.5;
     if(!there) return false;
+    if(!needsDirection) return true;
     // you have to be pressing towards the doorway; sweeping up or down along
     // the wall leaves you in the room
     return dir === (side==='right' ? 'right' : 'left');
@@ -4666,9 +4671,20 @@
           travel.t+=dt/460;
           if(travel.t>=.5 && !travel.mid){ travel.mid=true; stepThrough(travel.d); }
           if(travel.t>=1) travel=null;
+        }else if(window.__touch && aim.on && started && !S.paused && !S.wander){
+          // A phone has no held direction at the moment the broom reaches a
+          // fingertip. Stay in either doorway for 1.2s to pass through it.
+          const side=atDoor('right',false) ? 'right' : (roomIdx>0 && atDoor('left',false) ? 'left' : '');
+          if(side!==touchDoorSide){ touchDoorSide=side; touchDoorAt=side?now:0; }
+          else if(side && now-touchDoorAt>=1200){
+            travel={t:0,d:side==='right'?1:-1}; touchDoorSide=''; touchDoorAt=0;
+          }
         }else if(go && !S.wander){
+          touchDoorSide=''; touchDoorAt=0;
           if(atDoor('right')) travel={t:0,d:1};
           else if(roomIdx>0 && atDoor('left')) travel={t:0,d:-1};
+        }else{
+          touchDoorSide=''; touchDoorAt=0;
         }
       }
     }
@@ -8989,6 +9005,16 @@
         });
         li.append(bl);
       }
+      // Chat deletion is intentionally not a normal client operation. The
+      // button appears only after this browser has claimed the dev role, and
+      // the database checks the passphrase again before it removes anything.
+      if(isDev && CFG && !groupOnly && m.id!=null){
+        const del=document.createElement('button');
+        del.type='button'; del.className='blockbtn deletebtn'; del.textContent='delete';
+        del.title='Delete this message for everyone';
+        del.addEventListener('click',()=>deleteMessage(m));
+        li.append(del);
+      }
       logEl.append(li);
     }
     logEl.scrollTop=logEl.scrollHeight;
@@ -9063,6 +9089,26 @@
         'Content-Type': 'application/json'
       }, opts.headers||{})
     })).then(done, e=>{ done(null); throw e; });
+  }
+  async function deleteMessage(m){
+    if(!isDev || !CFG || m.id==null) return;
+    if(!confirm('Delete this message for everyone? This cannot be undone.')) return;
+    const passphrase=prompt('Dev passphrase to delete this message');
+    if(!passphrase) return;
+    try{
+      const r=await rest('rpc/slowbroom_delete_message',{method:'POST', body:JSON.stringify({
+        p_message_id:+m.id, p_passphrase:passphrase
+      })});
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const deleted=await r.json();
+      if(!deleted){ showNotice('<b>That message was already gone.</b>'); return; }
+      lastRows=lastRows.filter(row=>String(row.id)!==String(m.id));
+      renderFromCache();
+      showNotice('<b>Message deleted.</b>');
+    }catch(e){
+      __dbg.err('chat','delete failed: '+(e&&e.message||'request failed'));
+      showNotice('<b>Could not delete it.</b> Run supabase/update8.sql, then check the passphrase.');
+    }
   }
   const upsert = (table, row) =>
     rest(table, {method:'POST', headers:{'Prefer':'resolution=merge-duplicates'}, body:JSON.stringify(row)});
@@ -9756,6 +9802,7 @@
           isDev=false;
           try{ localStorage.setItem('sb-dev','0'); }catch(e){}
           if(window.__devPaint) window.__devPaint();
+          renderFromCache();
           return 'dev name released on this browser';
         }
         if(!(window.crypto && crypto.subtle)) return 'this browser cannot check that';
@@ -9766,6 +9813,7 @@
           try{ localStorage.setItem('sb-dev','1'); }catch(e){}
           if(!nameEl.value) nameEl.value='Madryad';
           if(window.__devPaint) window.__devPaint();
+          renderFromCache();
           flash({name:'cheat', text:'this browser is the dev now — the name Madryad is yours'});
         });
         return 'checking…';
