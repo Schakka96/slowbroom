@@ -3715,7 +3715,15 @@
       // the cooling-off counts ALL of them together, so two different
       // portholes cannot land back to back either.
       if(SURFACES[i].sub){
-        if(roomsSeen < 8) wt = 0;
+        // Held back for the first rooms OF THIS CORRIDOR, not for the first
+        // rooms this browser has ever opened. `roomsSeen` is a lifetime count
+        // kept in localStorage, and reading it here made the deal depend on
+        // WHO was dealing: a newcomer and a veteran standing in the same
+        // co-op room with the same world seed got different floors for the
+        // same room number, each certain they were on the same one. The
+        // corridor must come from the world and the room index and nothing
+        // else. HIST.length is how deep into this corridor we are.
+        if(HIST.length < 8) wt = 0;
         else wt *= (sinceSub<20 ? .006 : .16);
       }
       const last=HIST.lastIndexOf(i);
@@ -5059,6 +5067,26 @@
       }
       ok('no room ever repeats the room before it', adjacent===0, adjacent+' in 40 corridors');
       ok('forty worlds deal forty different corridors', distinct.size===40, distinct.size+' of 40');
+      // The corridor may depend on the world seed and the room number, and on
+      // NOTHING about the browser doing the dealing — or two people in one
+      // room quietly walk different floors while both believe otherwise.
+      const dealAll=()=>{ surfCacheWorld=0; surfCache.length=0;
+                          const q=[]; for(let i=0;i<60;i++) q.push(surfaceFor(i)); return q.join(); };
+      worldSeed=hash32('who-is-dealing');
+      const asNewcomer=dealAll();
+      const keptSeen=roomsSeen;
+      roomsSeen=500;                              // the same world, a veteran
+      const asVeteran=dealAll();
+      roomsSeen=keptSeen;
+      ok('the corridor does not depend on who is walking it', asNewcomer===asVeteran,
+         asNewcomer===asVeteran? 'same 60 rooms either way' : 'THE TWO OF YOU ARE ON DIFFERENT FLOORS');
+      // and the sea still stays shut for the first rooms of every corridor
+      let early=0;
+      for(let w=0;w<30;w++){
+        worldSeed=hash32('early-'+w); surfCacheWorld=0; surfCache.length=0;
+        for(let i=0;i<8;i++) if(SURFACES[surfaceFor(i)].sub) early++;
+      }
+      ok('no window on the sea in the first eight rooms', early===0, early+' found');
 
       // 2 — a map made on a coarse window reads the same on a fine one
       const mopRegion=(C,R)=>{
