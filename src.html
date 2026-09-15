@@ -9107,7 +9107,7 @@
       showNotice('<b>Message deleted.</b>');
     }catch(e){
       __dbg.err('chat','delete failed: '+(e&&e.message||'request failed'));
-      showNotice('<b>Could not delete it.</b> Run supabase/update8.sql, then check the passphrase.');
+      showNotice('<b>Could not delete it.</b> Run supabase/update8.sql and update9.sql, then check the passphrase.');
     }
   }
   const upsert = (table, row) =>
@@ -9561,7 +9561,7 @@
   // ── the dev: one reserved name, written in gold ─────────────────────
   const DEV='madryad';
   // the SHA-256 of the dev passphrase: the phrase itself lives nowhere in here
-  const DEV_HASH='c4419eaedb0d7640d9c8c16b76cf4efa610dfca91e976b0162e31d45896b9c0a';
+  const DEV_HASH='ae65ee56dadd2ce8048064673b10f044571cee23e756e167718218cf9c9c10bf';
   let isDev=false;
   try{ isDev = localStorage.getItem('sb-dev')==='1'; }catch(e){}
   const devName = n => String(n||'').trim().toLowerCase()===DEV;
