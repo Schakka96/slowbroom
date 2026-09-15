@@ -10066,6 +10066,20 @@
     draft+=e.key; paintDraft();
     e.preventDefault();
   }, true);
+  // The field overlay is drawn into the game, not a native input, so browsers
+  // have no default paste destination for it. Once a draft is open, accept
+  // Cmd/Ctrl+V as plain chat text while leaving real form inputs untouched.
+  window.addEventListener('paste',e=>{
+    const t=e.target;
+    if(!draft || (t && (t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))) return;
+    const clip=e.clipboardData && e.clipboardData.getData('text/plain');
+    if(!clip) return;
+    const pasted=String(clip).replace(/[\r\n\t]+/g,' ').replace(/ {2,}/g,' ');
+    if(!pasted) return;
+    e.preventDefault();
+    draft=(draft+pasted).slice(0,240);
+    paintDraft();
+  }, true);
 
   function say(name, body){
     if(!name || !body.trim()) return;
