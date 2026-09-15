@@ -35,14 +35,16 @@ Live: https://schakka96.github.io/slowbroom/ · build 123 — Mahagony Mop (what
   bare `:root` now — House and Linen were tried and deleted, so there is no
   skin switch. Shape and type are tokens (`--radius`, `--border-w`,
   `--font-display`, …), so a future look moves those too, not just colour.
-- **The mop art is the original three** — string mop, flat pad, glass
-  squeegee — wearing the crayon treatment: flat fills, no gradients, a heavy
-  ink line round every part over a hard offset shadow, via the `slab()`
-  helper. There is no picker: `onGlass()` picks the squeegee and `S.mopStyle`
-  picks between the other two. Three tools built from scratch (Chalk, Clay,
-  Moss) were tried in between and rejected — they are in the history around
-  `5ef3c89` if anyone wants them back. Players are told apart by broom wood,
-  which is dealt from the name, fourteen ways.
+- **The mop art is the original, and it is staying that way.** String mop,
+  flat pad, glass squeegee, with their gradients — restored verbatim. Two
+  redesigns were tried and both rejected: three from-scratch tools (Chalk,
+  Clay, Moss) around `5ef3c89`, then a crayon restyle of the originals (flat
+  fills, heavy ink outlines) around `a99b360`. Don't offer a third unasked.
+  The heavy ink line survives on the **doorways only**, which was a separate
+  request. No picker: `onGlass()` picks the squeegee, `S.mopStyle` picks
+  between the other two. Players are told apart by broom wood, dealt from the
+  name, fourteen ways — note the flat pad carries it only inside a gradient's
+  colour stops, which is easy to miss.
 - **Known flake, not ours:** `tools/surfaces.js` fails surface 19 (Porthole,
   no light at all) on roughly a third of runs, landing on 18 instead. Present
   at the same rate before any of the look work; the porthole is open work.
