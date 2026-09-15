@@ -16,6 +16,7 @@ node tools/antsound.js           # the ant's plops and landings, into a fake spe
 node tools/skins.js              # the palette, and the rails that were stripped back
 node tools/mopart.js             # the three tools, into a recording canvas
 node tools/mopshot.js all out.svg   # and again, as a picture you can look at
+node tools/mopshot.js nest out.svg  # the ant nest, same way
 git add <paths> && git commit && git push        # GitHub Pages serves it
 ```
 
@@ -79,7 +80,10 @@ SVG, which `qlmanage -t -s 840 -o . out.svg` turns into a PNG you can open.
 **Assertions are not eyes.** The mop handle passed every check in
 `mopart.js` — drawn in the right order, the right length, the right colour —
 while looking like a hammer with the shaft stuck to the side of the head.
-Render it and look at it before calling a drawing change done.
+Render it and look at it before calling a drawing change done. The ant nest
+took four rounds of render-and-look, and the two notes that actually moved it
+forward — "it reads as a potato" and "it reads as confetti on a flat shape" —
+are not things any assertion was ever going to report.
 
 One trap if you extend the replay: do NOT put the current transform on a
 `clipPath`'s geometry. SVG resolves a `userSpaceOnUse` clip in the

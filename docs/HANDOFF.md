@@ -41,6 +41,11 @@ Live: https://schakka96.github.io/slowbroom/ · build 123 — Mahagony Mop (what
   migration, a real `gen` column would be cleaner — but then handle corridors
   already carrying a marker row.
 
+- **The ant nest is a cached layer**, not live drawing: 3,400 grains, seeded
+  from `groundSeed`, built once by `buildNest()` and blitted. Only the way-in
+  glow moves. If you change its size or shape, change `nestCx/nestCy/nestHR`
+  — the picture, the walk-in test and the no-piles-here test all read those,
+  and they had drifted apart once already.
 - **Crayon is the look.** Warm cream paper, one tomato red, 2px ink borders,
   fat corners, a hard offset shadow with no blur, Baloo 2 + Nunito. It is the
   bare `:root` now — House and Linen were tried and deleted, so there is no
