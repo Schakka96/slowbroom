@@ -71,81 +71,65 @@ blocks.forEach(b=>{ try{ eval(b); }catch(e){} });
 
 let bad=0;
 const ok=(pass,label,note)=>{ console.log((pass?'  ok    ':'  FAIL  ')+label+(note?'  — '+note:'')); if(!pass) bad++; };
-const T=global.__mopTool;
-if(!T){ console.log('  FAIL  the mop block never exposed __mopTool'); process.exit(1); }
+const T=global.__mopArt;
+if(!T){ console.log('  FAIL  the mop block never exposed __mopArt'); process.exit(1); }
 
 const WOOD={stick:'#4e3320', band:'#6f4d2f'};
 function draw(name,x=200,y=150,a=0){
   calls=[];
-  T.draw(name,ctx2d,x,y,a,80,WOOD);
+  T.draw(name,x,y,a,80,WOOD);
   return calls.slice();
 }
-// what SHAPE a tool is: which primitives it uses and how many of each
 function shape(cs){
   const n={};
   cs.forEach(c=>{ const k=c.split('(')[0]; if(!k.includes('=')) n[k]=(n[k]||0)+1; });
   return n;
 }
-const NAMES=T.list();
-ok(NAMES.length===3 && NAMES.join()==='chalk,clay,moss', 'three tools', NAMES.join(', '));
-ok(seg.length===3 && seg.join()===NAMES.join(), 'and three buttons that match them', seg.join(', '));
+const NAMES=['classic','flat','squeegee'];
+ok(T.list().join()===NAMES.join(), 'the mop, the flat pad and the squeegee', T.list().join(', '));
+ok(!/data-tool=/.test(src), 'and no picker for them — the surface and the saved style decide');
 
 const art={}, shapes={};
 for(const n of NAMES){
   art[n]=draw(n); shapes[n]=shape(art[n]);
-  ok(art[n].length>10, n+': actually draws something', art[n].length+' calls');
-  ok((shapes[n].fill||0)>0, n+': has a filled body');
+  ok(art[n].length>10, n+': draws something', art[n].length+' calls');
+  ok((shapes[n].fill||0)>0 && (shapes[n].stroke||0)>0, n+': is filled AND outlined');
   ok(art[n].some(c=>c.includes(WOOD.stick)||c.includes(WOOD.band)),
-     n+': carries the player\'s own broom colour');
-  ok(art[n].some(c=>c.toLowerCase().includes('#2b2119')), n+': is drawn in ink');
+     n+": carries the player's own broom wood");
+  // the crayon treatment: a heavy ink line round every part
+  const inks=art[n].filter(c=>c.toLowerCase().includes('#2b2119')).length;
+  ok(inks>=3, n+': every part gets the ink line', inks+' ink passes');
+  ok(!art[n].some(c=>c.startsWith('createLinearGradient')||c.startsWith('createRadialGradient')),
+     n+': flat fills, no gradients left over from the old art');
+  ok(art[n].some(c=>/^fillStyle=rgba\(43,33,25/.test(c)), n+': sits on a hard offset shadow');
 }
-// ── the point of the exercise: three different shape languages ──
-const prim=n=>Object.keys(shapes[n]).filter(k=>
-  ['roundRect','arc','lineTo','quadraticCurveTo','rect','ellipse'].includes(k)).sort().join('+');
-ok(prim('chalk')!==prim('clay') && prim('clay')!==prim('moss') && prim('chalk')!==prim('moss'),
-   'no two are built from the same primitives');
-console.log('        chalk: '+prim('chalk')+'\n        clay:  '+prim('clay')+'\n        moss:  '+prim('moss'));
-ok(!shapes.moss.roundRect && !shapes.moss.lineTo,
-   'moss has no straight line and no box in it');
-ok(!shapes.chalk.arc && !shapes.chalk.roundRect && (shapes.chalk.lineTo||0)>=12,
-   'chalk is a polygon — no curve anywhere in it', 'lineTo×'+shapes.chalk.lineTo);
-ok((shapes.clay.arc||0)>=2 && (shapes.clay.lineTo||0)>=8,
-   'clay has end caps and a fork', 'arc×'+shapes.clay.arc+' lineTo×'+shapes.clay.lineTo);
-
-// ── the two that move ──
-const a1=draw('clay',200,150), a2=draw('clay',237,150);      // same heading, moved along
-ok(a1.join()!==a2.join(), 'the roller rolls when the tool travels');
-const still1=draw('clay',200,150), still2=draw('clay',200,150);
-ok(still1.join()===still2.join(), 'and never rolls on the spot');
-const m1=draw('moss'); const m2=(()=>{ const real=Date.now; Date.now=()=>real()+700;
-  const r=draw('moss'); Date.now=real; return r; })();
-ok(m1.join()!==m2.join(), 'the tuft sways over time');
-const c1=draw('chalk'), c2=draw('chalk');
-ok(c1.join()===c2.join(), 'chalk is steady — nothing about it boils frame to frame');
-
-// ── turning ──
 for(const n of NAMES) ok(draw(n,200,150,0).join()!==draw(n,200,150,1.4).join(),
    n+': turns with the heading');
+for(const n of NAMES) ok(draw(n).join()===draw(n).join(),
+   n+': is steady frame to frame');
+ok(shape(draw('classic')).roundRect!==shape(draw('squeegee')).roundRect ||
+   draw('classic').join()!==draw('squeegee').join(),
+   'the three are still different shapes from each other');
 
-// ── the switch ──
-ok(T.set('moss')==='moss' && T.get()==='moss', 'the buttons can change the tool');
-ok(T.set('nonsense')==='moss', 'and nonsense leaves it alone');
-T.set('chalk');
-ok(/tool:'chalk'/.test(src), 'chalk is the one a new player gets');
-ok(/if\(TOOLS\[o\.tool\]\) S\.tool=o\.tool/.test(src), 'and the choice is remembered');
+// ── the doors ──
+console.log('');
+ok(/Math\.min\(H\*\.24, cell\*6\.5\)/.test(src), 'the mopping doorway is smaller than it was');
+ok(/Math\.max\(26, body\*1\.15\)/.test(src), 'and so is the ant nest');
+const doorway=(src.match(/function drawDoorway[\s\S]*?\n  \}/)||[''])[0];
+ok(/strokeStyle=INK/.test(doorway) && /roundRect/.test(doorway),
+   'the doorway is drawn in ink, flat, like the rest of the page');
+ok(!/createRadialGradient/.test((src.match(/function drawDoor\(c,t\)[\s\S]*?\n  \}/)||[''])[0]),
+   'the nest mound lost its soft radial haze');
+ok(/strokeStyle=INK_A/.test(src), 'and the ant side has its own copy of the ink colour');
 
-// ── the tool has to be per-player, not per-viewer ──
-ok(/function drawMop\(X,Y,A,WD,wood,tool\)/.test(src),
-   'drawMop takes whose tool it is drawing');
-ok(/broomWood\(p\.name\),p\.tl\)/.test(src), 'peers are drawn with their own tool');
-ok(/broomWood\(b\.name\),b\.tool\)/.test(src), 'and so are bots');
-ok(/tl:S\.tool/.test(src) && (src.match(/tl:S\.tool/g)||[]).length===2,
-   'the choice goes out on both presence and position');
-// a bot never chose, so its shape is dealt from its name and must stay put
-const botTools=['Dusty','Pim','Otto','Wren','Bo','Nils'].map(n=>global.__mopBroomTool? global.__mopBroomTool(n):null);
-ok(/function broomTool\(name\)/.test(src), 'bots get a tool dealt from their name');
-ok(/mbots\[i\]\.tool=broomTool/.test(src), 'dealt once, at build time, so it never flickers');
-void botTools;
+// ── the masthead ──
+ok(src.indexOf('class="blurb"') > src.indexOf('</header>'),
+   'the blurb sits below the masthead, not beside the title');
+ok(src.indexOf('class="blurb"') < src.indexOf('id="pickgame"'),
+   'and shares the band with the game selector');
+ok(/\.midbar\{[\s\S]*?grid-template-columns:minmax\(0,1fr\) auto minmax\(0,1fr\)/.test(
+     (src.match(/<style>[\s\S]*?<\/style>/g)||[]).sort((a,b)=>b.length-a.length)[0]||''),
+   'three columns, so the games stay centred with text beside them');
 
 console.log(bad? '\n'+bad+' failed' : '\nall good');
 process.exit(bad?1:0);

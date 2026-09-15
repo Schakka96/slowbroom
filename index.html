@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4f1ea'/%3E%3Crect x='14.4' y='3.5' width='3.2' height='14.5' rx='1.6' fill='%23b2905f'/%3E%3Crect x='13.4' y='16' width='5.2' height='3' rx='1' fill='%237d8894'/%3E%3Crect x='7' y='18.5' width='18' height='7' rx='2.6' fill='%23eef3f6' stroke='%238fa0ad' stroke-width='1.4'/%3E%3Cpath d='M10 25.5v3.2M14 25.5v3.8M18 25.5v3.4M22 25.5v2.8' stroke='%23b9c7d1' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="config.js"></script>
-<script>window.SLOWBROOM_BUILD="build 138 — Mahagony Mop";</script>
+<script>window.SLOWBROOM_BUILD="build 140 — Mahagony Mop";</script>
 <meta property="og:title" content="SlowBroom">
 <meta property="og:description" content="A quiet browser mopping game. Arrow keys, no score, no way to lose.">
 <style>
@@ -137,7 +137,16 @@
     font-size:clamp(1.5rem,3.4vw,2.1rem); letter-spacing:var(--h1-spacing); line-height:1;
   }
   .mast h1 em{font-style:normal; color:var(--accent); transition:color .5s ease}
-  .blurb{display:flex; flex-direction:column; gap:3px; max-width:56ch}
+  /* The blurb used to sit beside the title, which pushed the masthead wide
+     and left a hole under it. It now lives in the band below, level with the
+     game selector, so the header is only as tall as the title. */
+  .midbar{
+    display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+    align-items:center; gap:14px 18px;
+  }
+  .midbar .pickgame{grid-column:2}
+  .midbar-pad{grid-column:3}
+  .blurb{display:flex; flex-direction:column; gap:3px; max-width:46ch; min-width:0}
   .blurb p{margin:0; color:var(--ink-soft); font-size:.84rem; line-height:1.45}
   .blurb .fine{font-size:.72rem; color:var(--ink-faint)}
   .blurb a, .kofi a{color:var(--accent); text-decoration:underline; text-underline-offset:2px}
@@ -565,6 +574,10 @@
     .stage{height:54vh}
     .rail{max-height:none}
     .mast-right{margin-left:0; width:100%; align-items:stretch}
+    .midbar{grid-template-columns:minmax(0,1fr); gap:10px}
+    .midbar .pickgame{grid-column:1}
+    .midbar-pad{display:none}
+    .blurb{max-width:none}
     .pickgame{align-items:stretch}
     .tabs{width:100%}
     .tabs button{flex:1; justify-content:center; padding:10px 8px}
@@ -872,12 +885,6 @@
       <rect x="0.9" y="28" width="11.2" height="8.4" rx="2.4" fill="#eef3f6" stroke="#a8b7c2" stroke-width="1"/>
       <path d="M2.6 36.4v3.2M5 36.4v3.8M7.5 36.4v3.4M10 36.4v2.9" stroke="#c3d0d8" stroke-width="1.15" stroke-linecap="round"/>
     </svg>owBr<em>oo</em>m</h1>
-    <div class="blurb">
-      <p id="blurb-main"></p>
-      <p class="fine" id="blurb-fine"></p>
-     <p class="kofi">Want to support the site? A
-      <a class="ext" href="https://ko-fi.com/madryad" target="_blank" rel="noopener"><svg class="ico cup" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M3.4 5h13.3a4.3 4.3 0 0 1 .3 8.6h-.9a5.8 5.8 0 0 1-5.7 5H8.2A5.8 5.8 0 0 1 2.4 13V6a1 1 0 0 1 1-1Zm13.3 2h-.6v4.6h.6a2.3 2.3 0 0 0 0-4.6ZM6.1 8.4c-.9 0-1.5.7-1.5 1.5 0 1.8 2.6 3.3 3 3.5.4-.2 3-1.7 3-3.5 0-.8-.6-1.5-1.5-1.5-.7 0-1.2.4-1.5.9-.3-.5-.8-.9-1.5-.9ZM3 20h14a1 1 0 0 1 0 2H3a1 1 0 0 1 0-2Z"/></svg>coffee</a> always helps.</p>
-    </div>
     <div class="mast-right">
     <div class="topbar">
       <div class="seg theme" role="group" aria-label="Appearance">
@@ -890,6 +897,13 @@
     </div>
   </header>
 
+  <div class="midbar">
+    <div class="blurb">
+      <p id="blurb-main"></p>
+      <p class="fine" id="blurb-fine"></p>
+     <p class="kofi">Want to support the site? A
+      <a class="ext" href="https://ko-fi.com/madryad" target="_blank" rel="noopener"><svg class="ico cup" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M3.4 5h13.3a4.3 4.3 0 0 1 .3 8.6h-.9a5.8 5.8 0 0 1-5.7 5H8.2A5.8 5.8 0 0 1 2.4 13V6a1 1 0 0 1 1-1Zm13.3 2h-.6v4.6h.6a2.3 2.3 0 0 0 0-4.6ZM6.1 8.4c-.9 0-1.5.7-1.5 1.5 0 1.8 2.6 3.3 3 3.5.4-.2 3-1.7 3-3.5 0-.8-.6-1.5-1.5-1.5-.7 0-1.2.4-1.5.9-.3-.5-.8-.9-1.5-.9ZM3 20h14a1 1 0 0 1 0 2H3a1 1 0 0 1 0-2Z"/></svg>coffee</a> always helps.</p>
+    </div>
     <div class="pickgame" id="pickgame">
       <p class="pickgame-lead" id="pickgame-lead">Three games in here — take your pick</p>
       <div class="tabs" role="tablist" aria-label="Games">
@@ -898,6 +912,8 @@
         <button type="button" role="tab" data-tab="mosaic" aria-selected="false" aria-controls="tab-bloom"><svg class="tico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="2.8" y="2.8" width="8" height="8" rx="1.6"/><rect x="13.2" y="2.8" width="8" height="8" rx="1.6"/><rect x="2.8" y="13.2" width="8" height="8" rx="1.6"/><rect x="13.2" y="13.2" width="8" height="8" rx="1.6" fill="currentColor" stroke="none"/></svg><span>Mosaic</span></button>
       </div>
     </div>
+    <div class="midbar-pad" aria-hidden="true"></div>
+  </div>
 
 <div class="wrap" id="tab-bloom" role="tabpanel">
   <div class="stage" id="stage" tabindex="0" aria-label="Canvas. Use the arrow keys to move.">
@@ -947,14 +963,6 @@
         <div class="row"><label for="mopw">Mop width</label><output id="mopw-o">14 in</output></div>
         <input type="range" id="mopw" min="8" max="26" step="1" value="14">
         <p class="note"><b>1</b>–<b>4</b> set the speed, <b>−</b> and <b>+</b> change the mop width. Space pauses.</p>
-      </div>
-      <div class="ctl" id="tool-ctl">
-        <div class="row"><span class="lbl" id="tool-l">Tool</span></div>
-        <div class="seg" role="group" aria-labelledby="tool-l">
-          <button type="button" data-tool="chalk" aria-pressed="true" title="A blunt block you shove, trailing dust">Chalk</button>
-          <button type="button" data-tool="clay" aria-pressed="false" title="A barrel on a fork that rolls as you go">Clay</button>
-          <button type="button" data-tool="moss" aria-pressed="false" title="A living tuft with no straight line in it">Moss</button>
-        </div>
       </div>
       <div class="ctl">
         <div class="acts">
@@ -1155,8 +1163,7 @@
   const paceOf = v => 3000/v;                      // ms per cell
 
   const S = { hue:258, drift:35, sat:62, ground:8, cols:48, speed:1, mopw:14,
-              mode:'mop', hold:true, wander:false, paused:false, mopStyle:'classic', drag:false,
-              tool:'chalk' };
+              mode:'mop', hold:true, wander:false, paused:false, mopStyle:'classic', drag:false };
   const pace = () => paceOf(S.wander ? 120 : SPEEDS[S.speed]);
 
   let cols=48, rows=30, N=0, state, hueA, t0A, drawn;
@@ -3659,157 +3666,106 @@
   }
   const myBroom = () => broomWood(mopName());
   /* ── the thing in your hand ────────────────────────────────────────
-     Three tools, not three palettes. Each is a different shape language, so
-     they are told apart by silhouette at a glance rather than by colour:
-
-       Chalk  straight lines only. A blunt block shoved along the floor, with
-              no handle at all — a slab, a bevelled leading lip, a grip loop
-              cut into the top, and dust shaken off the front edge.
-       Clay   a machine. A barrel slung in a fork, whose rings travel as you
-              move, so it reads as rolling rather than sliding. The ring
-              offset comes from where the tool IS, not from a clock, which
-              means peers and bots roll correctly for free and nothing rolls
-              while standing still.
-       Moss   no straight line anywhere. Seven overlapping lobes fused into
-              one silhouette, with sprigs that sway. The outline is made by
-              drawing the whole cluster fattened in ink and then again at
-              size on top — stroking each lobe would draw the seams between
-              them, and it would read as a bunch of grapes, not one tuft.
-
-     All three carry the player's own broom colour somewhere, so a shared
-     floor still shows who is who.                                          */
-  const TOOLS={chalk:1, clay:1, moss:1};
+     The mop, the flat pad and the glass squeegee, drawn the way the rest of
+     the page is drawn: flat fills, no gradients, and a heavy ink line round
+     every part with a hard offset shadow under it. The shapes are the ones
+     they always were — this is the crayon treatment applied to them, not a
+     redesign. Each keeps the player's own broom wood, so a shared floor
+     still shows who is who.                                                */
   const INK='#2b2119';
-  function toolInk(w){ return Math.max(1.6, w*.035); }
-
-  function drawChalk(c,X,Y,A,w,wood){
-    const d=w*.34, lw=toolInk(w), k=d*.26;      // k: the corner the block is cut off at
-    c.save(); c.translate(X,Y); c.rotate(A+Math.PI/2);
-    // Flecks, not puffs: chalk sheds square grit. They are also the only
-    // curve-free way to say "dust", which keeps this tool a polygon.
-    c.fillStyle='rgba(255,252,244,.55)';
-    for(let i=0;i<9;i++){
-      const g=w*(.014+.016*((i*0.53)%1));
-      c.fillRect((-w/2)+w*((i*0.37+0.06)%1), -d*.5-w*(.03+.06*((i*0.29)%1)), g, g);
-    }
-    // the blunt body: a slab with its corners cut, no radius anywhere
-    const body=()=>{
-      c.beginPath();
-      c.moveTo(-w/2+k,-d/2); c.lineTo(w/2-k,-d/2); c.lineTo(w/2,-d/2+k);
-      c.lineTo(w/2,d/2-k);   c.lineTo(w/2-k,d/2);  c.lineTo(-w/2+k,d/2);
-      c.lineTo(-w/2,d/2-k);  c.lineTo(-w/2,-d/2+k); c.closePath();
-    };
-    c.save(); c.translate(lw*1.8,lw*1.8);
-    c.fillStyle='rgba(43,33,25,.30)'; body(); c.fill(); c.restore();
-    body(); c.fillStyle='#f3ecdb'; c.fill();
-    c.lineWidth=lw; c.strokeStyle=INK; c.lineJoin='miter'; c.stroke();
-    // the bevelled lip that meets the floor
-    c.beginPath();
-    c.moveTo(-w/2+k*.7,-d/2); c.lineTo(w/2-k*.7,-d/2);
-    c.lineTo(w/2-k*1.5,-d*.1); c.lineTo(-w/2+k*1.5,-d*.1); c.closePath();
-    c.fillStyle=wood.band; c.fill(); c.stroke();
-    // a grip notched into the top, in the player's own wood
-    c.beginPath();
-    c.moveTo(-w*.15,d*.06); c.lineTo(w*.15,d*.06);
-    c.lineTo(w*.11,d*.34);  c.lineTo(-w*.11,d*.34); c.closePath();
-    c.fillStyle=wood.stick; c.fill(); c.stroke();
-    c.restore();
+  const toolInk = w => Math.max(1.7, w*.036);
+  // one shape, laid down as shadow then fill then outline
+  function slab(c,fn,fill,lw,off){
+    c.save(); c.translate(off,off);
+    c.fillStyle='rgba(43,33,25,.28)'; fn(); c.fill(); c.restore();
+    c.fillStyle=fill; fn(); c.fill();
+    c.lineWidth=lw; c.strokeStyle=INK; c.lineJoin='round'; c.stroke();
   }
 
-  function drawClay(c,X,Y,A,w,wood){
-    const r=w*.135, lw=toolInk(w);
-    c.save(); c.translate(X,Y); c.rotate(A+Math.PI/2);
-    c.fillStyle='rgba(43,33,25,.30)';
-    c.beginPath(); c.roundRect(-w/2+lw*1.7,-r+lw*1.7,w,r*2,r); c.fill();
-    // the barrel
-    c.beginPath(); c.roundRect(-w/2,-r,w,r*2,r);
-    c.fillStyle='#c2603f'; c.fill();
-    c.save(); c.clip();
-    // Rings spaced along the barrel and shifted by how far the tool has
-    // travelled — distance, not time, so it never rolls on the spot.
-    const step=w*.115, roll=((X*.82+Y*.82)%step+step)%step;
-    c.strokeStyle='rgba(43,33,25,.34)'; c.lineWidth=Math.max(1.2,w*.02);
-    for(let x=-w/2-step+roll; x<w/2+step; x+=step){
-      c.beginPath(); c.moveTo(x,-r); c.lineTo(x,r); c.stroke();
-    }
-    c.fillStyle='rgba(255,240,224,.28)';                    // a sheen along the top
-    c.beginPath(); c.roundRect(-w/2,-r*.86,w,r*.5,r*.25); c.fill();
-    c.restore();
-    c.lineWidth=lw; c.strokeStyle=INK; c.lineJoin='round';
-    c.beginPath(); c.roundRect(-w/2,-r,w,r*2,r); c.stroke();
-    // end caps
-    for(const sx of [-1,1]){
-      c.beginPath(); c.arc(sx*w/2,0,r*.82,0,Math.PI*2);
-      c.fillStyle=wood.band; c.fill(); c.stroke();
-    }
-    // the fork it hangs in, and the stem
-    c.lineWidth=lw*1.9; c.strokeStyle=INK; c.lineCap='round';
-    c.beginPath();
-    c.moveTo(-w*.30,-r*.2); c.lineTo(0,-w*.42); c.lineTo(w*.30,-r*.2);
-    c.moveTo(0,-w*.42); c.lineTo(0,-w*.78); c.stroke();
-    c.lineWidth=lw*.85; c.strokeStyle=wood.stick;
-    c.beginPath();
-    c.moveTo(-w*.30,-r*.2); c.lineTo(0,-w*.42); c.lineTo(w*.30,-r*.2);
-    c.moveTo(0,-w*.42); c.lineTo(0,-w*.78); c.stroke();
-    c.restore();
+  function drawSqueegee(X,Y,A,WD,wood){
+    X=(X===undefined?px:X); Y=(Y===undefined?py:Y);
+    A=(A===undefined?heading:A);
+    wood=wood||myBroom();
+    const w=WD||mopPx(), h=w*.16, lw=toolInk(w), off=lw*1.6;
+    ctx.save(); ctx.translate(X,Y); ctx.rotate(A+Math.PI/2);
+    // the pole, behind everything
+    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w*.055,-h*9,w*.11,h*7.4,w*.05); },
+         wood.stick, lw, off);
+    // the yoke that joins pole to channel
+    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w*.085,-h*3.5,w*.17,h*2,h*.35); },
+         wood.band, lw, off);
+    // steel channel
+    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w/2,-h*1.9,w,h*1.5,h*.35); },
+         '#cfd8de', lw, off);
+    // rubber blade
+    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w/2,-h*.55,w,h*1.1,h*.4); },
+         '#3b4148', lw, off);
+    ctx.restore();
   }
 
-  // seven lobes, fixed so the tuft does not boil from frame to frame
-  const MOSS_LOBES=[[-.40,.03,.115],[-.25,-.06,.150],[-.09,.05,.135],
-                    [.06,-.05,.160],[.21,.05,.130],[.35,-.03,.120],[.02,.00,.185]];
-  function mossPath(c,w,grow){
-    c.beginPath();
-    for(const [lx,ly,lr] of MOSS_LOBES)
-      c.moveTo(lx*w+lr*w+grow, ly*w),
-      c.arc(lx*w, ly*w, lr*w+grow, 0, Math.PI*2);
-  }
-  function drawMoss(c,X,Y,A,w,wood){
-    const lw=toolInk(w), t=Date.now();
-    c.save(); c.translate(X,Y); c.rotate(A+Math.PI/2);
-    // sprigs first, so the body sits over their roots
-    c.strokeStyle=wood.stick; c.lineWidth=Math.max(1,w*.016); c.lineCap='round';
-    for(let i=0;i<16;i++){
-      const a=(i/16)*Math.PI*2 + Math.sin(t/620+i)*.09;
-      const near=w*.13, far=w*(.2+.06*((i*0.41)%1));
-      const sway=Math.sin(t/420+i*1.7)*w*.028;
-      c.beginPath();
-      c.moveTo(Math.cos(a)*near, Math.sin(a)*near*.62);
-      c.quadraticCurveTo(Math.cos(a)*far*1.1+sway, Math.sin(a)*far*.8,
-                         Math.cos(a)*far*1.35+sway*1.6, Math.sin(a)*far*.92);
-      c.stroke();
+  function drawMopFlat(X,Y,A,WD,wood){
+    const w=WD, h=w*.3, lw=toolInk(w), off=lw*1.6;
+    ctx.save(); ctx.translate(X,Y); ctx.rotate(A+Math.PI/2);
+    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-h*.19,-w*1.5,h*.38,w*1.5,h*.19); },
+         wood.stick, lw, off);
+    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-h*.33,-h*1.3,h*.66,h*.95,h*.2); },
+         wood.band, lw, off);
+    // the microfibre pad
+    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w/2,-h/2,w,h,h*.3); },
+         '#f4f7f9', lw, off);
+    // fringe, inside the outline so it reads as nap rather than as bristles
+    ctx.strokeStyle='rgba(43,33,25,.4)'; ctx.lineWidth=Math.max(1,h*.08); ctx.lineCap='round';
+    for(let i=0;i<14;i++){
+      const x=-w/2+h*.35+(w-h*.7)*i/13;
+      ctx.beginPath(); ctx.moveTo(x,-h*.3); ctx.lineTo(x+h*.05,h*.3); ctx.stroke();
     }
-    c.fillStyle='rgba(43,33,25,.28)';                       // the cluster's shadow
-    c.save(); c.translate(lw*1.7,lw*1.7); mossPath(c,w,0); c.fill(); c.restore();
-    mossPath(c,w,lw);  c.fillStyle=INK;      c.fill();      // one union outline…
-    mossPath(c,w,0);   c.fillStyle='#6f8b4e'; c.fill();     // …then the body on top
-    // a few paler lobes so it reads as fur rather than a flat blob
-    c.fillStyle='rgba(203,224,163,.42)';
-    for(let i=0;i<5;i++){
-      const [lx,ly,lr]=MOSS_LOBES[i];
-      c.beginPath(); c.arc(lx*w-lr*w*.2, ly*w-lr*w*.35, lr*w*.46, 0, Math.PI*2); c.fill();
-    }
-    c.restore();
+    // the mounting plate
+    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w*.17,-h*.19,w*.34,h*.38,h*.14); },
+         wood.band, lw*.85, off*.6);
+    ctx.restore();
   }
 
-  // A tool belongs to whoever is holding it. Left to default, every mop on a
-  // shared floor was drawn with OUR S.tool — the shape carried no information
-  // at all, because it was the same shape for everyone.
-  function drawMop(X,Y,A,WD,wood,tool){
+  function drawMopClassic(X,Y,A,WD,wood){
+    const w=WD, h=w*.42, lw=toolInk(w), off=lw*1.6;
+    ctx.save(); ctx.translate(X,Y); ctx.rotate(A+Math.PI/2);
+    // the stick, drawn first so the head covers where it enters
+    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-h*.13,-h*4.3,h*.26,h*4.3,h*.13); },
+         wood.stick, lw, off);
+    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-h*.2,-h*1.35,h*.4,h*.8,h*.14); },
+         wood.band, lw, off);
+    // the head
+    slab(ctx,()=>{ ctx.beginPath(); ctx.roundRect(-w/2,-h/2,w,h,h*.42); },
+         '#eef3f7', lw, off);
+    // the strands, kept inside the head's outline
+    ctx.save();
+    ctx.beginPath(); ctx.roundRect(-w/2,-h/2,w,h,h*.42); ctx.clip();
+    ctx.strokeStyle='rgba(43,33,25,.38)'; ctx.lineWidth=Math.max(1.1,h*.075);
+    ctx.lineCap='round';
+    for(let i=1;i<11;i++){
+      const x=-w/2+w*i/11;
+      ctx.beginPath(); ctx.moveTo(x,-h*.5); ctx.lineTo(x+h*.07,h*.5); ctx.stroke();
+    }
+    ctx.restore();
+    ctx.restore();
+  }
+
+  // the only way to draw a tool without a browser
+  window.__mopArt={
+    list:()=>['classic','flat','squeegee'],
+    draw(n,X,Y,A,w,wood){
+      wood=wood||myBroom();
+      if(n==='squeegee') drawSqueegee(X,Y,A,w,wood);
+      else if(n==='flat') drawMopFlat(X,Y,A,w,wood);
+      else drawMopClassic(X,Y,A,w,wood);
+    }
+  };
+  function drawMop(X,Y,A,WD,wood){
     X=(X===undefined?px:X); Y=(Y===undefined?py:Y);
     A=(A===undefined?heading:A); WD=WD||mopPx();
     wood=wood||myBroom();
-    const t=TOOLS[tool]? tool : S.tool;
-    const f = t==='clay' ? drawClay : t==='moss' ? drawMoss : drawChalk;
-    f(ctx,X,Y,A,WD,wood);
-  }
-  // Bots never chose anything, so deal them one from their name the way the
-  // broom colour is dealt — a different seed, so colour and shape vary apart.
-  function broomTool(name){
-    let h=5381;
-    const n=String(name||'mopper').toLowerCase().trim() || 'mopper';
-    for(let i=0;i<n.length;i++) h=Math.imul(h,33)^n.charCodeAt(i);
-    const list=Object.keys(TOOLS);
-    return list[Math.abs(h)%list.length];
+    if(onGlass()){ drawSqueegee(X,Y,A,WD,wood); return; }
+    if(S.mopStyle==='classic') drawMopClassic(X,Y,A,WD,wood);
+    else drawMopFlat(X,Y,A,WD,wood);
   }
 
   // ── doorways: leave a room part-done, come back through the door on the left
@@ -3872,7 +3828,10 @@
   // Touch controls stop at the finger. Holding it on a doorway is therefore
   // the mobile equivalent of holding an arrow key into the opening.
   let touchDoorSide='', touchDoorAt=0;
-  const doorH = () => Math.min(H*.34, cell*9);
+  // A third of the room's height was a barn door. The opening is the walking
+  // target as well as the picture, so this shrinks both together — it is
+  // still far wider than a mop.
+  const doorH = () => Math.min(H*.24, cell*6.5);
   function doorY(){ return oy+cell*rows/2; }
   function atDoor(side, needsDirection=true){
     const b=bounds();
@@ -3989,17 +3948,19 @@
     c.restore();
   }
   function drawDoorway(c,side){
-    const w=2.2*IN, h=doorH(), y=doorY()-h/2;
+    const w=1.7*IN, h=doorH(), y=doorY()-h/2;
     const x = side==='right' ? ox+cell*cols-w*.5 : ox-w*.5;
+    const jamb=w*.5, lw=Math.max(1.8, w*.22);
     c.save();
-    c.fillStyle='#2a1c10'; c.fillRect(x,y,w,h);                    // the opening
-    c.fillStyle='#7d5a33'; c.lineWidth=1;                          // square wood profile
-    c.fillRect(x-w*.35,y-w*.9,w*1.7,w*.9);
-    c.fillRect(x-w*.35,y+h,w*1.7,w*.9);
-    c.fillStyle= side==='right' ? '#8a6539' : '#6d4d2c';
-    c.fillRect(side==='right'? x+w : x-w*.35, y-w*.9, w*.35, h+w*1.8);
-    c.strokeStyle='rgba(20,12,4,.55)';
-    c.strokeRect(x-w*.35,y-w*.9,w*1.7,h+w*1.8);
+    c.lineJoin='round';
+    // frame, then opening, both outlined: two flat shapes and a heavy line,
+    // the same recipe as the mop and the page around it
+    c.fillStyle='#b98a52';
+    c.beginPath(); c.roundRect(x-jamb, y-jamb, w+jamb*2, h+jamb*2, jamb*.5); c.fill();
+    c.lineWidth=lw; c.strokeStyle=INK; c.stroke();
+    c.fillStyle='#2a1c10';
+    c.beginPath(); c.roundRect(x, y, w, h, Math.min(w,h)*.14); c.fill();
+    c.lineWidth=lw*.8; c.stroke();
     c.restore();
   }
 
@@ -4292,7 +4253,7 @@
       const pos={x:(p.rx!==undefined?p.rx:mFromN(p.x,p.y).x),
                  y:(p.ry!==undefined?p.ry:mFromN(p.x,p.y).y)};
       const wd=Math.max(6,(p.mw||14)*IN);
-      drawMop(pos.x,pos.y,p.rh!==undefined?p.rh:(p.h||0),wd,broomWood(p.name),p.tl);
+      drawMop(pos.x,pos.y,p.rh!==undefined?p.rh:(p.h||0),wd,broomWood(p.name));
       ctx.font='600 '+Math.max(9,Math.round(cell*1.1))+'px Karla, sans-serif';
       ctx.textAlign='center';
       ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillText(p.name||'mopper', pos.x+1, pos.y+wd*.75+1);
@@ -4364,7 +4325,6 @@
         h:R(0,TAU), th:0, sp:inPerSec, w: methodical? 16 : R(9,22),
         methodical, wp:[], wi:0, turn:R(600,2000)
       });
-      mbots[i].tool=broomTool(mbots[i].name);
     }
   }
   function botLanes(b){
@@ -4409,7 +4369,7 @@
   function drawBots(){
     for(const b of mbots){
       const wd=Math.max(6,b.w*IN);
-      drawMop(b.x,b.y,b.h,wd,broomWood(b.name),b.tool);
+      drawMop(b.x,b.y,b.h,wd,broomWood(b.name));
       ctx.font='600 '+Math.max(9,Math.round(cell*1.1))+'px Karla, sans-serif';
       ctx.textAlign='center';
       ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillText(b.name, b.x+1, b.y+wd*.75+1);
@@ -4579,8 +4539,7 @@
   }
   function pushMopPresence(){
     if(!mcoop) return;
-    const p={name:mopName(), since:mcoop.since, w:worldSeed, lvl:level, ridx:roomIdx,
-             tl:S.tool};
+    const p={name:mopName(), since:mcoop.since, w:worldSeed, lvl:level, ridx:roomIdx};
     if(mcoop.net) mcoop.net.presence(p);
     if(mcoop.bridge) mcoop.bridge.presence(p);
   }
@@ -4596,8 +4555,7 @@
     mSent={x:n.x, y:n.y, h:heading, at:now};
     roomFast({id:mcoop.myId, name:mopName(),
                     x:+n.x.toFixed(4), y:+n.y.toFixed(4), h:+heading.toFixed(2),
-                    mw:S.mopw, tl:S.tool, w:worldSeed, lvl:level, ridx:roomIdx,
-                    since:mcoop.since});
+                    mw:S.mopw, w:worldSeed, lvl:level, ridx:roomIdx, since:mcoop.since});
   }
   let mPosIn=0, mPosSelf=0;
   function noteMopPeer(d){
@@ -5029,7 +4987,6 @@
       S.speed=Math.min(SPEEDS.length-1,Math.max(0,S.speed|0));
       if(['mosaic','mop'].includes(o.mode)) S.mode=o.mode;
       if(o.mopStyle==='classic'||o.mopStyle==='strands') S.mopStyle=o.mopStyle;
-      if(TOOLS[o.tool]) S.tool=o.tool;
       S.drag=!!o.drag;
       dragBtn.setAttribute('aria-pressed',String(S.drag));
       dragBtn.textContent=S.drag?'Dragging the broom':'Drag broom mode';
@@ -5457,7 +5414,6 @@
     return {code:mcoop.code, isHost:mcoop.isHost, myId:mcoop.myId,
             via: mcoop.test?'rehearsal':(mcoop.net&&mcoop.net.kind)||'none',
             peers:[...mcoop.peers.values()].map(p=>({name:p.name||'?', me:!!p.me, x:p.x, y:p.y,
-              tool:p.tl||null,
               age: p.seen? Math.round((Date.now()-p.seen)/1000) : null}))};
   };
   window.__mopCheat={
@@ -5539,34 +5495,6 @@
   bind('drift','drift',v=>(v/100).toFixed(2)+'°/step');
   bind('sat','sat',v=>v+'%',syncAccent);
   bind('ground','ground',v=>v+'%');
-  const toolBtns=[...document.querySelectorAll('.seg button[data-tool]')];
-  function paintTool(){
-    toolBtns.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tool===S.tool)));
-  }
-  toolBtns.forEach(b=>b.addEventListener('click',()=>{
-    if(!TOOLS[b.dataset.tool]) return;
-    setTool(b.dataset.tool);
-  }));
-  // A seam for trying tools from the console, and the only way the harness
-  // can draw one without a browser.
-  function setTool(n){
-    if(!TOOLS[n]) return S.tool;
-    S.tool=n; save(); paintTool();
-    // Tell the room at once. Left to the next position update, a mop that had
-    // stopped moving kept its old shape on every other screen.
-    if(mcoop){ pushMopPresence(); pushMopPos(true); }
-    return S.tool;
-  }
-  window.__mopTool={
-    list:()=>Object.keys(TOOLS),
-    get:()=>S.tool,
-    set:setTool,
-    draw(n,c,X,Y,A,w,wood){
-      const f = n==='clay' ? drawClay : n==='moss' ? drawMoss : drawChalk;
-      f(c,X,Y,A,w,wood||myBroom());
-    }
-  };
-
   const spEl=document.getElementById('speed'), spOut=document.getElementById('speed-o');
   const spNotches=SPEEDS.map((v,i)=>{
     const b=document.createElement('button');
@@ -5602,7 +5530,7 @@
   });
   renderTally();
   applyMode();
-  hueRun=S.hue; syncAccent(); paintTool();
+  hueRun=S.hue; syncAccent();
   worldSeed=soloWorld(); worldName='solo';
   loadMem();
   roomIdx = S.mode==='mop' ? whereWas() : 0;
@@ -6990,7 +6918,8 @@
     Math.random=()=>{ x^=x<<13; x>>>=0; x^=x>>>17; x^=x<<5; x>>>=0; return x/4294967296; };
     try{ fn(); } finally{ Math.random=orig; }
   }
-  const doorW = () => Math.max(34, body*1.5);
+  const INK_A='#2b2119';                     // the page's ink, this side of the wall
+  const doorW = () => Math.max(26, body*1.15);
   const doorH = () => Math.min(H*.34, body*4.5);
 
   /* ── sprites ────────────────────────────────────────────── */
@@ -8610,26 +8539,26 @@
   function drawDoor(c,t){
     if(kind==='hall'||kind==='shop') return drawArch(c,t);
     const w=doorW()*1.5, h=doorH()*1.15, x=W-w, y=H/2-h/2, cxx=W-w*.18, cyy=H/2;
+    const lw=Math.max(1.8, w*.1);
     c.save();
-    // mound of excavated earth banked against the edge
-    const m=c.createRadialGradient(cxx,cyy,w*.1,cxx,cyy,w*1.05);
-    m.addColorStop(0,'#6b512f'); m.addColorStop(.55,'#7d6039'); m.addColorStop(1,'rgba(90,70,42,0)');
-    c.fillStyle=m;
-    c.beginPath(); c.ellipse(cxx,cyy,w*1.05,h*.62,0,0,TAU); c.fill();
-    for(let i=0;i<120;i++){
+    c.lineJoin='round';
+    // the mound, flat and outlined rather than a soft radial haze
+    c.fillStyle='#a97f4c';
+    c.beginPath(); c.ellipse(cxx,cyy,w*.95,h*.55,0,0,TAU); c.fill();
+    c.lineWidth=lw; c.strokeStyle=INK_A; c.stroke();
+    // a scatter of spoil, kept inside the mound
+    c.save(); c.clip();
+    for(let i=0;i<40;i++){
       const a=R(0,TAU), rr=Math.sqrt(Math.random());
-      const gx=cxx+Math.cos(a)*w*rr, gy=cyy+Math.sin(a)*h*.55*rr;
-      c.fillStyle='rgba('+(Math.random()<.5?'160,132,88':'70,52,30')+','+R(.15,.5)+')';
-      c.fillRect(gx,gy,R(1.5,3.5),R(1.5,3.5));
+      c.fillStyle='rgba(43,33,25,'+R(.14,.34)+')';
+      c.fillRect(cxx+Math.cos(a)*w*.9*rr, cyy+Math.sin(a)*h*.5*rr, R(1.5,3), R(1.5,3));
     }
+    c.restore();
     // the hole
-    const hr=w*.42;
-    const hole=c.createRadialGradient(cxx,cyy,hr*.2,cxx,cyy,hr);
-    hole.addColorStop(0,'#000'); hole.addColorStop(.7,'#150d06'); hole.addColorStop(1,'#3a2a17');
-    c.fillStyle=hole;
-    c.beginPath(); c.ellipse(cxx,cyy,hr,hr*1.25,0,0,TAU); c.fill();
-    c.strokeStyle='rgba(180,150,104,.45)'; c.lineWidth=Math.max(1.5,w*.035);
-    c.beginPath(); c.ellipse(cxx,cyy,hr,hr*1.25,0,0,TAU); c.stroke();
+    const hr=w*.4;
+    c.fillStyle='#231708';
+    c.beginPath(); c.ellipse(cxx,cyy,hr,hr*1.2,0,0,TAU); c.fill();
+    c.lineWidth=lw; c.strokeStyle=INK_A; c.stroke();
     if(doorOpen>0){
       const pulse=.5+.5*Math.sin(t/480);
       c.strokeStyle='rgba(255,236,190,'+(.5*doorOpen*pulse)+')';
@@ -8640,7 +8569,7 @@
   }
 
   function drawArch(c,t){
-    const w=doorW()*1.2, h=Math.min(H*.6, body*7), x=W-w, y=H/2-h/2, r=w*.5;
+    const w=doorW()*1.2, h=Math.min(H*.5, body*5.6), x=W-w, y=H/2-h/2, r=w*.5;
     c.save();
     c.fillStyle='#2a1c10';
     c.beginPath(); c.moveTo(x,y+h); c.lineTo(x,y+r); c.arc(x+r,y+r,r,Math.PI,0); c.lineTo(x+w,y+h);
@@ -8654,7 +8583,7 @@
       c.closePath(); c.fill();
     }
     c.restore();
-    c.strokeStyle='#d8c79a'; c.lineWidth=Math.max(2,w*.09);
+    c.strokeStyle=INK_A; c.lineWidth=Math.max(2,w*.13); c.lineJoin='round';
     c.beginPath(); c.moveTo(x,y+h); c.lineTo(x,y+r); c.arc(x+r,y+r,r,Math.PI,0); c.lineTo(x+w,y+h);
     c.stroke();
   }
