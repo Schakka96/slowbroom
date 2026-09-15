@@ -1,12 +1,22 @@
 <title>SlowBroom</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500&family=Karla:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500&family=Karla:wght@400;600&family=Baloo+2:wght@500;700&family=Nunito:wght@400;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
   :root{
     --ground:#edecf1; --panel:#f7f6fa; --edge:#d8d5e0;
     --ink:#1d1a24; --ink-soft:#615c6e; --ink-faint:#8f8a9c; --accent:#7a6cff;
+    --accent-ink:#fff;
     --shadow:0 1px 2px rgba(29,26,36,.06), 0 8px 24px rgba(29,26,36,.07);
+    /* Shape and type are tokens too, not just colour: a skin that may only
+       repaint is a palette, and the thing that reads as machine-made is the
+       shape — one radius, one hairline, one soft shadow, everywhere. */
+    --font-body:"Karla","Helvetica Neue",Arial,sans-serif;
+    --font-display:"Fraunces",Georgia,serif;
+    --font-ui:var(--font-body);
+    --radius:5px; --radius-lg:8px; --border-w:1px;
+    --h1-weight:300; --h1-spacing:-.01em;
+    --label-spacing:0em; --label-case:none;
     color-scheme:light;
   }
   @media (prefers-color-scheme: dark){
@@ -24,10 +34,87 @@
     color-scheme:dark;
   }
 
+
+  /* ── two other ways this could look ───────────────────────────────
+     The house look above is cool-grey, violet-accented, thin-hairlined and
+     soft-shadowed, set in a high-contrast display serif. That combination is
+     the default taste of every design tool that writes CSS for you, which is
+     why it can feel machine-made even though the game underneath is not.
+     Neither of these two is a recolour: each moves the shape, the type and
+     the light as well, because that is where the tell lives.
+
+     Crayon — what a paper sticker looks like. Warm cream, one tomato red,
+     thick ink borders, fat corners, and a hard offset shadow with no blur,
+     the way something cut out and laid down casts a shadow. Rounded type.
+     Nothing here is 50% grey.                                              */
+  :root[data-skin="crayon"]{
+    --ground:#fbf3e4; --panel:#fffaf0; --edge:#2b2119;
+    --ink:#2b2119; --ink-soft:#6b5947; --ink-faint:#9c8a74;
+    --accent:#e2563d; --accent-ink:#fffaf0;
+    --shadow:3px 3px 0 var(--edge);
+    --font-body:"Nunito","Trebuchet MS",sans-serif;
+    --font-display:"Baloo 2","Nunito",cursive;
+    --font-ui:var(--font-body);
+    --radius:11px; --radius-lg:16px; --border-w:2px;
+    --h1-weight:700; --h1-spacing:.005em;
+    --label-spacing:.01em; --label-case:none;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root[data-skin="crayon"]:not([data-theme="light"]){
+      --ground:#241d17; --panel:#31271f; --edge:#efe0c8;
+      --ink:#f6ead6; --ink-soft:#c4ad90; --ink-faint:#8e7a63;
+      --accent:#ff7a5c; --accent-ink:#241d17;
+      --shadow:3px 3px 0 rgba(239,224,200,.55);
+      color-scheme:dark;
+    }
+  }
+  :root[data-skin="crayon"][data-theme="dark"]{
+    --ground:#241d17; --panel:#31271f; --edge:#efe0c8;
+    --ink:#f6ead6; --ink-soft:#c4ad90; --ink-faint:#8e7a63;
+    --accent:#ff7a5c; --accent-ink:#241d17;
+    --shadow:3px 3px 0 rgba(239,224,200,.55);
+    color-scheme:dark;
+  }
+
+  /* Linen — a stationery shop, not a dashboard. Oatmeal paper, one sage
+     green, hairlines that are genuinely hair thin, corners that are nearly
+     square, and no shadow at all: things sit on the page rather than float
+     above it. Labels are small, wide-tracked and lower case.               */
+  :root[data-skin="linen"]{
+    --ground:#efece3; --panel:#f8f6f0; --edge:#d6d1c4;
+    --ink:#33322d; --ink-soft:#6d6a60; --ink-faint:#9b978b;
+    --accent:#7e8d6a; --accent-ink:#f8f6f0;
+    --shadow:none;
+    --font-body:"Zen Kaku Gothic New","Hiragino Sans",system-ui,sans-serif;
+    --font-display:"Zen Kaku Gothic New","Hiragino Sans",system-ui,sans-serif;
+    --font-ui:var(--font-body);
+    --radius:2px; --radius-lg:3px; --border-w:1px;
+    --h1-weight:500; --h1-spacing:.06em;
+    --label-spacing:.11em; --label-case:lowercase;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root[data-skin="linen"]:not([data-theme="light"]){
+      --ground:#22231f; --panel:#2b2c27; --edge:#3f4139;
+      --ink:#e7e5dc; --ink-soft:#a8a69a; --ink-faint:#787668;
+      --accent:#9fb187; --accent-ink:#22231f;
+      --shadow:none;
+      color-scheme:dark;
+    }
+  }
+  :root[data-skin="linen"][data-theme="dark"]{
+    --ground:#22231f; --panel:#2b2c27; --edge:#3f4139;
+    --ink:#e7e5dc; --ink-soft:#a8a69a; --ink-faint:#787668;
+    --accent:#9fb187; --accent-ink:#22231f;
+    --shadow:none;
+    color-scheme:dark;
+  }
+
   *{box-sizing:border-box}
   body{
     margin:0; background:var(--ground); color:var(--ink);
-    font-family:"Karla","Helvetica Neue",Arial,sans-serif; -webkit-font-smoothing:antialiased;
+    font-family:var(--font-body); -webkit-font-smoothing:antialiased;
   }
   .shell{padding:14px 18px; box-sizing:border-box}
   .screen{
@@ -44,18 +131,64 @@
     margin-left:auto; display:flex; flex-direction:column; align-items:flex-end; gap:7px;
   }
   .topbar{display:flex; justify-content:flex-end}
-  .seg.theme{border-radius:99px}
-  .seg.theme button{padding:3px 10px; font-size:.7rem}
-  .tabs{display:flex; gap:2px; border:1px solid var(--edge); border-radius:5px; padding:2px}
-  .tabs button{
-    font:inherit; font-size:.82rem; padding:6px 14px; border:0; border-radius:3px;
-    background:transparent; color:var(--ink-soft); cursor:pointer;
+  .seg.theme, .seg.skin{border-radius:99px}
+  .seg.theme button, .seg.skin button{padding:3px 10px; font-size:.7rem}
+  /* ── the three games ──────────────────────────────────────────────
+     This used to be a row of small grey words above the player count, and it
+     read as a settings control rather than as the choice of what to play.
+     There are three whole games behind it. It is now the loudest thing in the
+     masthead after the title: a proper card, icons so the three read as three
+     things rather than three words, and the chosen one filled in.          */
+  .pickgame{display:flex; flex-direction:column; align-items:flex-end; gap:6px}
+  .pickgame-lead{
+    margin:0; font-size:.7rem; font-weight:600; color:var(--accent);
+    letter-spacing:.07em; text-transform:uppercase;
+    opacity:0; transform:translateY(3px);
+    transition:opacity .4s ease, transform .4s ease;
+    pointer-events:none;
   }
-  .tabs button[aria-selected="true"]{background:var(--accent); color:#fff}
+  .pickgame.fresh .pickgame-lead{opacity:1; transform:none}
+  .tabs{
+    display:flex; gap:4px; padding:4px;
+    border:var(--border-w) solid var(--edge); border-radius:var(--radius-lg);
+    background:var(--panel); box-shadow:var(--shadow);
+  }
+  .tabs button{
+    display:inline-flex; align-items:center; gap:.5em;
+    font-family:var(--font-ui); font-size:.88rem; font-weight:600;
+    letter-spacing:var(--label-spacing);
+    padding:8px 15px; border:0; border-radius:var(--radius);
+    background:transparent; color:var(--ink-soft); cursor:pointer;
+    transition:background .16s ease, color .16s ease;
+  }
+  .tabs button .tico{width:1.15em; height:1.15em; flex:none; opacity:.85}
+  .tabs button:hover{
+    background:color-mix(in srgb, var(--accent) 13%, transparent); color:var(--ink);
+  }
+  .tabs button[aria-selected="true"]{
+    background:var(--accent); color:var(--accent-ink);
+  }
+  .tabs button[aria-selected="true"] .tico{opacity:1}
   .tabs button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+  /* First visit only: a ring that breathes out of the card three times and is
+     then gone for good — the flag is written the moment it has been seen, so
+     nobody is nagged twice. */
+  .pickgame.fresh .tabs{
+    border-color:var(--accent);
+    animation:pickme 1.9s ease-out 3;
+  }
+  @keyframes pickme{
+    0%   {box-shadow:0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent)}
+    65%  {box-shadow:0 0 0 12px color-mix(in srgb, var(--accent) 0%, transparent)}
+    100% {box-shadow:0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent)}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .pickgame.fresh .tabs{animation:none}
+    .pickgame-lead{transition:none}
+  }
   .mast h1{
-    margin:0; font-family:"Fraunces",Georgia,serif; font-weight:300;
-    font-size:clamp(1.5rem,3.4vw,2.1rem); letter-spacing:-.01em; line-height:1;
+    margin:0; font-family:var(--font-display); font-weight:var(--h1-weight);
+    font-size:clamp(1.5rem,3.4vw,2.1rem); letter-spacing:var(--h1-spacing); line-height:1;
   }
   .mast h1 em{font-style:normal; color:var(--accent); transition:color .5s ease}
   .blurb{display:flex; flex-direction:column; gap:3px; max-width:56ch}
@@ -226,7 +359,7 @@
   .say #chat-text{flex:1 1 220px}
   .say button{
     font:inherit; font-size:.82rem; padding:7px 16px; border-radius:4px; cursor:pointer;
-    border:1px solid var(--accent); background:var(--accent); color:#fff;
+    border:1px solid var(--accent); background:var(--accent); color:var(--accent-ink);
   }
   .say button:disabled{opacity:.45; cursor:default}
   .tester{border-top:1px solid var(--edge); padding-top:9px}
@@ -370,7 +503,7 @@
     background:transparent; color:var(--ink-soft); border:0; border-left:1px solid var(--edge);
   }
   .seg button:first-child{border-left:0}
-  .seg button[aria-pressed="true"]{background:var(--accent); color:#fff}
+  .seg button[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink)}
   .seg button:focus-visible{outline:2px solid var(--accent); outline-offset:-2px}
 
   .acts{display:flex; gap:8px; flex-wrap:wrap}
@@ -381,7 +514,7 @@
   }
   .acts button:hover{border-color:var(--accent); color:var(--accent)}
   .acts button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
-  .acts button[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:#fff}
+  .acts button[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
 
   .pad{display:grid; grid-template-columns:repeat(3,1fr); gap:5px; max-width:132px; margin:0 auto}
   .pad button{
@@ -389,7 +522,7 @@
     border-radius:4px; font-size:1rem; cursor:pointer; display:flex;
     align-items:center; justify-content:center; user-select:none;
   }
-  .pad button:active{background:var(--accent); color:#fff; border-color:var(--accent)}
+  .pad button:active{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
   .pad .sp{visibility:hidden}
   .peers{display:flex; flex-direction:column; gap:4px}
   .peer{display:flex; align-items:center; gap:7px; font-size:.78rem; color:var(--ink-soft)}
@@ -415,7 +548,7 @@
   #newbuild{
     position:fixed; left:12px; bottom:12px; z-index:60;
     font:inherit; font-size:.8rem; padding:9px 14px; border-radius:99px; cursor:pointer;
-    border:1px solid var(--accent); background:var(--accent); color:#fff;
+    border:1px solid var(--accent); background:var(--accent); color:var(--accent-ink);
     box-shadow:0 8px 24px rgba(0,0,0,.25);
   }
   #newbuild:hover{filter:brightness(1.08)}
@@ -484,8 +617,9 @@
     .stage{height:54vh}
     .rail{max-height:none}
     .mast-right{margin-left:0; width:100%; align-items:stretch}
+    .pickgame{align-items:stretch}
     .tabs{width:100%}
-    .tabs button{flex:1}
+    .tabs button{flex:1; justify-content:center; padding:10px 8px}
     .live{justify-content:flex-start}
   }
 </style>
@@ -801,10 +935,20 @@
         <button type="button" data-theme="dark" aria-pressed="false" title="Always dark">Dark</button>
       </div>
     </div>
-    <div class="tabs" role="tablist" aria-label="Games">
-      <button type="button" role="tab" data-tab="mop" aria-selected="true" aria-controls="tab-bloom">Mopping</button>
-      <button type="button" role="tab" data-tab="ant" aria-selected="false" aria-controls="tab-ant">Tidy Ant</button>
-      <button type="button" role="tab" data-tab="mosaic" aria-selected="false" aria-controls="tab-bloom">Mosaic</button>
+    <div class="topbar">
+      <div class="seg skin" role="group" aria-label="Style">
+        <button type="button" data-skin="" aria-pressed="true" title="The house look: cool grey and violet">House</button>
+        <button type="button" data-skin="crayon" aria-pressed="false" title="Warm paper, thick ink lines, hard shadows">Crayon</button>
+        <button type="button" data-skin="linen" aria-pressed="false" title="Oatmeal paper, sage green, hairlines, no shadow">Linen</button>
+      </div>
+    </div>
+    <div class="pickgame" id="pickgame">
+      <p class="pickgame-lead" id="pickgame-lead">Three games in here — take your pick</p>
+      <div class="tabs" role="tablist" aria-label="Games">
+        <button type="button" role="tab" data-tab="mop" aria-selected="true" aria-controls="tab-bloom"><svg class="tico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2.5v8.5"/><rect x="5.5" y="11" width="13" height="6" rx="2"/><path d="M8 17v4M12 17v4.6M16 17v4"/></svg><span>Mopping</span></button>
+        <button type="button" role="tab" data-tab="ant" aria-selected="false" aria-controls="tab-ant"><svg class="tico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="5.8" cy="12" r="2.6"/><circle cx="11.6" cy="12" r="2.1"/><circle cx="18" cy="12" r="3.1"/><path d="M4.4 9.9 2.6 7.3M4.4 14.1 2.6 16.7M11.6 9.9V7M11.6 14.1V17M17 9.2l1.4-2.4"/></svg><span>Tidy Ant</span></button>
+        <button type="button" role="tab" data-tab="mosaic" aria-selected="false" aria-controls="tab-bloom"><svg class="tico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="2.8" y="2.8" width="8" height="8" rx="1.6"/><rect x="13.2" y="2.8" width="8" height="8" rx="1.6"/><rect x="2.8" y="13.2" width="8" height="8" rx="1.6"/><rect x="13.2" y="13.2" width="8" height="8" rx="1.6" fill="currentColor" stroke="none"/></svg><span>Mosaic</span></button>
+      </div>
     </div>
     <p class="live" id="presence" aria-live="polite"><span class="dot"></span><span id="presence-text">Counting who else is here…</span></p>
     </div>
@@ -840,8 +984,7 @@
           <input type="checkbox"><span>Group chat only</span>
         </label>
         <span class="sub" id="mnest-status">Mopping alone.</span>
-        <span class="sub">Playing with friends? <b>Open a room</b> and send them the link.
-          <b>TEST</b> and <b>THIS</b> are offline practice rooms with bots — friends cannot join those.</span>
+        <span class="sub">Playing with friends? <b>Open a room</b> and send them the link.</span>
         <div class="peers" id="mnest-peers"></div>
         <button type="button" id="mnest-copy" hidden>Copy invite link</button>
       </div>
@@ -8883,14 +9026,12 @@
     mop:{
       main:'A simple social floor mopping game inspired by Hozy.<br>Take a look at the original game here: '+
         '<a class="ext" href="https://store.steampowered.com/app/3326230/Hozy/" target="_blank" rel="noopener">'+STEAM+'Hozy</a>.',
-      fine:'This browser game was developed with AI, but Hozy was not.<br>'+
-        'Go check that one out once you’re done mopping here :)'
+      fine:''
     },
     ant:{
       main:'A simple social sorting game inspired by the Sorting Bureau.<br>Take a look at the original game here: '+
         '<a class="ext" href="https://store.steampowered.com/app/4120790/The_Sorting_Bureau/" target="_blank" rel="noopener">'+STEAM+'The Sorting Bureau</a>.',
-      fine:'This browser game was developed with AI, but The Sorting Bureau was not.<br>'+
-        'Go check that one out once you’re done sorting here :)'
+      fine:''
     },
     mosaic:{ main:'A simple creative block painting game to relax to.', fine:'' }
   };
@@ -8913,7 +9054,20 @@
       st && st.focus({preventScroll:true});
     });
   }
-  tabs.forEach(b=>b.addEventListener('click',()=>show(b.dataset.tab)));
+  const pick=document.getElementById('pickgame');
+  let fresh=false;
+  try{ fresh = !localStorage.getItem('sb-picked'); }catch(e){}
+  const settle=()=>{
+    if(!fresh) return;
+    fresh=false;
+    pick && pick.classList.remove('fresh');
+    try{ localStorage.setItem('sb-picked','1'); }catch(e){}
+  };
+  if(fresh && pick){
+    pick.classList.add('fresh');
+    setTimeout(settle, 6200);              // three breaths of the ring, then done
+  }
+  tabs.forEach(b=>b.addEventListener('click',()=>{ settle(); show(b.dataset.tab); }));
   window.__showGame=show;
   let start='mop';
   try{ const v=localStorage.getItem('slow-bloom-tab'); if(MAP[v]) start=v; }catch(e){}
@@ -11240,6 +11394,34 @@
       return viaRaw(code,handlers);
     }
   };
+})();
+</script>
+
+<script>
+/* ── which of the three looks the page wears ──
+   Kept apart from light/dark on purpose: a skin says what the paper and the
+   ink are made of, the theme says whether the lights are on, and every skin
+   has to work both ways round. */
+(function(){
+  const root=document.documentElement;
+  const SKINS={'':1, crayon:1, linen:1};
+  let skin='';
+  try{ const v=localStorage.getItem('sb-skin'); if(v in SKINS) skin=v; }catch(e){}
+  function apply(){
+    if(skin) root.setAttribute('data-skin',skin); else root.removeAttribute('data-skin');
+    document.querySelectorAll('.seg.skin button').forEach(b=>
+      b.setAttribute('aria-pressed', String(b.dataset.skin===skin)));
+    if(window.__dbg) __dbg.set('skin', skin||'house');
+  }
+  document.querySelectorAll('.seg.skin button').forEach(b=>{
+    b.addEventListener('click',()=>{
+      skin=b.dataset.skin;
+      try{ localStorage.setItem('sb-skin',skin); }catch(e){}
+      apply();
+    });
+  });
+  apply();
+  window.__skin=s=>{ if(s in SKINS){ skin=s; apply(); } return skin||'house'; };
 })();
 </script>
 
