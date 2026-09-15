@@ -20,6 +20,8 @@ const ctx2d=new Proxy({},{get:(t,k)=>{
 }});
 const store={};
 global.localStorage={getItem:k=>store[k]??null,setItem:(k,v)=>store[k]=String(v),removeItem:k=>delete store[k]};
+const sess={};
+global.sessionStorage={getItem:k=>sess[k]??null,setItem:(k,v)=>sess[k]=String(v),removeItem:k=>delete sess[k]};
 global.performance={now:()=>Date.now()};
 global.navigator={clipboard:{writeText:()=>Promise.resolve()}};
 global.location={host:'schakka96.github.io',pathname:'/slowbroom/',origin:'https://x',hash:''};

@@ -2493,6 +2493,7 @@
   // of the map, because a `let` further down the file is not there yet when
   // walking into a room runs — the trap that once killed a whole script.
   let mSentBits=null, mSentAt=0, mSentRoom=-1, mFloorIn=0, mFloorOut=0, mLastIn='', mLastOut='';
+  let mPresRows=0, mPresAt=0;
   const mDropped={}, floorRows=new Map();
   let dbReads=0, dbWrites=0, dbLast='';
   const DBCFG = (window.SLOWBROOM_CONFIG && window.SLOWBROOM_CONFIG.url) ? window.SLOWBROOM_CONFIG : null;
@@ -3538,8 +3539,13 @@
     // A map is the better part of a kilobyte, and joining asks "who is
     // there" six times over. Repeating an answer nobody's floor has changed
     // since is worth doing once, not once per question.
+    // This used to stay quiet unless presence said somebody was listening,
+    // which turned a bandwidth saving into a dependency on presence working:
+    // when presence was wrong the floors stopped crossing too, and there was
+    // no way to tell the two faults apart. A map that has not changed already
+    // sends nothing, so standing still costs nothing without counting anyone.
     const worthSaying = !same || now-mSentAt > 2000;
-    if((mcoop.peers.size>1 || force) && worthSaying){
+    if(worthSaying){
       mFloorOut++;
       const m=shB64(bits);
       mLastOut='room '+(room+1)+' · '+shPop(bits)+'/'+SH_N+' patches · '+m.length+' chars';
@@ -3583,6 +3589,7 @@
   }
   function onMopPeers(rows){
     if(!mcoop){ __dbg.warn('nest','peers arrived with no room open'); return; }
+    mPresRows=rows.length; mPresAt=Date.now();
     __dbg.log('nest','presence rows → '+rows.length+
       ' · peers I can actually see: '+mcoop.peers.size);
     const ordered=rows.slice().sort((a,b)=>(a.since||0)-(b.since||0));
@@ -3927,8 +3934,14 @@
                     x:+n.x.toFixed(4), y:+n.y.toFixed(4), h:+heading.toFixed(2),
                     mw:S.mopw, w:worldSeed, lvl:level, ridx:roomIdx, since:mcoop.since});
   }
+  let mPosIn=0, mPosSelf=0;
   function noteMopPeer(d){
-    if(!mcoop || !d || !d.id || d.id===mcoop.myId) return;
+    if(!mcoop || !d || !d.id) return;
+    mPosIn++;
+    // Somebody else's position arriving under our own id means two clients
+    // are using one identity. Worth counting, because the symptom — an empty
+    // room that is plainly connected — looks nothing like the cause.
+    if(d.id===mcoop.myId){ mPosSelf++; return; }
     const cur=mcoop.peers.get(d.id)||{id:d.id};
     const isNew=!mcoop.peers.has(d.id);
     Object.assign(cur, d, {seen:Date.now()});
@@ -4287,8 +4300,12 @@
       // in company the corridor belongs to everybody: go back to its start
       // rather than quietly wiping what the others mopped
       goToRoom(0);
-      document.getElementById('mnest-status').textContent =
-        'back at the first room of '+mcoop.code+' — a shared corridor cannot be re-dealt';
+      // say it, then give the panel back: it is the only place that tells you
+      // who else is here, and a note that never clears hides exactly that
+      const st=document.getElementById('mnest-status');
+      st.textContent='back at the first room of '+mcoop.code+
+                     ' — a shared corridor cannot be re-dealt';
+      setTimeout(setMopNestUI, 3500);
       return;
     }
     try{ localStorage.removeItem('sb-mop-map'); localStorage.removeItem('sb-mop-at'); }catch(e){}
@@ -4537,7 +4554,13 @@
     else{
       L.push('  code        '+mcoop.code+(mcoop.isHost?' (you opened it)':'')+
              ' · wire '+((mcoop.net&&mcoop.net.kind)||'none')+' · '+(mcoop.wire||'?'));
-      L.push('  your id     '+mcoop.myId);
+      L.push('  your id     '+mcoop.myId+
+             (window.__netIdentity && window.__netIdentity()!==mcoop.myId
+              ? '   (the wire calls you '+window.__netIdentity()+')' : ''));
+      L.push('  presence    '+mPresRows+' row'+(mPresRows===1?'':'s')+' last heard'+
+             (mPresAt? ' '+Math.round((Date.now()-mPresAt)/1000)+'s ago' : ': never'));
+      L.push('  positions   '+mPosIn+' in'+
+             (mPosSelf? ', '+mPosSelf+' of them wearing YOUR id' : ''));
       L.push('  code world  '+hex(hash32('slowbroom-mop-'+mcoop.code))+
              (hash32('slowbroom-mop-'+mcoop.code)===worldSeed ? '   ok'
               : '   MISMATCH — you are in a room but walking a different corridor'));
@@ -4579,8 +4602,15 @@
       if(!mcoop.net) why.push('The room is open but there is no connection — try /nestcheck.');
       if(hash32('slowbroom-mop-'+mcoop.code)!==worldSeed)
         why.push('Your corridor was not dealt from the room code. Leave and rejoin '+mcoop.code+'.');
-      if(!others.length) why.push('Nobody else has been heard from. If they are looking at the '+
-        'page, check they are on the same build — /version on both.');
+      if(mPosSelf>2) why.push('Another browser is on the wire under your own id ('+mcoop.myId+
+        '), so every move it makes is thrown away here as your own and presence '+
+        'counts you both as one. Two tabs of one browser used to share an id; if '+
+        'this is still happening, one of you should reload that tab.');
+      if(!others.length && !mPosSelf) why.push('Nobody else has been heard from. If they are '+
+        'looking at the page, check they are on the same build — /version on both — '+
+        'and that /mopdump shows the same world seed for both of you.');
+      if(!others.length && mPresRows<=1 && mPosIn>2) why.push('Messages are arriving but presence '+
+        'says you are alone, which usually means an identity clash rather than a dead wire.');
       const strangers=others.filter(p=>p.w!==undefined && (p.w>>>0)!==worldSeed);
       if(strangers.length) why.push(strangers.map(p=>p.name||'someone').join(', ')+
         ' typed a different code, or is on a build before shared corridors.');
@@ -9738,11 +9768,21 @@
 /* ──────────── the nest wire: Supabase realtime, or Claude's room ──────────── */
 (function(){
   const CFG=(window.SLOWBROOM_CONFIG && window.SLOWBROOM_CONFIG.url) ? window.SLOWBROOM_CONFIG : null;
+  // Who this browser is ON THE WIRE. This is the presence key and the id on
+  // every position, so two clients sharing it are one mopper as far as the
+  // server is concerned: the presence list collapses to a single row, and
+  // every position each one sends the other throws away as its own. It used
+  // to come from localStorage, which is per browser PROFILE — so two tabs of
+  // one browser, which is the obvious way to test co-op and exactly what an
+  // invite link opened beside the game gives you, could never see each other.
+  // sessionStorage is per tab, and survives a reload of that tab.
   let me='';
+  const freshId = () => 'c'+Math.random().toString(36).slice(2,9)+
+                        Date.now().toString(36).slice(-4);
   try{
-    me=localStorage.getItem('sb-client')||'';
-    if(!me){ me='c'+Math.random().toString(36).slice(2,11); localStorage.setItem('sb-client',me); }
-  }catch(e){ me='c'+Math.random().toString(36).slice(2,11); }
+    me=sessionStorage.getItem('sb-wire')||'';
+    if(!me){ me=freshId(); sessionStorage.setItem('sb-wire',me); }
+  }catch(e){ me=freshId(); }
 
   function loadSupa(){
     if(window.supabase) return Promise.resolve(window.supabase);
@@ -9754,6 +9794,7 @@
     });
   }
 
+  window.__netIdentity=()=>me;
   const stats=window.__netStats={out:0, inb:0, pres:0, byType:{}};
   const countOut=d=>{ stats.out++; const t=(d&&d.t)||'other'; stats.byType[t]=(stats.byType[t]||0)+1; };
   let inBucket={}, inFrom={}, inTimer=null;

@@ -98,6 +98,25 @@ other watches, then walk apart and check each other's rooms.
 
 ## Recently fixed, 2026-09-15
 
+- **Two tabs of one browser were one mopper.** `me` — the identity on the wire,
+  used as the Supabase *presence key* and as the id on every position — came
+  from `localStorage`, which is per browser **profile**, not per tab. So two
+  tabs collapsed into a single presence row ("1 of 6 mopper", on both sides)
+  and each threw the other's positions away as its own (`noteMopPeer` drops
+  `d.id===myId`). Both ends looked perfectly connected. It is `sessionStorage`
+  now — per tab, and it survives a reload of that tab. This bit the ant's nest
+  identically, and the invite link makes it the *normal* case: you open the
+  link beside the game you are already in.
+- **Floors stopped crossing when presence was wrong.** `floorPush` only
+  broadcast when `peers.size > 1`, which turned a bandwidth saving into a
+  dependency on presence working — so one fault produced two symptoms and hid
+  its own cause. A map that has not changed already sends nothing, so the
+  count was never needed.
+- `/mopdump` now prints your wire id, the presence row count, how many
+  positions arrived, **and how many arrived wearing your own id** — the
+  signature of an identity clash — and says so in the VERDICT.
+- The "Fresh surface" note no longer sits permanently over the room panel.
+
 - **The auto-mop got stuck in corners.** Its steering always corrected `x`
   before it would consider `y`. A ninety-degree turn takes about twenty frames
   and the mop keeps going the old way while it comes round — fifty pixels of

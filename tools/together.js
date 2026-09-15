@@ -32,19 +32,27 @@ function db(url, opts){
 
 // ── the pretend wire: every channel is a list of listeners ────────────
 const wires=new Map();
-function fakeNet(who){
+function fakeNet(who, label){
   return {
     myId:who,
     async connect(code, handlers){
       const list=wires.get(code)||[]; wires.set(code,list);
-      const entry={who, handlers};
+      const entry={who, label, handlers, mine:{}};
       list.push(entry);
       const api={ kind:'test', myId:who,
         send(d){ for(const o of wires.get(code)) if(o!==entry) o.handlers.event(Object.assign({id:who},d)); },
         fast(d){ api.send(Object.assign({t:'pos'},d)); },
-        presence(p){ for(const o of wires.get(code))
-          o.handlers.peers([...wires.get(code)].map(x=>({id:x.who, me:x.who===o.who,
-            name:x.who, since:1, w:x.world, ridx:x.room}))); },
+        presence(p){
+          entry.mine=p||{};
+          // Presence is keyed by id at the server. Two clients claiming the
+          // same id are ONE row — which is the whole point of this harness.
+          for(const o of wires.get(code)){
+            const byId=new Map();
+            for(const x of wires.get(code))
+              byId.set(x.who, Object.assign({}, x.mine, {id:x.who, me:x.who===o.who, name:x.label}));
+            o.handlers.peers([...byId.values()]);
+          }
+        },
         leave(){ wires.set(code, wires.get(code).filter(x=>x!==entry)); } };
       entry.api=api;
       setTimeout(()=>handlers.status&&handlers.status('SUBSCRIBED'),0);
@@ -54,8 +62,8 @@ function fakeNet(who){
 }
 
 // ── one browser ───────────────────────────────────────────────────────
-function browser(name, stageW, stageH, cols){
-  const store={};
+function browser(name, stageW, stageH, cols, sharedStore){
+  const store=sharedStore||{};
   const clicks={};
   const ctx2d=new Proxy({},{get:(t,k)=>{
     if(k==='canvas') return {width:stageW,height:stageH};
@@ -77,6 +85,8 @@ function browser(name, stageW, stageH, cols){
   const g={};
   Object.assign(g,{
     localStorage:{getItem:k=>store[k]??null,setItem:(k,v)=>store[k]=String(v),removeItem:k=>delete store[k]},
+    // per tab, never shared — that is the whole point
+    sessionStorage:(()=>{ const t={}; return {getItem:k=>t[k]??null,setItem:(k,v)=>t[k]=String(v),removeItem:k=>delete t[k]}; })(),
     performance:{now:()=>Date.now()},
     navigator:{clipboard:{writeText:()=>Promise.resolve()}},
     location:{host:'x',pathname:'/',origin:'https://x',hash:''},
@@ -102,8 +112,10 @@ function browser(name, stageW, stageH, cols){
   store['slow-bloom']=JSON.stringify({mode:'mop', cols, hold:true});
   vm.createContext(g);
   for(const b of blocks){ try{ vm.runInContext(b,g); }catch(e){ console.log(name+' THROW: '+e.message); } }
-  g.__net=fakeNet(name);
-  return {name, g, store, clicks};
+  // the page works out its own identity; the wire uses that, not a name the
+  // test made up, so an identity clash between two tabs shows up here
+  g.__net=fakeNet(g.__netIdentity ? g.__netIdentity() : name, name);
+  return {name, g, store, clicks, id:(g.__netIdentity?g.__netIdentity():name)};
 }
 
 // ── the run ───────────────────────────────────────────────────────────
@@ -172,6 +184,24 @@ const seedOf = b => (b.g.__mopDiag().match(/seed\s+([0-9a-f]+)/)||[0,''])[1];
   ok('Cass walks into room 3 and the floor is as they left it',
      pct(C)>1500 && pct(C)<2600, pct(C)+' patches');
   ok('Cass deals the same corridor too', seedOf(C)===lastSeed, seedOf(C)+' vs '+lastSeed);
+
+  // ── two tabs of one browser: the way anybody tests this alone ────────
+  console.log('');
+  console.log('— two tabs of the same browser —');
+  const shared={};
+  const T1=browser('Tab one', 1400, 800, 48, shared);
+  const T2=browser('Tab two', 1000, 700, 48, shared);
+  ok('two tabs get different identities on the wire', T1.id!==T2.id, T1.id+' vs '+T2.id);
+  T1.g.__mopJoin('NPZZ', true);
+  T2.g.__mopJoin('NPZZ', false);
+  await new Promise(r=>setTimeout(r,80));
+  const seen = b => +(b.g.__mopDiag().match(/·\s(\d+) of 6 mopper/)||[0,0])[1] ||
+                    (b.g.__mopRoom()||{peers:[]}).peers.length;
+  ok('tab one can see tab two', seen(T1)>1, seen(T1)+' in the room');
+  ok('tab two can see tab one', seen(T2)>1, seen(T2)+' in the room');
+  T1.g.__mopCheat.band(50);
+  await new Promise(r=>setTimeout(r,120));
+  ok('and tab two sees what tab one mopped', pct(T2)>2000, pct(T2)+' patches');
 
   console.log(bad? '\n'+bad+' failed' : '\nall good');
   process.exit(bad?1:0);
