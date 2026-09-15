@@ -3770,12 +3770,25 @@
     c.restore();
   }
 
-  function drawMop(X,Y,A,WD,wood){
+  // A tool belongs to whoever is holding it. Left to default, every mop on a
+  // shared floor was drawn with OUR S.tool — the shape carried no information
+  // at all, because it was the same shape for everyone.
+  function drawMop(X,Y,A,WD,wood,tool){
     X=(X===undefined?px:X); Y=(Y===undefined?py:Y);
     A=(A===undefined?heading:A); WD=WD||mopPx();
     wood=wood||myBroom();
-    const f = S.tool==='clay' ? drawClay : S.tool==='moss' ? drawMoss : drawChalk;
+    const t=TOOLS[tool]? tool : S.tool;
+    const f = t==='clay' ? drawClay : t==='moss' ? drawMoss : drawChalk;
     f(ctx,X,Y,A,WD,wood);
+  }
+  // Bots never chose anything, so deal them one from their name the way the
+  // broom colour is dealt — a different seed, so colour and shape vary apart.
+  function broomTool(name){
+    let h=5381;
+    const n=String(name||'mopper').toLowerCase().trim() || 'mopper';
+    for(let i=0;i<n.length;i++) h=Math.imul(h,33)^n.charCodeAt(i);
+    const list=Object.keys(TOOLS);
+    return list[Math.abs(h)%list.length];
   }
 
   // ── doorways: leave a room part-done, come back through the door on the left
@@ -4258,7 +4271,7 @@
       const pos={x:(p.rx!==undefined?p.rx:mFromN(p.x,p.y).x),
                  y:(p.ry!==undefined?p.ry:mFromN(p.x,p.y).y)};
       const wd=Math.max(6,(p.mw||14)*IN);
-      drawMop(pos.x,pos.y,p.rh!==undefined?p.rh:(p.h||0),wd,broomWood(p.name));
+      drawMop(pos.x,pos.y,p.rh!==undefined?p.rh:(p.h||0),wd,broomWood(p.name),p.tl);
       ctx.font='600 '+Math.max(9,Math.round(cell*1.1))+'px Karla, sans-serif';
       ctx.textAlign='center';
       ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillText(p.name||'mopper', pos.x+1, pos.y+wd*.75+1);
@@ -4330,6 +4343,7 @@
         h:R(0,TAU), th:0, sp:inPerSec, w: methodical? 16 : R(9,22),
         methodical, wp:[], wi:0, turn:R(600,2000)
       });
+      mbots[i].tool=broomTool(mbots[i].name);
     }
   }
   function botLanes(b){
@@ -4374,7 +4388,7 @@
   function drawBots(){
     for(const b of mbots){
       const wd=Math.max(6,b.w*IN);
-      drawMop(b.x,b.y,b.h,wd,broomWood(b.name));
+      drawMop(b.x,b.y,b.h,wd,broomWood(b.name),b.tool);
       ctx.font='600 '+Math.max(9,Math.round(cell*1.1))+'px Karla, sans-serif';
       ctx.textAlign='center';
       ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillText(b.name, b.x+1, b.y+wd*.75+1);
@@ -4544,7 +4558,8 @@
   }
   function pushMopPresence(){
     if(!mcoop) return;
-    const p={name:mopName(), since:mcoop.since, w:worldSeed, lvl:level, ridx:roomIdx};
+    const p={name:mopName(), since:mcoop.since, w:worldSeed, lvl:level, ridx:roomIdx,
+             tl:S.tool};
     if(mcoop.net) mcoop.net.presence(p);
     if(mcoop.bridge) mcoop.bridge.presence(p);
   }
@@ -4560,7 +4575,8 @@
     mSent={x:n.x, y:n.y, h:heading, at:now};
     roomFast({id:mcoop.myId, name:mopName(),
                     x:+n.x.toFixed(4), y:+n.y.toFixed(4), h:+heading.toFixed(2),
-                    mw:S.mopw, w:worldSeed, lvl:level, ridx:roomIdx, since:mcoop.since});
+                    mw:S.mopw, tl:S.tool, w:worldSeed, lvl:level, ridx:roomIdx,
+                    since:mcoop.since});
   }
   let mPosIn=0, mPosSelf=0;
   function noteMopPeer(d){
@@ -5420,6 +5436,7 @@
     return {code:mcoop.code, isHost:mcoop.isHost, myId:mcoop.myId,
             via: mcoop.test?'rehearsal':(mcoop.net&&mcoop.net.kind)||'none',
             peers:[...mcoop.peers.values()].map(p=>({name:p.name||'?', me:!!p.me, x:p.x, y:p.y,
+              tool:p.tl||null,
               age: p.seen? Math.round((Date.now()-p.seen)/1000) : null}))};
   };
   window.__mopCheat={
@@ -5507,14 +5524,22 @@
   }
   toolBtns.forEach(b=>b.addEventListener('click',()=>{
     if(!TOOLS[b.dataset.tool]) return;
-    S.tool=b.dataset.tool; save(); paintTool();
+    setTool(b.dataset.tool);
   }));
   // A seam for trying tools from the console, and the only way the harness
   // can draw one without a browser.
+  function setTool(n){
+    if(!TOOLS[n]) return S.tool;
+    S.tool=n; save(); paintTool();
+    // Tell the room at once. Left to the next position update, a mop that had
+    // stopped moving kept its old shape on every other screen.
+    if(mcoop){ pushMopPresence(); pushMopPos(true); }
+    return S.tool;
+  }
   window.__mopTool={
     list:()=>Object.keys(TOOLS),
     get:()=>S.tool,
-    set(n){ if(TOOLS[n]){ S.tool=n; save(); paintTool(); } return S.tool; },
+    set:setTool,
     draw(n,c,X,Y,A,w,wood){
       const f = n==='clay' ? drawClay : n==='moss' ? drawMoss : drawChalk;
       f(c,X,Y,A,w,wood||myBroom());
@@ -8964,12 +8989,12 @@
   const STEAM = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 1.5A10.5 10.5 0 0 0 1.55 11L7 13.24a2.96 2.96 0 0 1 1.75-.55h.15l2.42-3.5v-.05a3.95 3.95 0 1 1 3.95 3.95h-.09l-3.45 2.46v.12a2.96 2.96 0 0 1-5.88.5l-3.9-1.61A10.5 10.5 0 1 0 12 1.5Zm-4.6 14.43.63.26a2.24 2.24 0 1 0 1.28-3.02l.65.27a1.65 1.65 0 1 1-1.26 3.05l-1.3-.56Zm10.5-7.2a2.63 2.63 0 1 0-2.63 2.64 2.63 2.63 0 0 0 2.63-2.63Zm-4.6 0a1.98 1.98 0 1 1 1.98 1.98 1.98 1.98 0 0 1-1.97-1.98Z"/></svg>';
   const BLURB={
     mop:{
-      main:'A simple social floor mopping game inspired by Hozy. (Community Chat below)<br>Take a look at the original game here: '+
+      main:'A simple social floor mopping game inspired by Hozy.<br>(Community Chat below)<br>Take a look at the original game here: '+
         '<a class="ext" href="https://store.steampowered.com/app/3326230/Hozy/" target="_blank" rel="noopener">'+STEAM+'Hozy</a>.',
       fine:''
     },
     ant:{
-      main:'A simple social sorting game inspired by the Sorting Bureau. (Community Chat below)<br>Take a look at the original game here: '+
+      main:'A simple social sorting game inspired by the Sorting Bureau.<br>(Community Chat below)<br>Take a look at the original game here: '+
         '<a class="ext" href="https://store.steampowered.com/app/4120790/The_Sorting_Bureau/" target="_blank" rel="noopener">'+STEAM+'The Sorting Bureau</a>.',
       fine:''
     },

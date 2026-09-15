@@ -225,6 +225,25 @@ const seedOf = b => (b.g.__mopDiag().match(/seed\s+([0-9a-f]+)/)||[0,''])[1];
      groupReceived && chatText(T2.made['chat-log']).includes('hello from this room'),
      'active '+T1.g.__groupChatActive()+' · sent '+chats.length+' · '+T1.made['chat-status'].textContent+
      ' · '+chatText(T2.made['chat-log']).slice(-120));
+  // ── the tool in your hand is information about YOU ──────────────────
+  // Every mop on a shared floor used to be drawn with the LOCAL player's
+  // S.tool, so the shape told you nothing: it was the same shape for
+  // everyone. The choice has to make the trip.
+  const peerOf=(b,id)=>((b.g.__mopRoom()||{peers:[]}).peers.find(p=>p.name&&!p.me)||{});
+  T1.g.__mopTool.set('moss');
+  T2.g.__mopTool.set('clay');
+  await new Promise(r=>setTimeout(r,60));
+  ok('tab two sees tab one holding a tuft of moss',
+     peerOf(T2).tool==='moss', 'saw '+peerOf(T2).tool);
+  ok('and tab one sees tab two holding the roller',
+     peerOf(T1).tool==='clay', 'saw '+peerOf(T1).tool);
+  ok('so the two of them are telling each other apart',
+     peerOf(T1).tool!==peerOf(T2).tool);
+  T1.g.__mopTool.set('chalk');
+  await new Promise(r=>setTimeout(r,60));
+  ok('changing tool reaches the room without waiting for the mop to move',
+     peerOf(T2).tool==='chalk', 'saw '+peerOf(T2).tool);
+
   T1.g.__mopCheat.band(50);
   await new Promise(r=>setTimeout(r,120));
   ok('and tab two sees what tab one mopped', pct(T2)>2000, pct(T2)+' patches');

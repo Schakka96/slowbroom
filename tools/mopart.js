@@ -134,5 +134,18 @@ T.set('chalk');
 ok(/tool:'chalk'/.test(src), 'chalk is the one a new player gets');
 ok(/if\(TOOLS\[o\.tool\]\) S\.tool=o\.tool/.test(src), 'and the choice is remembered');
 
+// ── the tool has to be per-player, not per-viewer ──
+ok(/function drawMop\(X,Y,A,WD,wood,tool\)/.test(src),
+   'drawMop takes whose tool it is drawing');
+ok(/broomWood\(p\.name\),p\.tl\)/.test(src), 'peers are drawn with their own tool');
+ok(/broomWood\(b\.name\),b\.tool\)/.test(src), 'and so are bots');
+ok(/tl:S\.tool/.test(src) && (src.match(/tl:S\.tool/g)||[]).length===2,
+   'the choice goes out on both presence and position');
+// a bot never chose, so its shape is dealt from its name and must stay put
+const botTools=['Dusty','Pim','Otto','Wren','Bo','Nils'].map(n=>global.__mopBroomTool? global.__mopBroomTool(n):null);
+ok(/function broomTool\(name\)/.test(src), 'bots get a tool dealt from their name');
+ok(/mbots\[i\]\.tool=broomTool/.test(src), 'dealt once, at build time, so it never flickers');
+void botTools;
+
 console.log(bad? '\n'+bad+' failed' : '\nall good');
 process.exit(bad?1:0);
