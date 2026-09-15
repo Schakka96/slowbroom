@@ -12,6 +12,7 @@ node tools/sweep.js              # loads every script block, catches throws
 node tools/mopcheck.js           # the shared-floor machinery, on one browser
 node tools/together.js           # two browsers, one corridor — co-op end to end
 node tools/surfaces.js           # every surface builds; the live ones run
+node tools/antsound.js           # the ant's plops and landings, into a fake speaker
 git add <paths> && git commit && git push        # GitHub Pages serves it
 ```
 
@@ -41,6 +42,13 @@ In-game there is also `/mopsim`-style help: `window.__mopSim(seconds)` drives
 the real tick with no drawing and reports the longest the auto-mop went without
 covering ground. That is how the corner stall was found — a stall is invisible
 from outside, because the mop is still "moving", just not anywhere.
+
+`tools/antsound.js` plays every sound the ant makes into a recording
+`AudioContext` instead of a speaker and asks whether each set really varies,
+whether it stays quiet, and whether the mute switch reaches it. Watch what it
+measures, not just whether it passes: its first version only kept nodes that
+were `start()`ed, so it never saw a filter, and it cheerfully reported grass
+as a 100 Hz knock. A rustle **is** its filter.
 
 `tools/sweep.js` is a stub-DOM harness. It loads each `<script>` block in a
 fake document and reports which ones throw at load. It exists because a

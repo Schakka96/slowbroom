@@ -38,6 +38,11 @@ Live: https://schakka96.github.io/slowbroom/ · build 107 — Mahagony Mop (what
   themselves, everything else dealt.
 - Auto-pickup is a rail toggle; hold `0` to gather by hand when it is off.
   `alt` blows, `space` sets down a pile and hands the bouquet to the queen.
+- The ant is audible: eight plops for picking up, and a landing sound chosen
+  by the floor — 3 wood, 3 stone, 3 water, 6 for anything that grew. `alt`
+  whooshes. `FLOOR_SFX` in the ant block maps each of the fifteen backgrounds
+  to one of the four sets; a new background wants a line there or it falls
+  back to wood. `node tools/antsound.js` checks the lot.
 - Weather: outdoors only, from round 5, never snow (snow falls in its one round).
   In the mopping game, weather only ever happens on window surfaces.
 - No cap on dusty rooms; travel right forever.
