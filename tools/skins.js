@@ -87,15 +87,15 @@ ok(/\.carry\{[^}]*max-height/.test(css) && /\.carry\{[^}]*overflow-y:auto/.test(
    'the inventory is capped and scrolls');
 ok(/carry-more/.test(css) && /carry-more/.test(src), 'and says how many it is hiding');
 
-console.log('\n— the mop looks —');
-['chalk','clay','moss'].forEach(k=>ok(has('data-look="'+k+'"'), 'the rail offers '+k));
-const looks=(src.match(/const LOOKS=\{[\s\S]*?\};/)||[''])[0];
-ok(/drift:0/.test(looks) && (looks.match(/drift:0/g)||[]).length===3,
-   'none of them drifts through the spectrum');
-const sats=[...looks.matchAll(/sat:(\d+)/g)].map(m=>+m[1]);
-ok(sats.length===3 && Math.max(...sats)<=50,
-   'all three stay muted enough to sit beside the paper', 'sat '+sats.join(', '));
-ok(/paintLook/.test(src), 'and moving a slider drops the preset label');
+console.log('\n— the three tools —');
+['chalk','clay','moss'].forEach(k=>ok(has('data-tool="'+k+'"'), 'the rail offers '+k));
+ok(src.indexOf('id="tool-ctl"') > src.indexOf('id="mopw"') &&
+   src.indexOf('id="tool-ctl"') < src.indexOf('id="drag-btn"'),
+   'and it sits in Handling with the mop, not in Palette');
+ok(!/data-look=/.test(src), 'the palette presets that were on these buttons are gone');
+ok(!/drawSqueegee|drawMopClassic/.test(src),
+   'and so is the tool art they replaced');
+// the drawing itself is checked properly in tools/mopart.js
 
 ok(/if\(done && roomIdx===0\) drawWayOut/.test(src),
    'the arrow to the door shows in the first room only');
