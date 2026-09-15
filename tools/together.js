@@ -32,6 +32,7 @@ function db(url, opts){
 
 // ── the pretend wire: every channel is a list of listeners ────────────
 const hubs={socket:new Map(), relay:new Map()};
+const chats=[];
 function fakeNet(who, label, kind){
   const wires=hubs[kind==='relay'?'relay':'socket'];
   return {
@@ -41,7 +42,10 @@ function fakeNet(who, label, kind){
       const entry={who, label, handlers, mine:{}};
       list.push(entry);
       const api={ kind:(kind||'test'), myId:who,
-        send(d){ for(const o of wires.get(code)) if(o!==entry) o.handlers.event(Object.assign({id:who},d)); },
+        send(d){
+          if(d&&d.t==='chat') chats.push({who,code,d});
+          for(const o of wires.get(code)) if(o!==entry) o.handlers.event(Object.assign({id:who},d));
+        },
         fast(d){ api.send(Object.assign({t:'pos'},d)); },
         presence(p){
           entry.mine=p||{};
@@ -65,7 +69,7 @@ function fakeNet(who, label, kind){
 // ── one browser ───────────────────────────────────────────────────────
 function browser(name, stageW, stageH, cols, sharedStore, kind){
   const store=sharedStore||{};
-  const clicks={};
+  const clicks={}, docListeners={};
   const ctx2d=new Proxy({},{get:(t,k)=>{
     if(k==='canvas') return {width:stageW,height:stageH};
     if(k==='measureText') return ()=>({width:10});
@@ -73,16 +77,17 @@ function browser(name, stageW, stageH, cols, sharedStore, kind){
     if(k==='createImageData'||k==='getImageData') return (w,h)=>({data:new Uint8ClampedArray(Math.max(4,(w|0)*(h|0)*4))});
     return ()=>{};
   }});
-  const el=id=>({ id,hidden:false,textContent:'',innerHTML:'',value:'',className:'',title:'',type:'',
+  const el=id=>({ id,hidden:false,textContent:'',innerHTML:'',value:'',checked:false,className:'',title:'',type:'',
     style:{setProperty(){}},dataset:{},classList:{add(){},remove(){},toggle(){},contains:()=>false},
     children:[],max:'100',min:'0',width:stageW,height:stageH,
     addEventListener(ev,fn){ (clicks[id]||=[]).push(fn); },
-    append(){},appendChild(){},remove(){},focus(){},blur(){},
+    append(...nodes){ this.children.push(...nodes); },appendChild(node){ this.children.push(node); },remove(){},focus(){},blur(){},
     querySelector(){return el('x');},querySelectorAll(){return [];},closest(){return null;},
     setAttribute(){},getAttribute(){return null;},
     getBoundingClientRect(){return {width:stageW,height:stageH,top:0,left:0};},
     getContext(){ return ctx2d; }, dispatchEvent(){}, toDataURL(){return '';} });
   const made={};
+  const groupTogs=[el('group-mop'),el('group-ant'),el('group-chat')];
   const g={};
   Object.assign(g,{
     localStorage:{getItem:k=>store[k]??null,setItem:(k,v)=>store[k]=String(v),removeItem:k=>delete store[k]},
@@ -92,8 +97,10 @@ function browser(name, stageW, stageH, cols, sharedStore, kind){
     navigator:{clipboard:{writeText:()=>Promise.resolve()}},
     location:{host:'x',pathname:'/',origin:'https://x',hash:''},
     document:{ getElementById:id=>(ids.includes(id)||made[id])?(made[id]||=el(id)):null,
-      createElement:t=>el(t), querySelectorAll:()=>[], querySelector:()=>null, addEventListener(){},
-      body:el('body'), head:el('head'), dispatchEvent(){},
+      createElement:t=>el(t), createTextNode:t=>({textContent:String(t)}),
+      querySelectorAll:s=>s==='.groupchat-tog input'?groupTogs:[], querySelector:()=>null,
+      addEventListener(ev,fn){ (docListeners[ev]||=[]).push(fn); },
+      body:el('body'), head:el('head'), dispatchEvent(e){ for(const fn of docListeners[e.type]||[]) fn(e); },
       documentElement:Object.assign(el('html'),{style:{setProperty(){},removeProperty(){}},
         setAttribute(){},removeAttribute(){},getAttribute:()=>null}) },
     addEventListener(){}, removeEventListener(){},
@@ -104,8 +111,7 @@ function browser(name, stageW, stageH, cols, sharedStore, kind){
     btoa:s=>Buffer.from(s,'binary').toString('base64'),
     console, CustomEvent:function(t,o){ return Object.assign({type:t},o||{}); },
     SLOWBROOM_CONFIG:{url:'https://x.supabase.co',anonKey:'k'},
-    fetch:db,
-    AudioContext:function(){ return new Proxy({},{get:()=>()=>({})}); }
+    fetch:db
   });
   g.window=g; g.globalThis=g; g.self=g;
   store['sb-dev']='1';                 // the panel is dev-gated until she flips it
@@ -119,7 +125,7 @@ function browser(name, stageW, stageH, cols, sharedStore, kind){
   g.__net=fakeNet(id, name, kind);
   // the slow road, which is what the real page opens when a room looks empty
   g.__netBridge=(code,handlers)=>fakeNet(id, name, 'relay').connect(code,handlers);
-  return {name, g, store, clicks, id};
+  return {name, g, store, clicks, groupTogs, made, id};
 }
 
 // ── the run ───────────────────────────────────────────────────────────
@@ -203,9 +209,34 @@ const seedOf = b => (b.g.__mopDiag().match(/seed\s+([0-9a-f]+)/)||[0,''])[1];
                     (b.g.__mopRoom()||{peers:[]}).peers.length;
   ok('tab one can see tab two', seen(T1)>1, seen(T1)+' in the room');
   ok('tab two can see tab one', seen(T2)>1, seen(T2)+' in the room');
+  for(const b of [T1,T2]){
+    b.groupTogs[0].checked=true;
+    for(const fn of b.clicks[b.groupTogs[0].id]||[]) fn({target:b.groupTogs[0]});
+  }
+  ok('the group-chat switches stay in sync',
+     T1.groupTogs.every(x=>x.checked) && T2.groupTogs.every(x=>x.checked));
+  T1.made['chat-text'].value='hello from this room';
+  for(const fn of T1.clicks['chat-form']||[]) fn({preventDefault(){}});
+  await new Promise(r=>setTimeout(r,30));
+  const chatText = node => String(node&&node.textContent||'')+
+    ((node&&node.children)||[]).map(chatText).join('');
+  const groupReceived=T2.g.__groupChatDiag().messages.some(m=>m.text==='hello from this room');
+  ok('a group message reaches the other tab without the public chat',
+     groupReceived && chatText(T2.made['chat-log']).includes('hello from this room'),
+     'active '+T1.g.__groupChatActive()+' · sent '+chats.length+' · '+T1.made['chat-status'].textContent+
+     ' · '+chatText(T2.made['chat-log']).slice(-120));
   T1.g.__mopCheat.band(50);
   await new Promise(r=>setTimeout(r,120));
   ok('and tab two sees what tab one mopped', pct(T2)>2000, pct(T2)+' patches');
+  T1.g.__mopLeave(); T2.g.__mopLeave();
+  T1.g.__showGame('ant'); T2.g.__showGame('ant');
+  T1.g.__antNest.join('ABCD',true); T2.g.__antNest.join('ABCD',false);
+  await new Promise(r=>setTimeout(r,100));
+  T1.made['chat-text'].value='hello from this nest';
+  for(const fn of T1.clicks['chat-form']||[]) fn({preventDefault(){}});
+  await new Promise(r=>setTimeout(r,30));
+  ok('the same group chat follows players into an ant nest',
+     T2.g.__groupChatDiag().messages.some(m=>m.text==='hello from this nest'));
 
   // ── one on the socket, one on the plain-HTTP relay ──────────────────
   // Exactly what two real browsers did: same code, same world, both correctly

@@ -17,5 +17,6 @@ made with far more love than this one. Go play those.
 - **Type a letter** — write a chat message right on the field, Enter sends
 
 ## Notes
-Single file, no build, no dependencies: `index.html`. The live player count and the chat only
-work on the claude.ai-hosted copy, which provides those services; here the page runs solo.
+The production page is `index.html`, with `config.js` providing the public
+Supabase connection used for player counts, chat and multiplayer. No account or
+download is required to play.

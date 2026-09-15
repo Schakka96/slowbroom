@@ -835,6 +835,9 @@
           <input id="mnest-code" type="text" maxlength="5" placeholder="code" autocomplete="off">
           <button type="button" id="mnest-join">Join</button>
         </div>
+        <label class="overlaytog groupchat-tog" title="Send to and show only the people in this multiplayer room">
+          <input type="checkbox"><span>Group chat only</span>
+        </label>
         <span class="sub" id="mnest-status">Mopping alone.</span>
         <span class="sub">Playing with friends? <b>Open a room</b> and send them the link.
           <b>TEST</b> and <b>THIS</b> are offline practice rooms with bots — friends cannot join those.</span>
@@ -980,6 +983,9 @@
         <input id="nest-code" type="text" maxlength="5" placeholder="code" autocomplete="off">
         <button type="button" id="nest-join">Join</button>
       </div>
+      <label class="overlaytog groupchat-tog" title="Send to and show only the people in this multiplayer room">
+        <input type="checkbox"><span>Group chat only</span>
+      </label>
       <span class="sub">Playing with friends? <b>Host a nest</b> and send them the link.
         <b>TEST</b> is an offline practice nest with bots — friends cannot join it.</span>
       <span class="sub" id="nest-status">Sorting alone.</span>
@@ -1018,6 +1024,9 @@
        <h2 id="chat-roomtitle">Mop talk</h2>
        <span class="kind">Be kind to each other.</span>
      </div>
+     <label class="overlaytog groupchat-tog" title="Send to and show only the people in this multiplayer room">
+       <input type="checkbox"><span>Group chat only</span>
+     </label>
      <label class="overlaytog" title="Show every message on the playing field">
        <input type="checkbox" id="chat-overlay"><span>Overlay</span>
      </label>
@@ -3534,11 +3543,20 @@
     e.restore();
   }
   function dryWet(dt){
-    if(!wet) return;
-    const e=wet.ctx;
-    e.save(); e.globalCompositeOperation='destination-out';
-    e.fillStyle='rgba(0,0,0,'+Math.min(.25, dt/900)+')'; e.fillRect(0,0,W,H);
-    e.restore();
+    if(wet){
+      const e=wet.ctx;
+      e.save(); e.globalCompositeOperation='destination-out';
+      e.fillStyle='rgba(0,0,0,'+Math.min(.25, dt/900)+')'; e.fillRect(0,0,W,H);
+      e.restore();
+    }
+    // The cleaned map lives in `state`; this layer is only a sheen. Let it
+    // dry too, otherwise local and remote mop paths remain as bright tracks.
+    if(clean){
+      const k=clean.ctx;
+      k.save(); k.globalCompositeOperation='destination-out';
+      k.fillStyle='rgba(0,0,0,'+Math.min(.16, dt/4200)+')'; k.fillRect(0,0,W,H);
+      k.restore();
+    }
   }
   const onGlass = () => { const s=SURFACES[level%SURFACES.length]; return !!(s.glassy||s.sub); };
   // what this room should sound like: weather behind a window, the sea behind
@@ -3859,10 +3877,10 @@
 
   function wipeClean(){
     if(dust) dust.ctx.clearRect(0,0,W,H);
-    if(clean){
-      const k=clean.ctx;
-      k.save(); k.globalAlpha=1; k.fillStyle='#fff'; k.fillRect(0,0,W,H); k.restore();
-    }
+    // A finished room should be the untouched surface, with no record of
+    // where any local or remote mop travelled.
+    if(clean) clean.ctx.clearRect(0,0,W,H);
+    if(wet) wet.ctx.clearRect(0,0,W,H);
     for(let i=0;i<N;i++) if(state[i]===0) state[i]=1;
     painted=N; done=true; updateReadout();
   }
@@ -3985,6 +4003,9 @@
   function onMopEvent(d){
     if(!mcoop || !d) return;
     if(d.t==='floor'){ onFloor(d); }
+    else if(d.t==='chat'){
+      document.dispatchEvent(new CustomEvent('slowbroom-group-chat',{detail:d}));
+    }
     else if(d.t==='oops'){
       __dbg.err('peer', (d.name||'someone')+"'s game hit an error: "+d.msg);
     }
@@ -4959,6 +4980,12 @@
     return 'opening the slow road as well — give it a couple of seconds';
   };
   window.__mopShout = d => roomSend(d);
+  window.__mopGroupSend = d => {
+    if(!mcoop || mcoop.test || !mcoop.net) return false;
+    roomSend(Object.assign({t:'chat'},d));
+    return true;
+  };
+  window.__mopGroupActive = () => !!(mcoop && !mcoop.test && mcoop.net);
   window.__mopBye = () => { if(mcoop) roomSend({t:'bye', id:mcoop.myId}); };
   window.__mopLeave=leaveMopNest;
   window.__mopJoin=(code,host)=>joinMopNest(String(code).toUpperCase(),!!host);
@@ -7509,7 +7536,9 @@
   }
   function onNetEvent(d){
     if(!coop || !d) return;
-    if(d.t==='take' || d.t==='takes'){
+    if(d.t==='chat'){
+      document.dispatchEvent(new CustomEvent('slowbroom-group-chat',{detail:d}));
+    }else if(d.t==='take' || d.t==='takes'){
       const ids = d.t==='takes' ? (d.ids||[]) : [d.i];
       let hit=false;
       const gone=new Set(ids);
@@ -7843,6 +7872,15 @@
     if(coop && coop.net) coop.net.send(d);
     else if(window.__mopShout) window.__mopShout(d);
   };
+  window.__groupChatSend = d => {
+    if((window.__game||'mop')==='ant' && coop && !coop.test && coop.net){
+      netSend('chat',d); return true;
+    }
+    return !!(window.__mopGroupSend && window.__mopGroupSend(d));
+  };
+  window.__groupChatActive = () => (window.__game||'mop')==='ant'
+    ? !!(coop && !coop.test && coop.net)
+    : !!(window.__mopGroupActive && window.__mopGroupActive());
   window.__antNest={ join:joinNest, leave:leaveNest, active:()=>!!coop };
   window.__antPeers=()=>{
     if(!coop) return null;
@@ -8879,10 +8917,9 @@
     if(!myName) return false;
     return new RegExp('@'+myName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b','i').test(t||'');
   }
-  let lastRows=[];
-  function renderFromCache(){ renderLog(lastRows); }
+  let lastRows=[], groupRows=[], groupOnly=false;
+  function renderFromCache(){ renderLog(groupOnly?groupRows:lastRows); }
   function renderLog(rows){
-    lastRows=rows;
     const mine=keyOf(myName);
     const shown=rows.filter(m=>{
       if(hidden(m.name) || banned(m.name)) return false;
@@ -8945,6 +8982,7 @@
                           (window.__mopRoom && window.__mopRoom()));
   let overlayAll=false;
   try{ overlayAll = localStorage.getItem('sb-overlay')==='1'; }catch(e){}
+  try{ groupOnly = localStorage.getItem('sb-group-only')==='1'; }catch(e){}
   const showsEverything = () => overlayAll || inCoop();
 
   // ── the mention overlay, on whichever field is showing ─────────────
@@ -8960,6 +8998,22 @@
     while(box.children.length>4) box.firstChild.remove();
     setTimeout(()=>{ el.classList.add('go'); setTimeout(()=>el.remove(),600); }, 6000);
   }
+
+  // Group messages travel over the active ant nest or mopping room. They are
+  // deliberately session-only: leaving the multiplayer room leaves its chat.
+  const groupSeen=new Set();
+  document.addEventListener('slowbroom-group-chat',e=>{
+    const m=e.detail||{};
+    // Two tabs share localStorage and therefore `clientId`; the message id is
+    // the safe self/duplicate check because each tab records its own send.
+    if(!m.id || groupSeen.has(m.id) || !m.name || !m.text) return;
+    groupSeen.add(m.id);
+    groupRows=groupRows.concat({id:m.id, name:String(m.name).slice(0,18),
+      text:String(m.text).slice(0,240), dm:m.dm||null, ts:+m.ts||Date.now()}).slice(-60);
+    if(!groupOnly) return;
+    renderLog(groupRows);
+    if(!hidden(m.name) && (!m.dm || keyOf(m.dm)===keyOf(myName))) flash(m);
+  });
 
   // ── wiring ─────────────────────────────────────────────────────────
   function setStatus(t){ statusEl.textContent=t; __dbg.set('chat', t); }
@@ -9015,7 +9069,7 @@
     if(roomEl.dataset.sig !== opts){ roomEl.dataset.sig=opts; roomEl.innerHTML=opts; }
     roomEl.value=String(room$);
     const here=rooms.find(r=>r.id===room$);
-    roomName.textContent = here ? here.name : 'Mop talk';
+    roomName.textContent = groupOnly ? 'Group chat' : (here ? here.name : 'Mop talk');
   }
   let roomsOK=true;
   function pullRooms(){
@@ -9078,7 +9132,8 @@
           if(!list.length && !fresh) return;        // nothing said since last time
           msgCache = fresh ? list : msgCache.concat(list).slice(-60);
           for(const m of msgCache){ const n=+m.id; if(n>lastId) lastId=n; }
-          renderLog(msgCache);
+          lastRows=msgCache;
+          if(!groupOnly) renderLog(lastRows);
           for(const m of list){
             if(seen.has(m.id)) continue;
             seen.add(m.id);
@@ -9235,7 +9290,8 @@
     db.collection('chat').orderBy('ts','desc').limit(60).onSnapshot(snap=>{
       const rows=snap.docs.map(d=>Object.assign({id:d.id}, d.data()||{}))
         .filter(m=>m && m.text).sort((a,b)=>(a.ts||0)-(b.ts||0));
-      renderLog(rows);
+      lastRows=rows;
+      if(!groupOnly) renderLog(lastRows);
       for(const ch of snap.docChanges()){
         if(ch.type!=='added') continue;
         const m=ch.doc.data()||{};
@@ -9458,7 +9514,11 @@
     const bar=document.getElementById('lockbar');
     if(!bar) return;
     bar.hidden=!lockedTo;
-    if(!lockedTo) return;
+    if(!lockedTo){
+      if(textEl) textEl.placeholder=groupOnly ? 'say something to your group' :
+        'say something — click a name to reply to them';
+      return;
+    }
     bar.innerHTML='';
     const t=document.createElement('span');
     t.innerHTML='Whispering to <b>'+lockedTo.replace(/[<>&]/g,'')+
@@ -9924,8 +9984,7 @@
     myName=who;
     try{ localStorage.setItem('sb-name',myName); }catch(e){}
     if(room) room.presence({name:myName});
-    say(myName, body);
-    showEcho(body);
+    if(say(myName, body)!==false) showEcho(body);
   }
   window.addEventListener('keydown',e=>{
     const t=e.target;
@@ -9952,6 +10011,20 @@
     }
     if(!allowed(body)) return;
     if(!privacyOk(body)) return;
+    if(groupOnly){
+      const send=window.__groupChatSend;
+      if(!send || !window.__groupChatActive || !window.__groupChatActive()){
+        showNotice('<b>Join a multiplayer room first.</b> Group chat stays inside an active nest or mopping room.');
+        return false;
+      }
+      const m={id:clientId+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7),
+               from:clientId, name:name.slice(0,18), text:body.trim().slice(0,240),
+               dm:lockedTo||null, ts:Date.now()};
+      if(!send(m)) return false;
+      groupSeen.add(m.id); groupRows=groupRows.concat(m).slice(-60);
+      renderLog(groupRows); setStatus('group chat');
+      return true;
+    }
     // anything addressed to the dev lands in her private inbox too
     if(CFG && /@\s*madryad\b/i.test(body)){
       rest('dev_pings',{method:'POST', body:JSON.stringify({
@@ -9981,8 +10054,7 @@
     if(window.__mopStats) window.__mopStats.setName(myName);
     if(room) room.presence({name:myName});
     const said=textEl.value;
-    say(myName, said);
-    showEcho(said);
+    if(say(myName, said)!==false) showEcho(said);
     textEl.value='';
   });
   nameEl.addEventListener('change',()=>{
@@ -10006,6 +10078,17 @@
     if(v>=80&&v<=220){ sizeEl.value=v; }
   }catch(e){}
   applySize(+sizeEl.value);
+  const groupTogs=[...document.querySelectorAll('.groupchat-tog input')];
+  function setGroupOnly(on){
+    groupOnly=!!on;
+    for(const el of groupTogs) el.checked=groupOnly;
+    try{ localStorage.setItem('sb-group-only', groupOnly?'1':'0'); }catch(e){}
+    renderRooms(); renderFromCache(); renderLock();
+    setStatus(groupOnly ? 'group chat' : 'live');
+  }
+  for(const el of groupTogs) el.addEventListener('change',()=>setGroupOnly(el.checked));
+  setGroupOnly(groupOnly);
+  window.__groupChatDiag=()=>({only:groupOnly, messages:groupRows.map(m=>({name:m.name,text:m.text}))});
   const overlayEl=document.getElementById('chat-overlay');
   overlayEl.checked=overlayAll;
   overlayEl.addEventListener('change',()=>{

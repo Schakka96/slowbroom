@@ -1,6 +1,21 @@
 # Where SlowBroom stands — 2026-09-15
 
-Live: https://schakka96.github.io/slowbroom/ · build 107 — Mahagony Mop (whatever `version.json` says is what is live)
+Live: https://schakka96.github.io/slowbroom/ · build 123 — Mahagony Mop (whatever `version.json` says is what is live)
+
+## Build 123
+
+- **Group chat only** is available below both multiplayer room-code controls and
+  above the chat log, immediately left of Overlay. All three checkboxes share
+  one saved state. When enabled, messages travel only over the active mopping
+  room or ant nest and do not enter the public chat database. Group history is
+  deliberately session-only. `node tools/together.js` checks synchronized
+  controls and delivery across two tabs in both games.
+- Mop sheen now dries along with the water instead of leaving permanent bright
+  paths. Reaching Spotless clears both transient drawing layers, so the final
+  room is the clean base surface with no local or remote trail marks.
+- `node tools/surfaces.js` still reports the four animated porthole variants as
+  the base porthole and says no surface is swimming. That failure predates this
+  build and is unrelated to the chat and mop-layer changes.
 
 ## Before you tell anyone about it
 
