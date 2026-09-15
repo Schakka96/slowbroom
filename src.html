@@ -1109,6 +1109,9 @@
   let gx=0, gy=0, hvx=0, hvy=0, gripHeading=0;   // the hand on the stick, and the head's drift
   let cell=10, ox=0, oy=0, dpr=1, W=0, H=0, IN=4;
   let base=null, dust=null, wet=null, clean=null, shine=null, tmp=null, paint=null;
+  // `dust` records the lasting cleaned floor. `wet` and `clean` are only the
+  // short-lived water/gloss drawn while a broom is actually moving.
+  let lastTraceAt=0;
 
   const R = (a,b)=>a+Math.random()*(b-a);
   const pick = a => a[(Math.random()*a.length)|0];
@@ -2753,6 +2756,10 @@
     c.save();
     c.imageSmoothingEnabled=true;
     try{ c.imageSmoothingQuality='high'; }catch(e){}
+    // A restored shared floor is quantised into grid cells. A small blur at
+    // the mask edge joins those cells into a soft contour instead of exposing
+    // a staircase after a reload or when another player mopped it.
+    try{ c.filter='blur('+Math.max(.75,cell*.16)+'px)'; }catch(e){}
     c.globalAlpha=alpha;
     for(let i=0;i<(passes||2);i++) c.drawImage(m, 0,0,cols,rows, ox,oy, cell*cols, cell*rows);
     c.restore();
@@ -2762,18 +2769,16 @@
     if(!cells.length) return;
     wipeStats.cells=cells.length; wipeStats.edge=edge.length;
     wipeStats.blobs=0; wipeStats.blits=0;
-    const d=dust&&dust.ctx, k=clean&&clean.ctx;
+    const d=dust&&dust.ctx;
     if(d){
       d.save();
       d.globalCompositeOperation='destination-out';
       blitRegion(d, cells, 1, 3);           // dust must really go
       d.restore();
     }
-    if(k){
-      k.save();
-      blitRegion(k, cells, .5, 2);          // the gloss follows the same shape
-      k.restore();
-    }
+    // Do not add sheen here. A restored coverage map says which floor is
+    // clean, not that a broom has just passed through it. Only a live stroke
+    // below gets water and gloss, both of which expire.
   }
   // the squares of a freshly laid region that still have dirt beside them
   function regionEdge(cells){
@@ -3480,10 +3485,13 @@
   }
 
   function mopStroke(x0,y0,x1,y1,WD){
-    if(!dust) return;
+    // Once Spotless has cleared its layers, continued movement must not put a
+    // new bright route back onto an otherwise clean room.
+    if(!dust || done) return;
     const w=WD||mopPx(), d=dust.ctx, e=wet.ctx, k=clean.ctx;
     const len=Math.hypot(x1-x0,y1-y0);
     const ang = len>0.01 ? Math.atan2(y1-y0,x1-x0) : heading;
+    if(len>0.01) lastTraceAt=performance.now();
 
     d.save(); d.globalCompositeOperation='destination-out';
     sweep(x0,y0,x1,y1,(x,y)=>dab(d,x,y,w,ang,.85)); d.restore();
@@ -3543,16 +3551,23 @@
     e.restore();
   }
   function dryWet(dt){
+    const now=performance.now();
+    // This is an explicit expiry, not just a very small remaining alpha: when
+    // the last broom stops, no transient trail can survive past three seconds.
+    if(lastTraceAt && now-lastTraceAt>=3000){
+      if(wet) wet.ctx.clearRect(0,0,W,H);
+      if(clean) clean.ctx.clearRect(0,0,W,H);
+      lastTraceAt=0;
+      return;
+    }
     if(wet){
       const e=wet.ctx;
       e.save(); e.globalCompositeOperation='destination-out';
-      e.fillStyle='rgba(0,0,0,'+Math.min(.25, dt/900)+')'; e.fillRect(0,0,W,H);
+      e.fillStyle='rgba(0,0,0,'+Math.min(.25, 1-Math.exp(-dt/650))+')'; e.fillRect(0,0,W,H);
       e.restore();
     }
     // The cleaned map lives in `state`; this layer is only a short-lived sheen.
-    // It is also used by replayed peer strokes, so it must dry at the same
-    // pace regardless of who made the path: after three seconds less than 1%
-    // remains.  Use the exponential form so that rate is frame-rate independent.
+    // At three seconds below 1% remains, independent of frame rate.
     if(clean){
       const k=clean.ctx;
       k.save(); k.globalCompositeOperation='destination-out';
@@ -3883,6 +3898,7 @@
     // where any local or remote mop travelled.
     if(clean) clean.ctx.clearRect(0,0,W,H);
     if(wet) wet.ctx.clearRect(0,0,W,H);
+    lastTraceAt=0;
     for(let i=0;i<N;i++) if(state[i]===0) state[i]=1;
     painted=N; done=true; updateReadout();
   }
